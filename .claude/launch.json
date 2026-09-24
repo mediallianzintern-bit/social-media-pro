@@ -1,0 +1,37 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "social-pulse-pro-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "port": 8080
+    },
+    {
+      "name": "social-pulse-pro-nospend",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "AUTO_SYNC=off",
+        "OPENAI_API_KEY=",
+        "npm",
+        "run",
+        "dev"
+      ],
+      "port": 8080
+    },
+    {
+      "name": "social-pulse-pro-manual-sync",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "AUTO_SYNC=off",
+        "npm",
+        "run",
+        "dev"
+      ],
+      "port": 8080
+    }
+  ]
+}
