@@ -19,7 +19,10 @@ if [ ! -f .env ]; then
   echo "No .env found in $(pwd)" >&2
   exit 1
 fi
-if [ ! -d .vercel ]; then
+# A link writes project.json, or repo.json when it was linked by Git repository.
+# Not just the .vercel directory: a local `vercel build` creates .vercel/output
+# without linking anything.
+if [ ! -f .vercel/project.json ] && [ ! -f .vercel/repo.json ]; then
   echo "This project isn't linked to Vercel yet. Run:  npx vercel link" >&2
   exit 1
 fi
