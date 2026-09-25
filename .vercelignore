@@ -1,0 +1,22 @@
+# What `vercel deploy` must never upload.
+#
+# The CLI uploads the working directory, so without this the local .env — with
+# the Supabase service-role key, the Apify token and the OpenAI key — would be
+# sent to the build. Real values belong in the project's Environment Variables,
+# set once and encrypted at rest, not shipped with every deploy.
+.env
+.env.*
+!.env.example
+
+# Build output and caches: Vercel builds from source.
+.output
+.vercel
+.wrangler
+.tanstack
+node_modules
+dist
+
+# Local-only tooling and notes.
+.claude
+.lovable
+*.docx
