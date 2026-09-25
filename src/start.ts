@@ -2,6 +2,7 @@ import { createStart, createCsrfMiddleware, createMiddleware } from "@tanstack/r
 
 import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
+import { requireStaff } from "@/lib/require-staff";
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
@@ -26,6 +27,8 @@ const csrfMiddleware = createCsrfMiddleware({
 });
 
 export const startInstance = createStart(() => ({
-  functionMiddleware: [attachSupabaseAuth],
+  // attachSupabaseAuth sends the signed-in user's token with every server call;
+  // requireStaff verifies it on the server and admits only @mediallianz.com.
+  functionMiddleware: [attachSupabaseAuth, requireStaff],
   requestMiddleware: [errorMiddleware, csrfMiddleware],
 }));

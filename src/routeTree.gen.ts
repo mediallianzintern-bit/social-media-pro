@@ -10,7 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as ReportRouteImport } from './routes/report'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppInstagramRouteImport } from './routes/_app/instagram'
 import { Route as AppLinkedinRouteImport } from './routes/_app/linkedin'
@@ -20,9 +22,19 @@ const AppRoute = AppRouteImport.update({
   id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReportRoute = ReportRouteImport.update({
   id: '/report',
   path: '/report',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -48,13 +60,17 @@ const AppSourcesRoute = AppSourcesRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
+  '/login': typeof LoginRoute
   '/report': typeof ReportRoute
+  '/signup': typeof SignupRoute
   '/instagram': typeof AppInstagramRoute
   '/linkedin': typeof AppLinkedinRoute
   '/sources': typeof AppSourcesRoute
 }
 export interface FileRoutesByTo {
+  '/login': typeof LoginRoute
   '/report': typeof ReportRoute
+  '/signup': typeof SignupRoute
   '/instagram': typeof AppInstagramRoute
   '/linkedin': typeof AppLinkedinRoute
   '/sources': typeof AppSourcesRoute
@@ -63,7 +79,9 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
+  '/login': typeof LoginRoute
   '/report': typeof ReportRoute
+  '/signup': typeof SignupRoute
   '/_app/instagram': typeof AppInstagramRoute
   '/_app/linkedin': typeof AppLinkedinRoute
   '/_app/sources': typeof AppSourcesRoute
@@ -71,13 +89,29 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/report' | '/instagram' | '/linkedin' | '/sources'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/report'
+    | '/signup'
+    | '/instagram'
+    | '/linkedin'
+    | '/sources'
   fileRoutesByTo: FileRoutesByTo
-  to: '/report' | '/instagram' | '/linkedin' | '/sources' | '/'
+  to:
+    | '/login'
+    | '/report'
+    | '/signup'
+    | '/instagram'
+    | '/linkedin'
+    | '/sources'
+    | '/'
   id:
     | '__root__'
     | '/_app'
+    | '/login'
     | '/report'
+    | '/signup'
     | '/_app/instagram'
     | '/_app/linkedin'
     | '/_app/sources'
@@ -86,7 +120,9 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
+  LoginRoute: typeof LoginRoute
   ReportRoute: typeof ReportRoute
+  SignupRoute: typeof SignupRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -98,11 +134,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/report': {
       id: '/report'
       path: '/report'
       fullPath: '/report'
       preLoaderRoute: typeof ReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/': {
@@ -154,7 +204,9 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
+  LoginRoute: LoginRoute,
   ReportRoute: ReportRoute,
+  SignupRoute: SignupRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

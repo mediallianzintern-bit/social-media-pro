@@ -17,6 +17,9 @@ export default defineConfig({
   // so the platform default would cut both off. 300s is the Hobby-plan ceiling;
   // on Pro it can go to 800 if generations still time out.
   nitro: {
+    // @ts-expect-error The Lovable wrapper types only its own Cloudflare keys, but
+    // passes this object to Nitro unchanged, and `vercel` is a real Nitro option —
+    // verified: the Vercel build writes maxDuration 300 into .vc-config.json.
     vercel: { functions: { maxDuration: 300 } },
   },
 });

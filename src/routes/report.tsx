@@ -13,13 +13,24 @@ import { Badge } from "@/components/ui/badge";
 import { GrowthChart } from "@/components/dashboard/growth-chart";
 import { compactNumber, dateTime } from "@/lib/format";
 import { reportQueryOptions } from "@/lib/analytics.functions";
+import { GoToLogin } from "@/components/auth/go-to";
+import { currentStaffEmail } from "@/lib/session";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import { trajectoryStatement } from "@/lib/growth";
 import type { ClientReportPlatform } from "@/lib/report-types";
 
 export const Route = createFileRoute("/report")({
-  component: ReportPage,
-  loader: ({ context }) => context.queryClient.ensureQueryData(reportQueryOptions),
+  // Behind the same login as the dashboard. It was built as a shareable client
+  // view, but it carries the client's data; a public share link can be added
+  // back deliberately (a signed, expiring token) rather than left open.
+  ssr: false,
+  beforeLoad: async ({ location }) => ({
+    staffEmail: await currentStaffEmail(),
+    returnTo: location.href,
+  }),
+  component: ReportGate,
+  loader: ({ context }) =>
+    context.staffEmail ? context.queryClient.ensureQueryData(reportQueryOptions) : null,
 });
 
 /**
@@ -267,6 +278,12 @@ function PlatformSection({ report }: { report: ClientReportPlatform }) {
       <Accuracy report={report} />
     </section>
   );
+}
+
+function ReportGate() {
+  const { staffEmail, returnTo } = Route.useRouteContext();
+  if (!staffEmail) return <GoToLogin returnTo={returnTo} />;
+  return <ReportPage />;
 }
 
 function ReportPage() {

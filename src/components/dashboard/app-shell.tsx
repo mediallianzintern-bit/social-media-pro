@@ -1,6 +1,9 @@
-import { Link, useRouterState } from "@tanstack/react-router";
-import { Activity, Instagram, LayoutDashboard, Linkedin, Radio } from "lucide-react";
-import type { ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Activity, Instagram, LayoutDashboard, Linkedin, LogOut, Radio } from "lucide-react";
+import { useEffect, type ReactNode } from "react";
+
+import { supabase } from "@/integrations/supabase/client";
 
 import {
   Sidebar,
@@ -37,14 +40,38 @@ export function AppShell({
   stale,
   autoSync,
   syncDisabled,
+  userEmail,
 }: {
   children: ReactNode;
   lastSyncedAt: string | null;
   stale: boolean;
   autoSync: boolean;
   syncDisabled: boolean;
+  userEmail: string;
 }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  // Leaving drops every cached query, so the next person at this browser does
+  // not see the last one's data flash up before the login page.
+  async function signOut() {
+    await supabase.auth.signOut();
+    queryClient.clear();
+    await navigate({ to: "/login" });
+  }
+
+  // A session can also end elsewhere — another tab signing out, or a refresh
+  // token expiring. Follow it rather than leave a dashboard of failing requests.
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
+        queryClient.clear();
+        void navigate({ to: "/login" });
+      }
+    });
+    return () => data.subscription.unsubscribe();
+  }, [navigate, queryClient]);
   const active = NAV.find((item) => item.to === pathname) ?? NAV[0];
 
   return (
@@ -90,6 +117,17 @@ export function AppShell({
           <p className="px-2 pb-1 text-[11px] leading-snug text-muted-foreground group-data-[collapsible=icon]:hidden">
             Public metrics scraped via Apify, stored on every sync.
           </p>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <div className="truncate px-2 pb-1 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+                Signed in as <span className="font-medium text-foreground">{userEmail}</span>
+              </div>
+              <SidebarMenuButton onClick={() => void signOut()} tooltip="Sign out">
+                <LogOut aria-hidden />
+                <span>Sign out</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
         </SidebarFooter>
         <SidebarRail />
       </Sidebar>
