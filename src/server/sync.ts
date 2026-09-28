@@ -3,7 +3,7 @@
 // A sync is per-platform and independent: LinkedIn failing must not lose the
 // Instagram snapshot, because a missed snapshot is a permanent hole in the
 // growth curve.
-import { mergeCompetitors, OWNER_ACCOUNTS } from "./apify/accounts";
+import { mergeCompetitors, OWNER_ACCOUNTS, trendSourcesFor } from "./apify/accounts";
 import { apifyToken } from "./apify/client";
 import { fetchInstagram, normalizeInstagram } from "./apify/instagram";
 import { fetchLinkedIn, normalizeLinkedInPosts, normalizeLinkedInProfile } from "./apify/linkedin";
@@ -29,10 +29,20 @@ import {
   type SyncResult,
 } from "@/lib/analytics-types";
 
-/** Owner plus every competitor, whether configured in env or discovered. */
+/**
+ * Owner, every competitor (configured or discovered), and every trend source.
+ *
+ * Trend sources are scraped on the same pass — the catcher can only see an
+ * account once its posts are stored — but they are not competitors and are
+ * separated again on read. See AccountRole in apify/accounts.
+ */
 async function trackedAccounts(platform: PlatformId) {
   const discovered = await readWatchlist(platform).catch(() => [] as string[]);
-  return [OWNER_ACCOUNTS[platform], ...mergeCompetitors(platform, discovered)];
+  return [
+    OWNER_ACCOUNTS[platform],
+    ...mergeCompetitors(platform, discovered),
+    ...trendSourcesFor(platform),
+  ];
 }
 
 /**
@@ -74,7 +84,9 @@ export async function syncInstagram(trigger: "manual" | "schedule"): Promise<Syn
   for (const profile of profiles) {
     if (!profile?.username) continue;
     const account = byHandle.get(profile.username.toLowerCase());
-    const role = account?.role ?? "competitor";
+    // account_snapshots constrains this column to owner/competitor, so a trend
+    // source is stored as a competitor and told apart on read by handle.
+    const role = account?.role === "owner" ? "owner" : "competitor";
     const { snapshot, posts } = normalizeInstagram(profile, capturedAt);
     snapshots.push({ snapshot, role });
 
@@ -174,7 +186,9 @@ export async function syncLinkedIn(trigger: "manual" | "schedule"): Promise<Sync
     const snapshot = normalizeLinkedInProfile(profile, capturedAt);
     if (!snapshot.handle) continue;
     const account = byHandle.get(snapshot.handle.toLowerCase());
-    const role = account?.role ?? "competitor";
+    // account_snapshots constrains this column to owner/competitor, so a trend
+    // source is stored as a competitor and told apart on read by handle.
+    const role = account?.role === "owner" ? "owner" : "competitor";
     snapshots.push({ snapshot, role });
 
     // The posts actor returns every tracked profile's posts in one dataset, so

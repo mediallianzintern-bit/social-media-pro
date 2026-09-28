@@ -5,6 +5,7 @@
 // do is survive a server restart — so the follower growth curve, which is the
 // whole point of syncing every two hours, only becomes real once Supabase is
 // wired up. The UI says so rather than letting the gap pass unnoticed.
+import { isTrendSource } from "./apify/accounts";
 import type {
   AccountSnapshot,
   ContentLane,
@@ -118,13 +119,23 @@ export async function growthSeries(platform: PlatformId, handle: string): Promis
     }));
 }
 
-export async function competitorSnapshots(platform: PlatformId): Promise<AccountSnapshot[]> {
+function competitorRoleSnapshots(platform: PlatformId): AccountSnapshot[] {
   const newest = new Map<string, AccountSnapshot>();
   for (const entry of snapshots) {
     if (entry.platform !== platform || entry.role !== "competitor") continue;
     newest.set(entry.snapshot.handle, entry.snapshot);
   }
   return [...newest.values()];
+}
+
+/** Real competitors only — benchmarks. Trend sources are excluded. */
+export async function competitorSnapshots(platform: PlatformId): Promise<AccountSnapshot[]> {
+  return competitorRoleSnapshots(platform).filter((s) => !isTrendSource(platform, s.handle));
+}
+
+/** Accounts watched only for what they surface. See AccountRole. */
+export async function trendSourceSnapshots(platform: PlatformId): Promise<AccountSnapshot[]> {
+  return competitorRoleSnapshots(platform).filter((s) => isTrendSource(platform, s.handle));
 }
 
 export async function readPosts(

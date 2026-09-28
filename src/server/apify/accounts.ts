@@ -10,8 +10,25 @@ export interface TrackedAccount {
   /** Instagram username, or LinkedIn public identifier. */
   handle: string;
   profileUrl: string;
-  role: "owner" | "competitor";
+  role: AccountRole;
 }
+
+/**
+ * What a tracked account is FOR.
+ *
+ * "trend_source" is not a competitor. These accounts are watched because they
+ * break news in the niche early — they are a feed, not a yardstick. Comparing
+ * this creator's engagement against them would be meaningless, so they are
+ * kept out of the rival briefs, the competitor cards and the report, and are
+ * read only by the trend catcher.
+ *
+ * The role is decided here rather than in the database: account_snapshots
+ * constrains its own role column to owner/competitor, and widening it needs a
+ * migration applied by hand. Their snapshots are therefore stored as
+ * "competitor" and separated on read, in competitorSnapshots and
+ * trendSourceSnapshots, which are the only two readers of that column.
+ */
+export type AccountRole = "owner" | "competitor" | "trend_source";
 
 export const OWNER_ACCOUNTS: Record<PlatformId, TrackedAccount> = {
   instagram: {
@@ -29,7 +46,11 @@ export const OWNER_ACCOUNTS: Record<PlatformId, TrackedAccount> = {
 };
 
 /** Accepts a bare handle, an @handle, or a full profile URL. */
-function parseHandle(platform: PlatformId, raw: string): TrackedAccount | null {
+function parseHandle(
+  platform: PlatformId,
+  raw: string,
+  role: AccountRole = "competitor",
+): TrackedAccount | null {
   const value = raw.trim().replace(/\/+$/, "");
   if (!value) return null;
 
@@ -48,22 +69,52 @@ function parseHandle(platform: PlatformId, raw: string): TrackedAccount | null {
       platform === "instagram"
         ? `https://www.instagram.com/${handle}/`
         : `https://www.linkedin.com/in/${handle}/`,
-    role: "competitor",
+    role,
   };
 }
 
-function competitorsFromEnv(platform: PlatformId): TrackedAccount[] {
-  const raw =
-    process.env[platform === "instagram" ? "COMPETITORS_INSTAGRAM" : "COMPETITORS_LINKEDIN"];
+function fromEnv(platform: PlatformId, variable: string, role: AccountRole): TrackedAccount[] {
+  const raw = process.env[variable];
   if (!raw) return [];
   return (
     raw
       .split(",")
-      .map((entry) => parseHandle(platform, entry))
+      .map((entry) => parseHandle(platform, entry, role))
       .filter((account): account is TrackedAccount => account !== null)
-      // Never let a competitor entry shadow the owner account.
+      // Never let an entry shadow the owner account.
       .filter((account) => account.handle !== OWNER_ACCOUNTS[platform].handle)
   );
+}
+
+/**
+ * Accounts watched purely for what they surface, never as a benchmark.
+ * See AccountRole.
+ */
+export function trendSourcesFor(platform: PlatformId): TrackedAccount[] {
+  return fromEnv(
+    platform,
+    platform === "instagram" ? "TREND_ACCOUNTS_INSTAGRAM" : "TREND_ACCOUNTS_LINKEDIN",
+    "trend_source",
+  );
+}
+
+const trendSourceHandles = (platform: PlatformId): Set<string> =>
+  new Set(trendSourcesFor(platform).map((account) => account.handle.toLowerCase()));
+
+/** Whether a stored handle is a trend source rather than a real competitor. */
+export function isTrendSource(platform: PlatformId, handle: string): boolean {
+  return trendSourceHandles(platform).has(handle.toLowerCase());
+}
+
+function competitorsFromEnv(platform: PlatformId): TrackedAccount[] {
+  // A handle listed as a trend source is never also a competitor, however it
+  // was configured or discovered.
+  const trend = trendSourceHandles(platform);
+  return fromEnv(
+    platform,
+    platform === "instagram" ? "COMPETITORS_INSTAGRAM" : "COMPETITORS_LINKEDIN",
+    "competitor",
+  ).filter((account) => !trend.has(account.handle.toLowerCase()));
 }
 
 export function competitorsFor(platform: PlatformId): TrackedAccount[] {
@@ -83,6 +134,7 @@ export function mergeCompetitors(platform: PlatformId, discovered: string[]): Tr
   const accounts = competitorsFromEnv(platform);
   const seen = new Set([
     OWNER_ACCOUNTS[platform].handle.toLowerCase(),
+    ...trendSourceHandles(platform),
     ...accounts.map((account) => account.handle.toLowerCase()),
   ]);
 
@@ -96,7 +148,7 @@ export function mergeCompetitors(platform: PlatformId, discovered: string[]): Tr
 }
 
 export function accountsFor(platform: PlatformId): TrackedAccount[] {
-  return [OWNER_ACCOUNTS[platform], ...competitorsFor(platform)];
+  return [OWNER_ACCOUNTS[platform], ...competitorsFor(platform), ...trendSourcesFor(platform)];
 }
 
 /**

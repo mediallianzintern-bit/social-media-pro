@@ -15,6 +15,7 @@ import type { AiAnalysis, ContentIdea } from "@/lib/ai-types";
 import { scriptFeatures, type ScriptFeatures } from "@/lib/script-features";
 import type { SourceDraft, SourceItem } from "@/lib/sources";
 import type { CalendarEntry } from "@/lib/calendar-types";
+import { isTrendSource } from "./apify/accounts";
 import type { IdeaStatus, Role } from "@/lib/roles";
 import type { TrendKind, TrendObservation, TrendSignal } from "@/lib/trends";
 
@@ -267,7 +268,13 @@ export async function growthSeries(
   return [...byDay.values()];
 }
 
-export async function competitorSnapshots(platform: PlatformId): Promise<AccountSnapshot[]> {
+/**
+ * Newest snapshot per handle for everything stored under the competitor role —
+ * which includes trend sources, because the role column cannot hold a third
+ * value. The two exported readers below split them apart; nothing else should
+ * read this row set directly.
+ */
+async function competitorRoleSnapshots(platform: PlatformId): Promise<AccountSnapshot[]> {
   const { data, error } = await db()
     .from("account_snapshots")
     .select("handle,display_name,headline,followers,following,posts_count,captured_at,role")
@@ -282,6 +289,18 @@ export async function competitorSnapshots(platform: PlatformId): Promise<Account
     if (!newest.has(row.handle)) newest.set(row.handle, row);
   }
   return [...newest.values()].map(toSnapshot);
+}
+
+/** Real competitors only — benchmarks. Trend sources are excluded. */
+export async function competitorSnapshots(platform: PlatformId): Promise<AccountSnapshot[]> {
+  const all = await competitorRoleSnapshots(platform);
+  return all.filter((snapshot) => !isTrendSource(platform, snapshot.handle));
+}
+
+/** Accounts watched only for what they surface. See AccountRole. */
+export async function trendSourceSnapshots(platform: PlatformId): Promise<AccountSnapshot[]> {
+  const all = await competitorRoleSnapshots(platform);
+  return all.filter((snapshot) => isTrendSource(platform, snapshot.handle));
 }
 
 /** Columns that exist in the very first migration and can always be selected. */

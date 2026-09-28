@@ -13,7 +13,13 @@
 // loudest breakouts in this niche are meme humour; without them the inbox
 // would recommend exactly the content this account has no business making.
 import { OWNER_ACCOUNTS } from "../apify/accounts";
-import { readCalendarEntries, readPosts, readTaxonomy, competitorSnapshots } from "../store";
+import {
+  readCalendarEntries,
+  readPosts,
+  readTaxonomy,
+  competitorSnapshots,
+  trendSourceSnapshots,
+} from "../store";
 import { classifyLane, distinctiveSubjects } from "@/lib/calendar-classify";
 import { LANE_FIT_THRESHOLD, buildLaneVocabulary, laneFit } from "@/lib/lane-fit";
 import {
@@ -85,14 +91,25 @@ export async function instagramTrends(
   options: { limit?: number } = {},
 ): Promise<InstagramTrendResult> {
   const owner = OWNER_ACCOUNTS[platform].handle;
-  const [rivals, lanes, calendar] = await Promise.all([
+  // Competitors AND trend sources. The catcher is the one reader that wants
+  // both: a competitor's breakout says what works in this niche, and a trend
+  // source's says what the niche is talking about today. Everything else in
+  // the system sees competitors only. See AccountRole in apify/accounts.
+  const [competitors, sources, lanes, calendar] = await Promise.all([
     competitorSnapshots(platform).catch(() => []),
+    trendSourceSnapshots(platform).catch(() => []),
     ownerLanes(platform),
     readCalendarEntries(platform).catch(() => []),
   ]);
+  const rivals = [...competitors, ...sources];
 
   if (!rivals.length) {
-    return { trends: [], rejected: [], scanned: [], reason: "No competitor accounts tracked yet." };
+    return {
+      trends: [],
+      rejected: [],
+      scanned: [],
+      reason: "No competitor or trend-source accounts have been scraped yet.",
+    };
   }
   if (!lanes.length) {
     return {

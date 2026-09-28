@@ -39,6 +39,8 @@ export const growthSeries: typeof supabase.growthSeries = (...args) =>
   store().growthSeries(...args);
 export const competitorSnapshots: typeof supabase.competitorSnapshots = (...args) =>
   store().competitorSnapshots(...args);
+export const trendSourceSnapshots: typeof supabase.trendSourceSnapshots = (...args) =>
+  store().trendSourceSnapshots(...args);
 export const readPosts: typeof supabase.readPosts = (...args) => store().readPosts(...args);
 export const lastSyncAt: typeof supabase.lastSyncAt = (...args) => store().lastSyncAt(...args);
 export const runAlreadyIngested: typeof supabase.runAlreadyIngested = (...args) =>
