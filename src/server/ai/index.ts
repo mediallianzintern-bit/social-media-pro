@@ -28,6 +28,7 @@ import {
   readPosts,
   readClient,
   readPublishedSubjects,
+  readCalendarEntries,
   readRecentSuggestions,
   readSourceItemsById,
   readTaxonomy,
@@ -125,6 +126,10 @@ async function prepareOwner(
     }
   }
 
+  // The team's own calendar: the only record of topics that are planned but
+  // not yet posted, which no platform data can show.
+  const calendar = await readCalendarEntries(platform).catch(() => []);
+
   const [pastSuggestions, priorSuggestions, publishedSubjects, niche] = await Promise.all([
     suggestionFeedback(platform).catch(() => null),
     // Everything already proposed, filmed or not — so the strategist does not
@@ -213,6 +218,23 @@ async function prepareOwner(
         lane: entry.contentLane,
         platform: entry.platform,
       })),
+      // Compressed hard. This list is only asked ONE question — "have we done
+      // this already?" — and the opening clause plus the brand answers it. The
+      // uncompressed form (120-char openings, status and lane on every row)
+      // tripled the whole prompt to 27k tokens, which is paid on every
+      // generation and buries the blocks the model actually has to reason over.
+      // The 60 most recent entries keep their opening line — those are the ones
+      // a near-variant is actually likely to collide with. Everything older is
+      // reduced to its subject.
+      calendarTopics: calendar.slice(0, 60).map((entry) => ({
+        opening: entry.content.replace(/\s+/g, " ").slice(0, 70),
+        subject: entry.subjects[0] ?? null,
+        status: null,
+        lane: null,
+      })),
+      calendarSubjects: [
+        ...new Set(calendar.slice(60).flatMap((entry) => entry.subjects.slice(0, 2))),
+      ].slice(0, 300),
       ...(goal ? { goal } : {}),
     },
   );

@@ -14,6 +14,7 @@ import {
 
 import { AiIdeaCards } from "@/components/dashboard/ai-idea-cards";
 import { SectionHeading } from "@/components/dashboard/section-heading";
+import { InstagramTrends } from "@/components/dashboard/instagram-trends";
 import { TopicInbox } from "@/components/dashboard/topic-inbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -548,6 +549,12 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
       {/* Real stories first: this is where a topic comes from, so it sits
           directly above the ideas built on it. */}
       <TopicInbox platform={platform} />
+
+      {/* What is working on Instagram itself, under the news topics: the news
+          says what happened in the world, this says what the niche is
+          rewarding right now. Instagram only — LinkedIn posts carry no view
+          count, so there is no breakout to measure. */}
+      {platform === "instagram" ? <InstagramTrends platform={platform} /> : null}
 
       {/* These carry a real subject and a full shot list, so this is where the
           "next reel to make" label belongs — not on the rule-based plays below,

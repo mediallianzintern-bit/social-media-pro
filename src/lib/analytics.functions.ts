@@ -254,3 +254,28 @@ export const generateOneIdea = createServerFn({ method: "POST" })
     const { generateMore } = await import("@/server/ai/index");
     return generateMore(data.platform, data.sourceId ? { sourceId: data.sourceId } : {});
   });
+
+// ---------------------------------------------------------------------------
+// What is working on Instagram right now, in this account's niche
+// ---------------------------------------------------------------------------
+
+/**
+ * Breakout posts across the tracked competitors, gated and ranked.
+ *
+ * Read-only and free: it scores posts the sync already collected, so opening
+ * this never scrapes and never calls a model.
+ */
+export const getInstagramTrends = createServerFn({ method: "GET" })
+  .validator((input: unknown) => platformSchema.parse(input))
+  .handler(async ({ data }) => {
+    const { instagramTrends } = await import("@/server/trends/instagram");
+    return instagramTrends(data);
+  });
+
+export const instagramTrendsQueryOptions = (platform: PlatformId) => ({
+  queryKey: ["instagram-trends", platform] as const,
+  queryFn: () => getInstagramTrends({ data: platform }),
+  // Recomputed from stored posts, so it only changes when a sync brings new
+  // ones in.
+  staleTime: 15 * 60 * 1000,
+});

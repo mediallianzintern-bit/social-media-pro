@@ -158,6 +158,28 @@ export interface AccountBrief {
     platform: string;
   }>;
   /**
+   * The team's own content calendar — topics a person chose, whether or not
+   * they have been posted yet.
+   *
+   * Distinct from publishedSubjects, which only knows what actually went out.
+   * A topic scheduled for next week exists nowhere in the platform data, so
+   * without this the strategist happily proposes something the team has
+   * already written and queued.
+   */
+  calendarTopics?: Array<{
+    opening: string;
+    subject: string | null;
+    status: string | null;
+    lane: string | null;
+  }>;
+  /**
+   * Subjects from the older half of the calendar — brands and tools that are
+   * spent but whose scripts are too old to be worth quoting back in full.
+   * A bare name answers the only question asked of them ("done already?") at a
+   * twentieth of the tokens an opening line costs.
+   */
+  calendarSubjects?: string[];
+  /**
    * §5.1 — how this system's own past suggestions performed once published.
    * Owner only, and built from measured signals.
    */
@@ -240,6 +262,8 @@ export function buildBrief(
           platform: string;
         }>;
         goal?: AccountBrief["goal"];
+        calendarTopics?: AccountBrief["calendarTopics"];
+        calendarSubjects?: AccountBrief["calendarSubjects"];
       }
     | undefined,
 ): AccountBrief {
@@ -331,6 +355,8 @@ export function buildBrief(
       ? { publishedSubjects: learning.publishedSubjects }
       : {}),
     ...(learning?.goal ? { goal: learning.goal } : {}),
+    ...(learning?.calendarTopics?.length ? { calendarTopics: learning.calendarTopics } : {}),
+    ...(learning?.calendarSubjects?.length ? { calendarSubjects: learning.calendarSubjects } : {}),
     ...(owned ? { owned } : {}),
   };
 }
@@ -616,6 +642,12 @@ ${
 - Check this block before you commit to a subject, not after. The list is what the record holds,
   not everything the creator has ever made — older posts may be missing — so treat a near-miss
   as a repeat rather than a licence.
+- You are given an ALREADY ON THE CALENDAR block: every topic the social team has planned or
+  published in their own calendar, with its status. This is the strongest "do not repeat"
+  signal in the brief, because it covers work that has not gone out yet and therefore appears
+  nowhere in the performance data. A subject here is SPENT — scheduled, drafted or posted, the
+  team has already committed to it, and proposing it again wastes the slot and tells them the
+  system is not paying attention.
 - You are given an ALREADY SUGGESTED block: every idea this system has handed this account
   before, filmed or not. None of your ideas may repeat one, and none may be a near-variant of
   one — the same subject with a different hook is a repeat. The creator has already seen these;
@@ -824,6 +856,20 @@ creator, newest first, across BOTH platforms. Same platform = the subject is spe
 platform = not new; propose it only as a deliberate port, and say so in whyNow:
 ${JSON.stringify(owner.publishedSubjects, null, 2)}
 `
+    : ""
+}
+${
+  owner.calendarTopics?.length
+    ? `ALREADY ON THE CALENDAR — ${owner.calendarTopics.length} topics the team has planned or published
+themselves, newest first — planned, drafted or posted. Every one is spent:
+${owner.calendarTopics.map((topic) => `- ${topic.subject ? `[${topic.subject}] ` : ""}${topic.opening}`).join("\n")}
+${
+  owner.calendarSubjects?.length
+    ? `\nAlso spent, from older entries on the same calendar — treat each of these subjects as
+already covered even though the script is not quoted:
+${owner.calendarSubjects.join(", ")}\n`
+    : ""
+}`
     : ""
 }
 ${

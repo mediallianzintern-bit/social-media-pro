@@ -36,6 +36,56 @@ const STOP = new Set(
   ).split(" "),
 );
 
+/**
+ * How much more concentrated in a lane a word must be than in the calendar at
+ * large before it counts as evidence. 1.0 would mean "no more common here than
+ * anywhere"; the margin above it discards words that drift just over the line.
+ */
+const MIN_LIFT = 1.25;
+
+/**
+ * The score a candidate must reach to be called part of a lane.
+ *
+ * Swept against hand-labelled competitor captions once the weighting became
+ * lift-based, which lowered every score: the old 0.15 came from the frequency
+ * formula and now rejects everything. Above ~0.1 real topics start dropping
+ * out; this sits below that with the three known false positives still out.
+ */
+export const LANE_FIT_THRESHOLD = 0.06;
+
+/**
+ * A word in more than this share of the WHOLE calendar is a stop word for this
+ * corpus, whatever its lift, and is dropped before lift is even considered.
+ *
+ * Lift alone could not carry this. With four lanes and one of them nearly half
+ * the calendar, a word like "people" — in 56% of Marketing stunts entries and
+ * 43% of all of them — clears any sane lift cutoff by a hair, and its sheer
+ * frequency then makes it the heaviest term in the match. That single word,
+ * with "million", is what filed a documentary about the Druze under Marketing
+ * stunts. Deriving the stop list from the corpus also retires the guesswork in
+ * the hand-written one above, which only ever caught the cases I thought of.
+ */
+const MAX_DOC_FREQ = 0.25;
+
+/**
+ * Below this many distinctive words there is not enough text to place a post.
+ * "The Most Private Religion! Only 2 million people." is five words; any two
+ * of them matching is a coincidence the short-caption divisor then magnifies.
+ */
+const MIN_SIGNIFICANT_WORDS = 8;
+
+/**
+ * Pseudo-counts that pull a small lane's word rates back toward the corpus.
+ *
+ * The lanes are wildly uneven — 63 Marketing stunts entries against 11 for
+ * Frontier AI developments — and a raw in-lane rate treats 3 hits out of 11 as
+ * "27% of this lane", which outweighs anything the big lanes can show. That is
+ * how a post about a government face wash became a frontier-AI topic, on
+ * "actually" and "multiple". Smoothing makes a lane earn its confidence with
+ * examples: with 11 of them the evidence is halved, with 63 it barely moves.
+ */
+const SMOOTHING = 15;
+
 export interface LaneFit {
   lane: string | null;
   /** 0-1. How much this candidate's vocabulary overlaps that lane's. */
@@ -85,8 +135,20 @@ export function buildLaneVocabulary(
     examples.set(entry.lane, (examples.get(entry.lane) ?? 0) + 1);
   }
 
-  // Weight = how often the word appears in this lane, divided by how widely it
-  // appears across all lanes. A word in every lane carries almost no weight.
+  // Weight = LIFT, not frequency.
+  //
+  // The obvious formula — frequency in the lane, damped by an inverse document
+  // frequency — is wrong here, and measurably so. Its leading term rewards
+  // exactly the words that are common in every lane, and the damping is too
+  // gentle to undo that: "people" appears in roughly 40% of the entries in all
+  // four lanes and scored 2.6x higher than "kitkat". A competitor post about
+  // the world's most private religion was filed under Marketing stunts on the
+  // strength of "people" and "million".
+  //
+  // So a word earns weight only when it is DISPROPORTIONATELY in one lane.
+  // Lift is its rate inside the lane over its rate across the whole calendar;
+  // at or below 1 the word is no more this lane's than anyone else's and is
+  // worth exactly nothing, however often it occurs.
   const total = entries.filter((e) => e.lane).length || 1;
   const byLane = new Map<string, Map<string, number>>();
   for (const [lane, counts] of perLane) {
@@ -96,9 +158,13 @@ export function buildLaneVocabulary(
       // Ignore words seen once in a lane: one topic's vocabulary is not the
       // lane's, and with ~30 examples per lane those are mostly proper nouns.
       if (count < 2) continue;
-      const inLane = count / n;
       const everywhere = (documentCount.get(word) ?? 1) / total;
-      weights.set(word, inLane * Math.log(1 / everywhere + 1));
+      if (everywhere > MAX_DOC_FREQ) continue;
+      // Smoothed toward the corpus rate; see SMOOTHING.
+      const inLane = (count + SMOOTHING * everywhere) / (n + SMOOTHING);
+      const lift = inLane / everywhere;
+      if (lift <= MIN_LIFT) continue;
+      weights.set(word, inLane * Math.log2(lift));
     }
     byLane.set(lane, weights);
   }
@@ -115,11 +181,11 @@ export function buildLaneVocabulary(
 export function laneFit(
   text: string,
   vocabulary: LaneVocabulary,
-  threshold = 0.08,
+  threshold = LANE_FIT_THRESHOLD,
   minMatched = 2,
 ): LaneFit {
   const words = significantWords(text.slice(0, 1200));
-  if (!words.length) return { lane: null, score: 0, matched: [] };
+  if (words.length < MIN_SIGNIFICANT_WORDS) return { lane: null, score: 0, matched: [] };
 
   const unique = [...new Set(words)];
   let best: LaneFit = { lane: null, score: 0, matched: [] };

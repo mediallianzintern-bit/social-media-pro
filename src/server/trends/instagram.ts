@@ -15,7 +15,7 @@
 import { OWNER_ACCOUNTS } from "../apify/accounts";
 import { readCalendarEntries, readPosts, readTaxonomy, competitorSnapshots } from "../store";
 import { classifyLane, distinctiveSubjects } from "@/lib/calendar-classify";
-import { buildLaneVocabulary, laneFit } from "@/lib/lane-fit";
+import { LANE_FIT_THRESHOLD, buildLaneVocabulary, laneFit } from "@/lib/lane-fit";
 import {
   BREAKOUT_MULTIPLE,
   MIN_POSTS_FOR_MEDIAN,
@@ -112,7 +112,7 @@ export async function instagramTrends(
   const vocabulary = calendar.length >= 20 ? buildLaneVocabulary(calendar) : null;
   const laneOf = (caption: string): { lane: string | null; fit: number; why: string[] } => {
     if (vocabulary) {
-      const fit = laneFit(caption, vocabulary, 0.15);
+      const fit = laneFit(caption, vocabulary, LANE_FIT_THRESHOLD);
       return { lane: fit.lane, fit: fit.score, why: fit.matched };
     }
     return { lane: classifyLane(caption, lanes), fit: 0, why: [] };
