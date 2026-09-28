@@ -38,3 +38,4 @@ dist-ssr
 
 # Vercel build output (local builds)
 .vercel
+.env*

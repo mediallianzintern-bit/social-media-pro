@@ -115,3 +115,9 @@ export const readUsedSourceIds: typeof supabase.readUsedSourceIds = (...args) =>
   store().readUsedSourceIds(...args);
 export const lastSourceFetch: typeof supabase.lastSourceFetch = (...args) =>
   store().lastSourceFetch(...args);
+export const saveCalendarEntries: typeof supabase.saveCalendarEntries = (...args) =>
+  store().saveCalendarEntries(...args);
+export const readCalendarEntries: typeof supabase.readCalendarEntries = (...args) =>
+  store().readCalendarEntries(...args);
+export const linkCalendarEntry: typeof supabase.linkCalendarEntry = (...args) =>
+  store().linkCalendarEntry(...args);

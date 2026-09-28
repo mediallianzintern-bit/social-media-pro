@@ -29,6 +29,7 @@ import type { AiAnalysis, ContentIdea } from "@/lib/ai-types";
 import type { IdeaStatus, Role } from "@/lib/roles";
 import type { TrendObservation, TrendSignal } from "@/lib/trends";
 import type { SourceDraft, SourceItem } from "@/lib/sources";
+import type { CalendarEntry } from "@/lib/calendar-types";
 
 interface SnapshotEntry {
   snapshot: AccountSnapshot;
@@ -126,11 +127,15 @@ export async function competitorSnapshots(platform: PlatformId): Promise<Account
   return [...newest.values()];
 }
 
-export async function readPosts(platform: PlatformId, handle: string): Promise<PostRecord[]> {
+export async function readPosts(
+  platform: PlatformId,
+  handle: string,
+  limit = 60,
+): Promise<PostRecord[]> {
   return [...posts.values()]
     .filter((post) => post.platform === platform && post.handle === handle)
     .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
-    .slice(0, 60);
+    .slice(0, limit);
 }
 
 export async function lastSyncAt(platform: PlatformId): Promise<string | null> {
@@ -366,4 +371,20 @@ export async function lastSourceFetch(platform: PlatformId): Promise<string | nu
     .map((item) => item.fetchedAt)
     .sort();
   return times.at(-1) ?? null;
+}
+
+const calendar = new Map<string, CalendarEntry>();
+
+export async function saveCalendarEntries(entries: CalendarEntry[]): Promise<number> {
+  for (const entry of entries) calendar.set(entry.contentHash, entry);
+  return entries.length;
+}
+
+export async function readCalendarEntries(platform: PlatformId): Promise<CalendarEntry[]> {
+  return [...calendar.values()].filter((entry) => entry.platform === platform);
+}
+
+export async function linkCalendarEntry(contentHash: string, postId: string): Promise<void> {
+  const entry = calendar.get(contentHash);
+  if (entry) calendar.set(contentHash, { ...entry, publishedPostId: postId });
 }

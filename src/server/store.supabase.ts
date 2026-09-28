@@ -14,6 +14,7 @@ import type {
 import type { AiAnalysis, ContentIdea } from "@/lib/ai-types";
 import { scriptFeatures, type ScriptFeatures } from "@/lib/script-features";
 import type { SourceDraft, SourceItem } from "@/lib/sources";
+import type { CalendarEntry } from "@/lib/calendar-types";
 import type { IdeaStatus, Role } from "@/lib/roles";
 import type { TrendKind, TrendObservation, TrendSignal } from "@/lib/trends";
 
@@ -301,7 +302,19 @@ function schemaNotReady(error: unknown): boolean {
   return ["42703", "42P01", "PGRST204", "PGRST205"].includes(code);
 }
 
-export async function readPosts(platform: PlatformId, handle: string): Promise<PostRecord[]> {
+/**
+ * Stored posts for one account, newest first.
+ *
+ * `limit` defaults to the 60 the dashboard reads. The calendar importer asks
+ * for the whole back catalogue instead: it matches a year of planned topics
+ * against the posts they became, and with the default window most of them have
+ * nothing to match against.
+ */
+export async function readPosts(
+  platform: PlatformId,
+  handle: string,
+  limit = 60,
+): Promise<PostRecord[]> {
   const query = (columns: string) =>
     db()
       .from("post_metrics")
@@ -309,7 +322,7 @@ export async function readPosts(platform: PlatformId, handle: string): Promise<P
       .eq("platform", platform)
       .eq("handle", handle)
       .order("published_at", { ascending: false })
-      .limit(60);
+      .limit(limit);
 
   let { data, error } = await query(POST_COLUMNS);
 
@@ -1573,4 +1586,104 @@ export async function lastSourceFetch(platform: PlatformId): Promise<string | nu
   if (error && schemaNotReady(error)) return null;
   if (error) throw new Error(`source_items read failed: ${error.message}`);
   return (data as { fetched_at: string } | null)?.fetched_at ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// The team's content calendar (0012)
+// ---------------------------------------------------------------------------
+
+interface CalendarRow {
+  content_hash: string;
+  platform: PlatformId;
+  source_file: string | null;
+  sheet: string | null;
+  planned_date: string | null;
+  brand: string | null;
+  content: string;
+  caption: string | null;
+  status: string | null;
+  lane: string | null;
+  topic_type: string | null;
+  subjects: string[] | null;
+  published_post_id: string | null;
+}
+
+const toCalendarEntry = (row: CalendarRow): CalendarEntry => ({
+  contentHash: row.content_hash,
+  platform: row.platform,
+  sourceFile: row.source_file ?? "",
+  sheet: row.sheet ?? "",
+  plannedDate: row.planned_date,
+  brand: row.brand,
+  content: row.content,
+  caption: row.caption,
+  status: row.status,
+  lane: row.lane,
+  topicType: (row.topic_type ?? "evergreen") as CalendarEntry["topicType"],
+  subjects: row.subjects ?? [],
+  publishedPostId: row.published_post_id,
+});
+
+/**
+ * Upserts calendar entries on content_hash.
+ *
+ * Re-importing an updated export must refresh rows rather than duplicate them,
+ * and the hash is the topic's identity — see contentHash() for why it is the
+ * normalised script rather than the row position.
+ */
+export async function saveCalendarEntries(entries: CalendarEntry[]): Promise<number> {
+  if (!entries.length) return 0;
+  const rows = entries.map((entry) => ({
+    content_hash: entry.contentHash,
+    platform: entry.platform,
+    source_file: entry.sourceFile,
+    sheet: entry.sheet,
+    planned_date: entry.plannedDate,
+    brand: entry.brand,
+    content: entry.content,
+    caption: entry.caption,
+    status: entry.status,
+    lane: entry.lane,
+    topic_type: entry.topicType,
+    subjects: entry.subjects,
+    published_post_id: entry.publishedPostId,
+    imported_at: new Date().toISOString(),
+  }));
+
+  // Chunked: a single statement with hundreds of long scripts exceeds what
+  // PostgREST will accept in one request.
+  let written = 0;
+  for (let i = 0; i < rows.length; i += 100) {
+    const { error } = await db()
+      .from("content_calendar")
+      .upsert(rows.slice(i, i + 100), { onConflict: "content_hash" });
+    if (error && schemaNotReady(error)) return 0;
+    if (error) throw new Error(`content_calendar upsert failed: ${error.message}`);
+    written += rows.slice(i, i + 100).length;
+  }
+  return written;
+}
+
+/** Every calendar entry for a platform. Empty before 0012 is applied. */
+export async function readCalendarEntries(platform: PlatformId): Promise<CalendarEntry[]> {
+  const { data, error } = await db()
+    .from("content_calendar")
+    .select("*")
+    .eq("platform", platform)
+    .order("planned_date", { ascending: false })
+    .limit(1000);
+  if (error && schemaNotReady(error)) return [];
+  if (error) throw new Error(`content_calendar read failed: ${error.message}`);
+  return ((data ?? []) as CalendarRow[]).map(toCalendarEntry);
+}
+
+/** Links a calendar entry to the post it became. */
+export async function linkCalendarEntry(contentHash: string, postId: string): Promise<void> {
+  const { error } = await db()
+    .from("content_calendar")
+    .update({ published_post_id: postId })
+    .eq("content_hash", contentHash);
+  if (error && !schemaNotReady(error)) {
+    throw new Error(`content_calendar link failed: ${error.message}`);
+  }
 }
