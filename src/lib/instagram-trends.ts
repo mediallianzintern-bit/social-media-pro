@@ -74,7 +74,7 @@ export function median(values: number[]): number {
  * "marketing" in that list is enough to score against a marketing lane. The
  * lane gate alone would wave it through.
  */
-const OFF_VOICE = [
+const HASHTAG_MARKERS = [
   "relatable",
   "corporatehumor",
   "workhumor",
@@ -85,26 +85,48 @@ const OFF_VOICE = [
   "funny",
   "comedy",
   "skit",
-  "pov:",
-  "when your",
-  "when you",
-  "me when",
-  "nobody:",
-  "brb",
 ];
 
-/** Captions that are mostly hashtags carry no story to build a reel on. */
+/**
+ * Hook patterns a meme opens on. Only checked near the START of a caption:
+ * these are how a joke is set up, and further in they are ordinary English.
+ */
+const OPENER_MARKERS = ["pov:", "when your", "when you", "me when", "nobody:", "brb"];
+
+/** How far into a caption an opener still counts as the hook. */
+const OPENER_WINDOW = 60;
+
+/**
+ * Captions that are mostly hashtags carry no story to build a reel on.
+ *
+ * "Mostly" means the hashtags outnumber the prose — not merely that the
+ * caption is short. Measured on the trend-source accounts, the earlier
+ * word-count test threw away "WD-40 makes $620m/year in revenue", five words
+ * and no hashtags at all, because a short caption looked the same to it as a
+ * hashtag dump. Accounts that put the substance in the video and a single line
+ * in the caption are exactly the ones worth watching.
+ */
 function isHashtagSoup(caption: string): boolean {
   const words = caption.trim().split(/\s+/).filter(Boolean);
   if (!words.length) return true;
   const tags = words.filter((w) => w.startsWith("#")).length;
-  return words.length - tags < 6;
+  const prose = words.length - tags;
+  if (!prose) return true;
+  return tags > 0 && tags >= prose && prose < 6;
 }
 
 export function offVoiceReason(caption: string): string | null {
   const text = caption.toLowerCase();
-  const hit = OFF_VOICE.find((marker) => text.includes(marker));
-  if (hit) return `reads as meme or humour content (“${hit}”) — not this account's register`;
+
+  // As a HASHTAG only. A marker inside prose is not a signal: "What's funny
+  // is, I can look at this picture..." opens a genuine post about the ChatGPT
+  // Images model, and matching "funny" anywhere in the text discarded it.
+  const tagged = HASHTAG_MARKERS.find((marker) => new RegExp(`#${marker}\\b`).test(text));
+  if (tagged) return `tagged #${tagged} — meme or humour content, not this account's register`;
+
+  const opener = OPENER_MARKERS.find((marker) => text.slice(0, OPENER_WINDOW).includes(marker));
+  if (opener) return `opens on a meme hook (\u201c${opener}\u201d) — not this account's register`;
+
   if (isHashtagSoup(caption)) return "caption is mostly hashtags — no story to build a reel on";
   return null;
 }
