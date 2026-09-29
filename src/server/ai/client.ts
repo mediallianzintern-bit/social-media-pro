@@ -7,22 +7,32 @@
 // codebase will. Set OPENAI_MODEL to whatever the account has access to.
 
 const API = "https://api.openai.com/v1/chat/completions";
-// gpt-5.4-mini across the board, chosen for cost. It is the same family as
-// gpt-5.5, so the reasoning-model handling below still applies unchanged; what
-// changes is depth of judgement, not the API contract. The heavier model is one
-// env var away — set OPENAI_MODEL=gpt-5.5 to go back — and the place to watch
-// if quality drops is the competitive read and the shot lists, which are the
-// two calls that reason hardest over the numbers.
-const DEFAULT_MODEL = "gpt-5.4-mini";
+// gpt-4o across the board, pinned deliberately: every agent, every classifier
+// and every script runs on this one model, so nothing in the system is being
+// compared across two different reasoners.
+//
+// It is NOT a reasoning model, which changes what the call sends rather than
+// what it can ask for — see isReasoningModel below. `temperature` is live again
+// and `reasoning_effort` is dropped, so the per-call `effort` hints throughout
+// the codebase are inert until the model is changed back. Both are passed at
+// every call site already, so no caller needs to know which family is in use.
+//
+// OPENAI_MODEL still overrides this. If it is set, use a snapshot from
+// 2024-08-06 or later: strict `json_schema` output is required by every call
+// here and the older gpt-4o snapshots do not support it.
+const DEFAULT_MODEL = "gpt-4o";
 
 /**
- * The GPT-5 family reasons before answering, which is what this workload wants:
- * the competitive read and the shot list are judgement calls over a table of
- * numbers, not text completion. Two API differences come with it, both verified
- * against the live endpoint rather than assumed:
+ * Which dial this model accepts. The GPT-5 family and the o-series reason before
+ * answering, and two API differences come with that, both verified against the
+ * live endpoint rather than assumed:
  *
  *   • `temperature` is rejected outright — only the default is accepted.
  *   • `reasoning_effort` is accepted, and is the useful dial in its place.
+ *
+ * gpt-4o is on the other side of this test, so it gets `temperature` and no
+ * `reasoning_effort`. Kept as a test on the model name rather than a constant
+ * because OPENAI_MODEL can still point either way.
  */
 function isReasoningModel(model: string): boolean {
   return /^(gpt-5|o[1-9])/.test(model);

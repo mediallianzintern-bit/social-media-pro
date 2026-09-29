@@ -18,11 +18,16 @@ import { readTaxonomy, savePostLanes, saveTaxonomy } from "../store";
 import type { ContentLane, PlatformId, PostRecord } from "@/lib/analytics-types";
 
 /**
- * Cheap by design. Assigning a caption to one of six named buckets does not
- * benefit from deep reasoning, and this runs over every post of every tracked
- * account — the one place in the system where volume, not judgement, dominates.
+ * The same model as everything else, on purpose.
+ *
+ * This used to be a cheaper model than the analysis calls — assigning a caption
+ * to one of six named buckets is volume, not judgement, and this runs over every
+ * post of every tracked account. That saving is given up so the system runs on
+ * one model end to end: a lane assigned by one model and then reasoned about by
+ * another is a seam, and lanes are the vocabulary every downstream comparison is
+ * built on. Point this at a cheaper model again if classification cost bites.
  */
-const CLASSIFIER_MODEL = "gpt-5.4-mini";
+const CLASSIFIER_MODEL = "gpt-4o";
 
 /** Posts read to derive the vocabulary. More than this adds cost, not accuracy. */
 const TAXONOMY_SAMPLE = 30;
