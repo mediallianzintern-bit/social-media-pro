@@ -550,11 +550,12 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
           directly above the ideas built on it. */}
       <TopicInbox platform={platform} />
 
-      {/* What is working on Instagram itself, under the news topics: the news
-          says what happened in the world, this says what the niche is
-          rewarding right now. Instagram only — LinkedIn posts carry no view
-          count, so there is no breakout to measure. */}
-      {platform === "instagram" ? <InstagramTrends platform={platform} /> : null}
+      {/* What is working on the platform itself, under the news topics: the news
+          says what happened in the world, this says what the niche is rewarding
+          right now. Was Instagram-only because LinkedIn posts carry no view
+          count — the catcher now measures interactions where views are not
+          published, so both platforms have a breakout to measure. */}
+      <InstagramTrends platform={platform} />
 
       {/* These carry a real subject and a full shot list, so this is where the
           "next reel to make" label belongs — not on the rule-based plays below,

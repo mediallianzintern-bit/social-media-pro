@@ -251,6 +251,21 @@ export const refreshTopics = createServerFn({ method: "POST" })
   });
 
 /**
+ * Gives this account its content lanes, from the posts already stored.
+ *
+ * A model call, so it only ever runs from an explicit button. It exists because
+ * three panels need lanes — the lane scorecard, the news topics and the trend
+ * catcher — and until now the only thing that created them was a full analysis
+ * run on a different panel.
+ */
+export const deriveLanes = createServerFn({ method: "POST" })
+  .validator((input: unknown) => z.object({ platform: platformSchema }).parse(input))
+  .handler(async ({ data }) => {
+    const { deriveLanesForOwner } = await import("@/server/ai/lanes");
+    return deriveLanesForOwner(data.platform);
+  });
+
+/**
  * One new idea — for a clicked topic, or the next best one.
  *
  * This IS a model call, and it only ever runs from an explicit button. Nothing

@@ -31,14 +31,26 @@ import {
   trendScore,
   type InstagramTrend,
 } from "@/lib/instagram-trends";
-import { lanePerformance, viewsOf, type PlatformId, type PostRecord } from "@/lib/analytics-types";
+import {
+  engagementsOf,
+  lanePerformance,
+  viewsOf,
+  type PlatformId,
+  type PostRecord,
+} from "@/lib/analytics-types";
 
 export interface InstagramTrendResult {
   trends: InstagramTrend[];
   /** Breakouts that were found but gated out, so the filtering is inspectable. */
   rejected: InstagramTrend[];
   /** Accounts whose posts were scanned, with the median each was judged against. */
-  scanned: Array<{ handle: string; posts: number; medianViews: number }>;
+  scanned: Array<{ handle: string; posts: number; median: number }>;
+  /**
+   * Which metric the breakout was measured on. Instagram publishes a view count
+   * and LinkedIn does not, so on LinkedIn this is interactions — the same
+   * fallback every other panel makes rather than a special case for trends.
+   */
+  metric: "views" | "interactions";
   /** Present when nothing could be computed. */
   reason?: string;
 }
@@ -108,6 +120,7 @@ export async function instagramTrends(
       trends: [],
       rejected: [],
       scanned: [],
+      metric: "views",
       reason: "No competitor or trend-source accounts have been scraped yet.",
     };
   }
@@ -116,9 +129,30 @@ export async function instagramTrends(
       trends: [],
       rejected: [],
       scanned: [],
+      metric: "views",
       reason: "No content lanes yet — the gate has nothing to judge relevance against.",
     };
   }
+
+  // Read every rival's posts up front so the metric can be chosen from the
+  // whole set. It has to be one metric for the whole run: a views-based
+  // multiple for one account ranked against an interactions-based one for
+  // another is two different scales in one list.
+  const postsByRival = new Map<string, PostRecord[]>();
+  for (const rival of rivals) {
+    if (rival.handle === owner) continue;
+    postsByRival.set(rival.handle, await readPosts(platform, rival.handle, 200).catch(() => []));
+  }
+  const all = [...postsByRival.values()].flat();
+
+  // The same fallback every other panel makes, rather than a special case for
+  // trends: views where the platform publishes them, interactions where it does
+  // not. LinkedIn stores views as 0 on every post because personal profiles
+  // publish no view count, which is what used to make every baseline here zero
+  // and the whole catcher silently return nothing on that platform.
+  const useViews = all.some((post) => viewsOf(post) > 0);
+  const metric: InstagramTrendResult["metric"] = useViews ? "views" : "interactions";
+  const primary = (post: PostRecord) => (useViews ? viewsOf(post) : engagementsOf(post));
 
   // Only names specific enough to mean "covered". See distinctiveSubjects.
   const subjects = new Set(distinctiveSubjects(calendar.flatMap((entry) => entry.subjects)));
@@ -139,33 +173,31 @@ export async function instagramTrends(
   const found: InstagramTrend[] = [];
   const rejected: InstagramTrend[] = [];
 
-  for (const rival of rivals) {
-    if (rival.handle === owner) continue;
-    const posts: PostRecord[] = await readPosts(platform, rival.handle, 200).catch(() => []);
-    const baseline = median(posts.map((post) => viewsOf(post)));
-    scanned.push({ handle: rival.handle, posts: posts.length, medianViews: Math.round(baseline) });
+  for (const [handle, posts] of postsByRival) {
+    const baseline = median(posts.map(primary));
+    scanned.push({ handle, posts: posts.length, median: Math.round(baseline) });
 
     // A median from a handful of posts is not a baseline; one strong post
     // moves it far enough to hide everything else on the account.
     if (posts.length < MIN_POSTS_FOR_MEDIAN || !baseline) continue;
 
     for (const post of posts) {
-      const views = viewsOf(post);
+      const value = primary(post);
       const ageDays = (now - new Date(post.publishedAt).getTime()) / 86_400_000;
-      if (!views || ageDays > TREND_WINDOW_DAYS || ageDays < 0) continue;
+      if (!value || ageDays > TREND_WINDOW_DAYS || ageDays < 0) continue;
 
-      const multiple = views / baseline;
+      const multiple = value / baseline;
       if (multiple < BREAKOUT_MULTIPLE) continue;
 
       const caption = (post.caption ?? "").trim();
       const base: Omit<InstagramTrend, "lane" | "reason" | "score"> = {
-        handle: rival.handle,
+        handle,
         postId: post.postId,
         url: post.url ?? null,
         hook: hookOf(caption),
         caption,
         publishedAt: post.publishedAt,
-        views,
+        value,
         likes: post.likes,
         comments: post.comments,
         vsAccountMedian: Number(multiple.toFixed(1)),
@@ -199,7 +231,7 @@ export async function instagramTrends(
         ...base,
         lane,
         reason:
-          `${multiple.toFixed(1)}× @${rival.handle}'s own median` +
+          `${multiple.toFixed(1)}× @${handle}'s own median` +
           (lane && why.length
             ? `, reads like your ${lane} topics (${why.slice(0, 3).join(", ")})`
             : lane
@@ -220,6 +252,7 @@ export async function instagramTrends(
     trends: found.slice(0, options.limit ?? 20),
     rejected: rejected.slice(0, 10),
     scanned,
+    metric,
     ...(found.length ? {} : { reason: "No breakout posts cleared the lane gate in this window." }),
   };
 }

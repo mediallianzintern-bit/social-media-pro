@@ -7,6 +7,7 @@ import { ContentTiles } from "@/components/dashboard/content-tiles";
 import { GrowthChart } from "@/components/dashboard/growth-chart";
 import { KpiTile } from "@/components/dashboard/kpi-tile";
 import { InsightsPanels } from "@/components/dashboard/insights-panels";
+import { DeriveLanes } from "@/components/dashboard/derive-lanes";
 import { LearningPanel } from "@/components/dashboard/learning-panel";
 import { LockedPanel } from "@/components/dashboard/locked-panel";
 import { MetricBars, type BarRow } from "@/components/dashboard/metric-bars";
@@ -353,6 +354,17 @@ export function PlatformView({ data, range }: { data: PlatformData; range: Resol
             note={`${range.label} · what this account published, scored against its own median`}
           />
           <LearningPanel learning={data.learning} />
+        </>
+      ) : organic.length ? (
+        // Posts but no lanes. The section used to vanish entirely here, which
+        // reads as "this platform does not have lanes" rather than "nobody has
+        // derived them yet" — and left no control anywhere that could.
+        <>
+          <SectionHeading
+            title="Content lanes"
+            note="What this account publishes, read from its own captions"
+          />
+          <DeriveLanes platform={data.platform} />
         </>
       ) : null}
 

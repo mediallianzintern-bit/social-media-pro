@@ -33,10 +33,16 @@ export interface InstagramTrend {
   hook: string;
   caption: string;
   publishedAt: string;
-  views: number;
+  /**
+   * The primary metric's value for this post — views where the platform
+   * publishes them, interactions where it does not. `metric` on the result says
+   * which, because LinkedIn reports no view count on personal-profile posts and
+   * a "views" label over an interaction count would be a quiet lie.
+   */
+  value: number;
   likes: number;
   comments: number;
-  /** Views as a multiple of that account's own median. 1.0 is typical for them. */
+  /** The primary metric as a multiple of that account's own median. 1.0 is typical for them. */
   vsAccountMedian: number;
   ageDays: number;
   /** The owner lane this fits, from the owner's own taxonomy. Null means it does not fit. */

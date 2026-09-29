@@ -12,9 +12,10 @@
 //
 // Classification is a labelling job, not a reasoning one, so it runs on a
 // cheaper model than the analysis calls — see CLASSIFIER_MODEL below.
-import { completeJson } from "./client";
+import { completeJson, hasOpenAi } from "./client";
 import { CLASSIFY_SCHEMA, TAXONOMY_SCHEMA, classifySchema, taxonomySchema } from "./schemas";
-import { readTaxonomy, savePostLanes, saveTaxonomy } from "../store";
+import { readPosts, readTaxonomy, savePostLanes, saveTaxonomy } from "../store";
+import { OWNER_ACCOUNTS } from "../apify/accounts";
 import type { ContentLane, PlatformId, PostRecord } from "@/lib/analytics-types";
 
 /**
@@ -194,4 +195,48 @@ export function taxonomyLooksStale(posts: PostRecord[]): boolean {
   if (classified.length < 8) return false;
   const other = classified.filter((post) => post.contentLane === OTHER_LANE).length;
   return other / classified.length > STALE_OTHER_SHARE;
+}
+
+/**
+ * Derives and applies this account's lanes from the posts already stored.
+ *
+ * The one entry point for "give this account lanes" that does not require
+ * running a whole analysis. Lanes used to be created in exactly one place —
+ * inside runAnalysis — while three separate readers need them: the lane
+ * scorecard, the news topic search, and the trend catcher's relevance gate. An
+ * account with posts and no lanes therefore had all three panels dark, and
+ * nothing in any of them could fix it.
+ *
+ * Costs one model call to derive the vocabulary, plus one per 25 unclassified
+ * posts. Cheap, but not free, so it is only ever reached from an explicit
+ * click — never from a page load or a sync.
+ */
+export async function deriveLanesForOwner(
+  platform: PlatformId,
+): Promise<{ lanes: string[]; reason?: string }> {
+  if (!hasOpenAi()) {
+    return { lanes: [], reason: "Deriving lanes needs OPENAI_API_KEY, which is not set." };
+  }
+
+  const handle = OWNER_ACCOUNTS[platform].handle;
+  const posts = await readPosts(platform, handle).catch(() => []);
+  if (!posts.length) {
+    return { lanes: [], reason: "No posts stored for this account yet — run a sync first." };
+  }
+  // deriveTaxonomy needs a few captions to find a pattern in; below that it
+  // returns nothing rather than inventing a vocabulary from two posts.
+  if (posts.filter((post) => post.caption.trim()).length < 4) {
+    return {
+      lanes: [],
+      reason: `Only ${posts.length} stored post${posts.length === 1 ? "" : "s"} carry a caption — too few to read a vocabulary from.`,
+    };
+  }
+
+  const lanes = await ensureLanes(platform, handle, posts);
+  return lanes.length
+    ? { lanes: lanes.map((lane) => lane.name) }
+    : {
+        lanes: [],
+        reason: "The classifier returned no lanes. Check the server log and try again.",
+      };
 }
