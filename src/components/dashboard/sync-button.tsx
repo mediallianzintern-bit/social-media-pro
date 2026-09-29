@@ -3,6 +3,7 @@ import { AlertTriangle, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import { dashboardQueryOptions, syncNow } from "@/lib/analytics.functions";
@@ -120,11 +121,37 @@ export function SyncButton({
       <span className="hidden text-xs text-muted-foreground sm:inline">
         Synced <span className="font-medium text-foreground">{relative}</span>
       </span>
+      {/* Click to read, not hover to read.
+          Every message explain() produces is an instruction — top up Apify,
+          upgrade the plan, check APIFY_TOKEN — and all of it used to live in a
+          title attribute: invisible on touch, and on a desktop only findable by
+          someone who already suspected there was more to see. The badge stays
+          compact because the header has no room for a paragraph, but the
+          paragraph is now one click away and reachable from the keyboard. */}
       {lastError ? (
-        <span className="inline-flex items-center gap-1 text-xs text-destructive" title={lastError}>
-          <AlertTriangle className="size-3.5" aria-hidden />
-          {failedPlatforms.length === 1 ? `${failedPlatforms[0]} not updated` : "Sync failed"}
-        </span>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 rounded-sm text-xs text-destructive underline decoration-dotted underline-offset-2 hover:opacity-80 focus-visible:ring-2 focus-visible:ring-destructive/40 focus-visible:outline-none"
+            >
+              <AlertTriangle className="size-3.5" aria-hidden />
+              {failedPlatforms.length === 1 ? `${failedPlatforms[0]} not updated` : "Sync failed"}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-96">
+            <p className="text-sm font-medium">Last sync</p>
+            {/* pre-wrap: outcomes are joined with a blank line, one per failed
+                platform, and that separation is the readable part. */}
+            <p className="mt-1.5 text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">
+              {lastError}
+            </p>
+            <p className="mt-3 border-t pt-2 text-[11px] leading-relaxed text-muted-foreground">
+              Stored data is untouched — a platform that fails keeps its last good sync rather than
+              being overwritten.
+            </p>
+          </PopoverContent>
+        </Popover>
       ) : null}
       <Button
         size="sm"
