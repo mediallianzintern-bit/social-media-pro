@@ -21,10 +21,20 @@ export const getDashboard = createServerFn({ method: "GET" }).handler(
 );
 
 /** Write path: scrape now, store the snapshot, and report what happened. */
-export const syncNow = createServerFn({ method: "POST" }).handler(async (): Promise<SyncResult> => {
-  const { runSync } = await import("@/server/sync");
-  return runSync("manual");
-});
+/**
+ * "manual" is a person pressing Sync; "schedule" is the dashboard syncing by
+ * itself. They were indistinguishable here — auto-sync sent "manual" — which
+ * meant the server could not apply a cheaper cadence to an unattended pass, and
+ * every page load on stale data bought every platform.
+ */
+const syncInputSchema = z.object({ trigger: z.enum(["manual", "schedule"]).default("manual") });
+
+export const syncNow = createServerFn({ method: "POST" })
+  .validator((input: unknown) => syncInputSchema.parse(input ?? {}))
+  .handler(async ({ data }): Promise<SyncResult> => {
+    const { runSync } = await import("@/server/sync");
+    return runSync(data.trigger);
+  });
 
 export const dashboardQueryOptions = {
   queryKey: ["dashboard"] as const,

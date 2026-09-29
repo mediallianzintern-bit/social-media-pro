@@ -14,6 +14,7 @@ import { hasInstagramGraph } from "./graph/client";
 import { fetchInstagramInsights, fetchMediaInsights, shortcodeOf } from "./graph/instagram";
 import {
   finishRun,
+  lastSyncAt,
   readWatchlist,
   recordFailedRun,
   recordRun,
@@ -23,6 +24,7 @@ import {
 } from "./store";
 import {
   PLATFORM_IDS,
+  PLATFORM_SYNC_INTERVAL_MS,
   type MediaInsight,
   type PlatformId,
   type SyncOutcome,
@@ -275,6 +277,31 @@ function explain(error: unknown): string {
  */
 let inFlight: Promise<SyncResult> | null = null;
 
+/**
+ * Whether a scheduled pass is allowed to buy this platform yet.
+ *
+ * Only ever consulted for `schedule`. A person who presses Sync has asked for
+ * fresh data and gets it — the cadence exists to stop UNATTENDED syncing from
+ * spending an allowance nobody is watching, not to argue with someone who is
+ * sitting in front of the dashboard.
+ */
+async function dueForSchedule(
+  platform: PlatformId,
+): Promise<{ due: true } | { due: false; reason: string }> {
+  const last = await lastSyncAt(platform).catch(() => null);
+  if (!last) return { due: true };
+
+  const age = Date.now() - new Date(last).getTime();
+  const interval = PLATFORM_SYNC_INTERVAL_MS[platform];
+  if (age >= interval) return { due: true };
+
+  const hours = (n: number) => `${Math.max(1, Math.round(n / 3_600_000))}h`;
+  return {
+    due: false,
+    reason: `Synced ${hours(age)} ago; scheduled syncs buy ${platform} at most every ${hours(interval)}. Press Sync to fetch it now.`,
+  };
+}
+
 export function runSync(trigger: "manual" | "schedule" = "manual"): Promise<SyncResult> {
   if (inFlight) return inFlight;
   inFlight = runSyncOnce(trigger).finally(() => {
@@ -303,6 +330,18 @@ async function runSyncOnce(trigger: "manual" | "schedule"): Promise<SyncResult> 
   // faster. A sync takes ~20s; nothing is waiting on it.
   const outcomes: SyncOutcome[] = [];
   for (const platform of PLATFORM_IDS) {
+    // An unattended pass respects each platform's own cadence. Without this,
+    // every page load on stale data and every two-hour tick of a dashboard left
+    // open bought BOTH platforms — and LinkedIn is two Apify runs against a
+    // fifty-run free allowance, so the tab being open was enough to exhaust it.
+    if (trigger === "schedule") {
+      const due = await dueForSchedule(platform);
+      if (!due.due) {
+        outcomes.push({ platform, status: "skipped", reason: due.reason });
+        continue;
+      }
+    }
+
     try {
       outcomes.push(await SYNCERS[platform](trigger));
       // Fresh metrics are now stored, so this is the moment any matured

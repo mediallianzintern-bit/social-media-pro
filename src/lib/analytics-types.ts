@@ -412,8 +412,15 @@ export interface DashboardData {
 
 export interface SyncOutcome {
   platform: PlatformId;
-  status: "ok" | "error";
+  /**
+   * "skipped" is a success, not a failure: the platform was already fresh
+   * enough for its own cadence and no Apify run was bought. Distinct from "ok"
+   * so the dashboard can say nothing was spent rather than implying a fetch.
+   */
+  status: "ok" | "error" | "skipped";
   error?: string;
+  /** Why a skipped platform was skipped, in words a person can act on. */
+  reason?: string;
   followers?: number;
   postsIngested?: number;
 }
@@ -426,6 +433,27 @@ export interface SyncResult {
 
 /** How often the dashboard expects a sync, in milliseconds. */
 export const SYNC_INTERVAL_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * How often a SCHEDULED sync is allowed to buy each platform.
+ *
+ * Not one number, because the two platforms do not cost the same. Instagram is
+ * one Apify run. LinkedIn is two — a profile actor and a posts actor — on a
+ * scraper whose free tier allows fifty runs in total, so an unattended
+ * every-two-hours LinkedIn sync exhausts the whole allowance in about two days.
+ * That is exactly what happened on 29 Sep 2026.
+ *
+ * Instagram keeps the dashboard's own two-hour cadence. LinkedIn moves to daily,
+ * which is far finer than its data changes: a follower count and a handful of
+ * posts do not move meaningfully inside a day, and the growth curve stores one
+ * point per sync either way.
+ *
+ * A person pressing Sync is not bound by this — see runSync.
+ */
+export const PLATFORM_SYNC_INTERVAL_MS: Record<PlatformId, number> = {
+  instagram: SYNC_INTERVAL_MS,
+  linkedin: 24 * 60 * 60 * 1000,
+};
 
 // ---------------------------------------------------------------------------
 // Derived metrics. Kept here so the pages and the summary row agree.

@@ -67,9 +67,13 @@ export function SyncButton({
   const relative = useRelativeTime(lastSyncedAt);
   const [lastError, setLastError] = useState<string | null>(null);
   const [failedPlatforms, setFailedPlatforms] = useState<string[]>([]);
+  const [skipped, setSkipped] = useState<string[]>([]);
 
   const mutation = useMutation({
-    mutationFn: () => syncNow(),
+    // The trigger is the whole point: a scheduled pass skips a platform that is
+    // still inside its own cadence, so an open tab stops buying LinkedIn every
+    // two hours. Pressing the button always fetches.
+    mutationFn: (trigger: "manual" | "schedule" = "manual") => syncNow({ data: { trigger } }),
     onSuccess: async (result: SyncResult) => {
       const failed = result.outcomes.filter((outcome) => outcome.status === "error");
       // Name the platform, and every one that failed: "Sync failed" alone hid
@@ -85,10 +89,19 @@ export function SyncButton({
           : null,
       );
       setFailedPlatforms(failed.map((outcome) => PLATFORM_META[outcome.platform].label));
+      // A skip is not a failure and must not colour the badge red, but it does
+      // explain why a platform's timestamp did not move — which otherwise reads
+      // as a sync that silently did nothing.
+      setSkipped(
+        result.outcomes
+          .filter((outcome) => outcome.status === "skipped")
+          .map((outcome) => `${PLATFORM_META[outcome.platform].label}: ${outcome.reason ?? ""}`),
+      );
       await queryClient.invalidateQueries({ queryKey: dashboardQueryOptions.queryKey });
     },
     onError: (error: unknown) => {
       setFailedPlatforms([]);
+      setSkipped([]);
       setLastError(error instanceof Error ? error.message : String(error));
     },
   });
@@ -104,14 +117,14 @@ export function SyncButton({
   useEffect(() => {
     if (!auto || disabled || isPending || !stale || autoSyncStarted.current) return;
     autoSyncStarted.current = true;
-    mutate();
+    mutate("schedule");
   }, [auto, disabled, isPending, stale, mutate]);
 
   // Re-check on the cadence for a dashboard left open all day.
   useEffect(() => {
     if (!auto || disabled) return;
     const timer = setInterval(() => {
-      if (!isPending) mutate();
+      if (!isPending) mutate("schedule");
     }, SYNC_INTERVAL_MS);
     return () => clearInterval(timer);
   }, [auto, disabled, isPending, mutate]);
@@ -128,27 +141,47 @@ export function SyncButton({
           someone who already suspected there was more to see. The badge stays
           compact because the header has no room for a paragraph, but the
           paragraph is now one click away and reachable from the keyboard. */}
-      {lastError ? (
+      {lastError || skipped.length ? (
         <Popover>
           <PopoverTrigger asChild>
             <button
               type="button"
-              className="inline-flex items-center gap-1 rounded-sm text-xs text-destructive underline decoration-dotted underline-offset-2 hover:opacity-80 focus-visible:ring-2 focus-visible:ring-destructive/40 focus-visible:outline-none"
+              className={cn(
+                "inline-flex items-center gap-1 rounded-sm text-xs underline decoration-dotted underline-offset-2 hover:opacity-80 focus-visible:ring-2 focus-visible:outline-none",
+                lastError
+                  ? "text-destructive focus-visible:ring-destructive/40"
+                  : "text-muted-foreground focus-visible:ring-ring/40",
+              )}
             >
-              <AlertTriangle className="size-3.5" aria-hidden />
-              {failedPlatforms.length === 1 ? `${failedPlatforms[0]} not updated` : "Sync failed"}
+              {lastError ? <AlertTriangle className="size-3.5" aria-hidden /> : null}
+              {lastError
+                ? failedPlatforms.length === 1
+                  ? `${failedPlatforms[0]} not updated`
+                  : "Sync failed"
+                : `${skipped.length} skipped`}
             </button>
           </PopoverTrigger>
           <PopoverContent align="end" className="w-96">
             <p className="text-sm font-medium">Last sync</p>
             {/* pre-wrap: outcomes are joined with a blank line, one per failed
                 platform, and that separation is the readable part. */}
-            <p className="mt-1.5 text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">
-              {lastError}
-            </p>
+            {lastError ? (
+              <p className="mt-1.5 text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                {lastError}
+              </p>
+            ) : null}
+            {skipped.length ? (
+              <div className={cn("space-y-1", lastError && "mt-3 border-t pt-2")}>
+                {skipped.map((line) => (
+                  <p key={line} className="text-xs leading-relaxed text-muted-foreground">
+                    {line}
+                  </p>
+                ))}
+              </div>
+            ) : null}
             <p className="mt-3 border-t pt-2 text-[11px] leading-relaxed text-muted-foreground">
-              Stored data is untouched — a platform that fails keeps its last good sync rather than
-              being overwritten.
+              Stored data is untouched — a platform that fails or is skipped keeps its last good
+              sync rather than being overwritten.
             </p>
           </PopoverContent>
         </Popover>
@@ -158,7 +191,7 @@ export function SyncButton({
         variant="outline"
         className="gap-2"
         disabled={disabled || isPending}
-        onClick={() => mutate()}
+        onClick={() => mutate("manual")}
       >
         <RefreshCw className={cn("size-3.5", isPending && "animate-spin")} aria-hidden />
         {isPending ? "Syncing…" : "Sync"}
