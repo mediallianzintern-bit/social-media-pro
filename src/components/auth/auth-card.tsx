@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { Wordmark } from "@/components/brand";
@@ -40,6 +41,14 @@ export function AuthCard({
 
         <p className="text-center text-xs text-muted-foreground">
           Only @{ALLOWED_EMAIL_DOMAIN} accounts can access this dashboard.
+        </p>
+
+        {/* The sign-in screen is the one page a platform reviewer reaches
+            without an account, so the policy has to be linked from here. */}
+        <p className="text-center text-xs text-muted-foreground">
+          <Link to="/privacy" className="underline underline-offset-2 hover:text-foreground">
+            Privacy policy
+          </Link>
         </p>
       </div>
     </div>
