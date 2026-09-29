@@ -235,9 +235,15 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
             </p>
           ) : null}
 
+          {/* "Refreshing is free" was true when a refresh could only search the
+              news feed. It can now also derive this account's lanes when it has
+              none, which is model work — so the claim is qualified rather than
+              quietly made false. */}
           <p className="text-[11px] text-muted-foreground">
             &ldquo;Write script&rdquo; uses one AI call and builds a {noun} on that story in this
-            account&rsquo;s proven structure. Refreshing is free.
+            account&rsquo;s proven structure. Refreshing is free — the news search costs nothing.
+            The first refresh on an account with no content lanes yet also derives them, which is
+            two AI calls, once.
           </p>
         </CardContent>
       </Card>

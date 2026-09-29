@@ -6,6 +6,7 @@
 import { searchNews } from "./news";
 import { queriesForLane } from "./queries";
 import { OWNER_ACCOUNTS } from "../apify/accounts";
+import { hasOpenAi } from "../ai/client";
 import {
   lastSourceFetch,
   readPosts,
@@ -55,6 +56,34 @@ async function lanesFor(platform: PlatformId): Promise<string[]> {
 }
 
 /**
+ * Derives the lane vocabulary when the account has none yet.
+ *
+ * Only ever called for an EXPLICIT refresh, never from a sync. Lanes were
+ * previously created in exactly one place — inside a full analysis run — while
+ * the topic search needs them to have anything to search for. That is a loop
+ * with no entry: LinkedIn had posts and no lanes, so "Refresh topics" reported
+ * "No content lanes yet" every time and there was nothing on the topics panel
+ * that could ever fix it. The only way out was to notice that an unrelated
+ * button on another panel had the side effect of creating lanes.
+ *
+ * Kept off the sync path deliberately. refreshSources runs on every sync
+ * precisely because it is free, and quietly turning that into two model calls
+ * would break the one property that earns it a place there.
+ */
+async function deriveLanesOnDemand(platform: PlatformId): Promise<string[]> {
+  if (!hasOpenAi()) return [];
+  const handle = OWNER_ACCOUNTS[platform].handle;
+  const posts = await readPosts(platform, handle).catch(() => []);
+  if (!posts.length) return [];
+
+  // ensureLanes never throws — it returns [] and logs — so a classification
+  // failure costs the topics, not the click.
+  const { ensureLanes } = await import("../ai/lanes");
+  const lanes = await ensureLanes(platform, handle, posts);
+  return lanes.map((lane) => lane.name);
+}
+
+/**
  * One fetch pass: every lane's searches, clustered into stories, stored.
  *
  * Queries run one at a time. They are few, each is fast, and firing them all at
@@ -77,10 +106,18 @@ export async function refreshSources(
     }
   }
 
-  const lanes = await lanesFor(platform);
+  let lanes = await lanesFor(platform);
+  // An explicit refresh may derive them; a sync may not. See deriveLanesOnDemand.
+  if (!lanes.length && options.force) lanes = await deriveLanesOnDemand(platform);
+
   const plan = lanes.flatMap((lane) => queriesForLane(lane).map((query) => ({ lane, query })));
   if (!plan.length) {
-    return { ...empty, reason: "No content lanes yet, so there is nothing to search for." };
+    return {
+      ...empty,
+      reason: hasOpenAi()
+        ? "No content lanes yet, and none could be derived — this account has no stored posts to read them from. Run a sync first."
+        : "No content lanes yet. Deriving them needs OPENAI_API_KEY, which is not set.",
+    };
   }
 
   const failures: string[] = [];
