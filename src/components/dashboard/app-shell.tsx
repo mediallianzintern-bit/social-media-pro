@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Activity, Instagram, LayoutDashboard, Linkedin, LogOut, Radio } from "lucide-react";
+import { Instagram, LayoutDashboard, Linkedin, LogOut, Radio } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +22,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
+import { BrandMark } from "@/components/brand";
 import { RangePicker } from "@/components/dashboard/range-picker";
 import { SyncButton } from "@/components/dashboard/sync-button";
 
@@ -79,9 +80,9 @@ export function AppShell({
       <Sidebar collapsible="icon">
         <SidebarHeader>
           <div className="flex items-center gap-2 px-2 py-1.5">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Activity className="size-4" aria-hidden />
-            </div>
+            {/* The mark, not the lockup: this slot is all that survives when the
+                sidebar collapses to icons, and the wordmark is illegible at 32px. */}
+            <BrandMark />
             <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
               <span className="truncate text-sm font-semibold">Social Command Center</span>
               <span className="truncate text-xs text-muted-foreground">Dr. Pritesh Patel</span>

@@ -10,6 +10,7 @@ import { TrendingUp } from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Wordmark } from "@/components/brand";
 import { GrowthChart } from "@/components/dashboard/growth-chart";
 import { compactNumber, dateTime } from "@/lib/format";
 import { reportQueryOptions } from "@/lib/analytics.functions";
@@ -305,6 +306,9 @@ function ReportPage() {
   return (
     <main className="mx-auto max-w-3xl space-y-10 px-4 py-10 sm:py-16">
       <header className="space-y-2">
+        {/* This is the shareable artifact — the one screen that leaves the
+            agency — so it is the one that has to be unmistakably ours. */}
+        <Wordmark className="mb-5 h-7" />
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Performance report</h1>
         {data.goal ? (
           <p className="text-sm font-medium">

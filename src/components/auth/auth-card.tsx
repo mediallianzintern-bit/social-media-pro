@@ -1,6 +1,6 @@
-import { Activity } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { Wordmark } from "@/components/brand";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ALLOWED_EMAIL_DOMAIN } from "@/lib/auth";
 
@@ -19,14 +19,13 @@ export function AuthCard({
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4 py-10">
       <div className="w-full max-w-sm space-y-6">
-        <div className="flex items-center justify-center gap-2.5">
-          <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Activity className="size-4.5" aria-hidden />
-          </div>
-          <div className="leading-tight">
-            <p className="text-sm font-semibold">Social Command Center</p>
-            <p className="text-xs text-muted-foreground">Mediallianz</p>
-          </div>
+        {/* The lockup rather than the mark: this is the first screen anyone
+            signing in sees, and it is the one place the company should be named
+            outright. The product name moves below it, so the two are not
+            competing for the same line. */}
+        <div className="flex flex-col items-center gap-2">
+          <Wordmark className="h-8" />
+          <p className="text-sm font-medium text-muted-foreground">Social Command Center</p>
         </div>
 
         <Card>
