@@ -100,6 +100,22 @@ export function PostsTable({ posts, showViews }: { posts: PostRecord[]; showView
                   <Badge variant="outline" className="text-[10px] font-normal capitalize">
                     {post.format}
                   </Badge>
+                  {/* The lane this post was classified into, so the lane table
+                      above can be traced to the posts that produced it — a lane
+                      reading 0.4x is an argument until you can see which four
+                      posts said so. Absent rather than "unclassified" when the
+                      lane is null: a post can predate the taxonomy, and that is
+                      not a category. Rendered raw, like the lane table, because
+                      the label is the model's own wording ("AI tools" must not
+                      become "Ai Tools"). */}
+                  {post.contentLane ? (
+                    <Badge
+                      variant="secondary"
+                      className="text-[10px] font-normal first-letter:uppercase"
+                    >
+                      {post.contentLane}
+                    </Badge>
+                  ) : null}
                   {post.pinned ? (
                     <Badge variant="secondary" className="gap-1 text-[10px] font-normal">
                       <Pin className="size-2.5" aria-hidden />

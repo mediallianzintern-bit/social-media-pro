@@ -339,12 +339,18 @@ export function PlatformView({ data, range }: { data: PlatformData; range: Resol
         </>
       )}
 
-      {/* ---- Content lanes and the learning scorecard ---- */}
-      {data.learning ? (
+      {/* ---- Content lanes and the learning scorecard ----
+           Lane figures are recomputed for the selected window in filterPlatform,
+           so the note names the window: the table used to sum the whole stored
+           history while the header above it counted the range, and nothing on
+           screen said the two were answering different questions. The guard is on
+           the contents rather than on `learning` itself, so a window with no
+           classified posts does not leave a heading with nothing beneath it. */}
+      {data.learning && (data.learning.lanes.length || data.learning.suggestions) ? (
         <>
           <SectionHeading
             title="Content lanes"
-            note="What this account publishes, scored against itself"
+            note={`${range.label} · what this account published, scored against its own median`}
           />
           <LearningPanel learning={data.learning} />
         </>

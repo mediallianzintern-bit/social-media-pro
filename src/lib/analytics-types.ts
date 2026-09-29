@@ -451,6 +451,20 @@ export function viewsOf(post: PostRecord): number {
   return post.insight?.views || post.views;
 }
 
+/**
+ * The view count every account can be compared ON: the public, scraped one.
+ *
+ * Deliberately ignores Graph even when it is there. `viewsOf` is right within
+ * one account and wrong the moment two accounts are put side by side, because a
+ * Graph figure exists only for accounts we hold a token for — so anything built
+ * on it scores the owner on plays and every rival on a narrower public count.
+ *
+ * This is the basis for cross-account metrics. Owner-only panels keep `viewsOf`.
+ */
+export function publicViewsOf(post: PostRecord): number {
+  return post.views;
+}
+
 export function engagementsOf(post: PostRecord): number {
   return post.likes + post.comments + post.shares;
 }
@@ -459,6 +473,18 @@ export function engagementsOf(post: PostRecord): number {
  * Engagement rate against views where views are published (Instagram reels), and
  * against followers otherwise (LinkedIn, where no view count is public).
  * The two are not comparable, so each page labels which basis it is using.
+ *
+ * The denominator is `publicViewsOf`, NOT `viewsOf`, and that is the whole point
+ * of this function: it is the one metric compared directly across accounts — the
+ * "Engages 2.1× better" badge is this number for a rival divided by this number
+ * for the owner. On Graph the owner's views run a median 2.28× the scraped count,
+ * so using `viewsOf` here inflated every rival's ratio against an owner whose
+ * denominator was twice as large, and a rival roughly at parity read as beating
+ * the owner two to one. The competitor table already refuses to show views in one
+ * column for exactly this reason; the rate column was silently doing it anyway.
+ *
+ * Saves and reach are not in the numerator either, for the same reason —
+ * competitors have neither, so `engagementsOf` is the widest like-for-like set.
  */
 export function engagementRate(allPosts: PostRecord[], followers: number): number {
   const posts = organicPosts(allPosts);
@@ -478,11 +504,11 @@ export function engagementRate(allPosts: PostRecord[], followers: number): numbe
   //    engagement rate. Posts failing this check have unusable view data and are
   //    excluded from the views basis rather than being allowed to poison it.
   const withViews = posts.filter(
-    (post) => viewsOf(post) > 0 && engagementsOf(post) <= viewsOf(post),
+    (post) => publicViewsOf(post) > 0 && engagementsOf(post) <= publicViewsOf(post),
   );
   if (withViews.length) {
     const engagements = withViews.reduce((sum, post) => sum + engagementsOf(post), 0);
-    const views = withViews.reduce((sum, post) => sum + viewsOf(post), 0);
+    const views = withViews.reduce((sum, post) => sum + publicViewsOf(post), 0);
     if (views > 0) return engagements / views;
   }
 
