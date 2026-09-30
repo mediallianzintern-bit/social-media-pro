@@ -97,13 +97,22 @@ Define this account's content lanes.`;
   return lanes;
 }
 
-/** Assigns lanes to posts that do not have one yet. Returns how many were written. */
+/**
+ * Assigns lanes to posts. Returns how many were written.
+ *
+ * By default only posts without a lane, which is what keeps the cost of a
+ * sync proportional to new work. `all` re-files every post instead, for a
+ * rebuild: after the vocabulary changes, a post still carrying a lane from the
+ * old taxonomy is worse than one carrying none, because nothing downstream can
+ * tell that its label no longer means anything.
+ */
 export async function classifyPosts(
   platform: PlatformId,
   lanes: ContentLane[],
   posts: PostRecord[],
+  options: { all?: boolean } = {},
 ): Promise<number> {
-  const pending = posts.filter((post) => !post.contentLane);
+  const pending = options.all ? posts : posts.filter((post) => !post.contentLane);
   if (!pending.length || !lanes.length) return 0;
 
   const names = lanes.map((lane) => lane.name);
@@ -176,12 +185,18 @@ export async function ensureLanes(
   platform: PlatformId,
   handle: string,
   posts: PostRecord[],
+  options: { rebuild?: boolean } = {},
 ): Promise<ContentLane[]> {
   try {
-    let lanes = await readTaxonomy(platform, handle);
+    // A rebuild derives the vocabulary again from what the account publishes
+    // NOW, and re-files every post against it. Reusing the stored taxonomy
+    // here would make the whole action a no-op, which is what it was: the
+    // button said "rebuild" and only classified whatever had been missed.
+    let lanes = options.rebuild ? await deriveTaxonomy(platform, handle, posts) : null;
+    if (!lanes?.length) lanes = await readTaxonomy(platform, handle);
     if (!lanes?.length) lanes = await deriveTaxonomy(platform, handle, posts);
     if (!lanes.length) return [];
-    await classifyPosts(platform, lanes, posts);
+    await classifyPosts(platform, lanes, posts, { all: options.rebuild === true });
     return lanes;
   } catch (error) {
     console.error(`[lanes:${platform}/${handle}] classification skipped:`, error);
@@ -213,6 +228,7 @@ export function taxonomyLooksStale(posts: PostRecord[]): boolean {
  */
 export async function deriveLanesForOwner(
   platform: PlatformId,
+  options: { rebuild?: boolean } = {},
 ): Promise<{ lanes: string[]; reason?: string }> {
   if (!hasOpenAi()) {
     return { lanes: [], reason: "Deriving lanes needs OPENAI_API_KEY, which is not set." };
@@ -232,7 +248,7 @@ export async function deriveLanesForOwner(
     };
   }
 
-  const lanes = await ensureLanes(platform, handle, posts);
+  const lanes = await ensureLanes(platform, handle, posts, options);
   return lanes.length
     ? { lanes: lanes.map((lane) => lane.name) }
     : {

@@ -35,7 +35,7 @@ export function DeriveLanes({
 }) {
   const queryClient = useQueryClient();
   const mutation = useMutation({
-    mutationFn: () => deriveLanes({ data: { platform } }),
+    mutationFn: () => deriveLanes({ data: { platform, rebuild: mode === "refresh" } }),
     onSuccess: async () => {
       // The lane scorecard is computed server-side from the stored posts, so
       // the newly written lanes only appear once the dashboard is re-read.
@@ -56,7 +56,7 @@ export function DeriveLanes({
           className="h-auto gap-1.5 px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
           onClick={() => mutation.mutate()}
           disabled={mutation.isPending}
-          title="Re-read the captions and rebuild the lanes from what this account publishes now"
+          title="Derive the lanes again from what this account publishes now, and re-file every post against them"
         >
           {mutation.isPending ? (
             <Loader2 className="size-3 animate-spin" aria-hidden />

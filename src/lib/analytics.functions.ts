@@ -259,10 +259,12 @@ export const refreshTopics = createServerFn({ method: "POST" })
  * run on a different panel.
  */
 export const deriveLanes = createServerFn({ method: "POST" })
-  .validator((input: unknown) => z.object({ platform: platformSchema }).parse(input))
+  .validator((input: unknown) =>
+    z.object({ platform: platformSchema, rebuild: z.boolean().optional() }).parse(input),
+  )
   .handler(async ({ data }) => {
     const { deriveLanesForOwner } = await import("@/server/ai/lanes");
-    return deriveLanesForOwner(data.platform);
+    return deriveLanesForOwner(data.platform, { rebuild: data.rebuild === true });
   });
 
 /**
