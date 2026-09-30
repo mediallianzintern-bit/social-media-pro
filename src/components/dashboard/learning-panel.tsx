@@ -431,6 +431,42 @@ function Scorecard({ feedback }: { feedback: SuggestionFeedback }) {
   );
 }
 
+/**
+ * The scorecard before it has anything to score.
+ *
+ * The learning loop is fully built — outcomes are captured on every sync and
+ * fed back into the next generation — but it grades only suggestions that were
+ * marked filmed and then published, and so far none have been. Rendering
+ * nothing in that state is what made a working feature look like a missing
+ * one: the panel simply was not there, with no way to tell whether it had been
+ * built, had failed, or was waiting. This says which, and names the one action
+ * that starts it.
+ */
+function ScorecardWaiting() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Sparkles className="size-4 text-muted-foreground" aria-hidden />
+          Did the suggestions work?
+        </CardTitle>
+        <CardDescription>
+          Nothing to grade yet. This scores published posts that began as a suggestion, against this
+          account&rsquo;s own median — so it needs at least one suggestion marked{" "}
+          <strong>I filmed this</strong> that then goes live.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p className="border-l-2 border-border pl-3 text-xs leading-relaxed text-muted-foreground">
+          Open a suggestion, press “I filmed this”, and the published post is picked up
+          automatically on the next sync. Grades appear about a week after publishing, so the post
+          has had time to settle.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function LearningPanel({ learning }: { learning: Learning }) {
   const { lanes, suggestions, taxonomyStale } = learning;
   if (!lanes.length && !suggestions) return null;
@@ -440,7 +476,11 @@ export function LearningPanel({ learning }: { learning: Learning }) {
       {lanes.length ? (
         <LanesTable lanes={lanes} stale={taxonomyStale} goalByLane={learning.goalByLane ?? []} />
       ) : null}
-      {suggestions && suggestions.measured > 0 ? <Scorecard feedback={suggestions} /> : null}
+      {suggestions && suggestions.measured > 0 ? (
+        <Scorecard feedback={suggestions} />
+      ) : (
+        <ScorecardWaiting />
+      )}
     </div>
   );
 }

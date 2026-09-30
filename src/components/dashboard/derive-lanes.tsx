@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, RefreshCw, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,7 +19,20 @@ import type { PlatformId } from "@/lib/analytics-types";
  * missing panel says nothing, and the thing a person needs here is the reason
  * plus the button, in the spot where they went looking for the lanes.
  */
-export function DeriveLanes({ platform }: { platform: PlatformId }) {
+export function DeriveLanes({
+  platform,
+  mode = "empty",
+}: {
+  platform: PlatformId;
+  /**
+   * "empty" is the full explanatory card shown when an account has no lanes.
+   * "refresh" is the same action as a single control beside the lane table,
+   * for an account whose lanes exist but have gone stale — the taxonomy is
+   * derived once and then reused forever, so an account that changes what it
+   * posts keeps being scored against the subjects it used to cover.
+   */
+  mode?: "empty" | "refresh";
+}) {
   const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: () => deriveLanes({ data: { platform } }),
@@ -33,6 +46,29 @@ export function DeriveLanes({ platform }: { platform: PlatformId }) {
   });
 
   const failure = mutation.data?.reason ?? (mutation.error ? String(mutation.error) : null);
+
+  if (mode === "refresh") {
+    return (
+      <div className="flex items-baseline gap-2">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-auto gap-1.5 px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+          onClick={() => mutation.mutate()}
+          disabled={mutation.isPending}
+          title="Re-read the captions and rebuild the lanes from what this account publishes now"
+        >
+          {mutation.isPending ? (
+            <Loader2 className="size-3 animate-spin" aria-hidden />
+          ) : (
+            <RefreshCw className="size-3" aria-hidden />
+          )}
+          {mutation.isPending ? "Rebuilding lanes…" : "Rebuild lanes"}
+        </Button>
+        {failure ? <span className="text-xs text-destructive">{failure}</span> : null}
+      </div>
+    );
+  }
 
   return (
     <Card>

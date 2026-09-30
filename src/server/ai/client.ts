@@ -42,6 +42,8 @@ export class OpenAiError extends Error {
   constructor(
     message: string,
     public status?: number,
+    /** The server's own Retry-After, when it sent one. Used for 429 backoff. */
+    public retryAfter?: string | null,
   ) {
     super(message);
     this.name = "OpenAiError";
@@ -98,7 +100,76 @@ export interface CompletionResult<T> {
  * no optionals. That strictness is the point — it's what stops the model from
  * inventing fields or returning prose where a number belongs.
  */
-export async function completeJson<T>(options: {
+/**
+ * How many times a rate-limited call is retried before giving up.
+ *
+ * Three is enough for the case this exists for — a token-per-minute ceiling,
+ * which clears on the next minute — without turning a genuine outage into a
+ * long silent stall.
+ */
+const RATE_LIMIT_ATTEMPTS = 3;
+
+/** Longest we will wait on one 429, whatever the server suggests. */
+const MAX_BACKOFF_MS = 65_000;
+
+/**
+ * How long to wait before retrying a 429.
+ *
+ * OpenAI states the wait in the error body ("Please try again in 36.648s") and
+ * in Retry-After; both are honoured in preference to a guess, because the
+ * limit being hit here is tokens-per-minute and the exact reset is something
+ * only the server knows. The fallback doubles per attempt.
+ */
+function retryDelayMs(message: string, retryAfter: string | null, attempt: number): number {
+  const header = Number(retryAfter);
+  if (Number.isFinite(header) && header > 0) return Math.min(header * 1000, MAX_BACKOFF_MS);
+
+  const stated = /try again in ([\d.]+)\s*s/i.exec(message)?.[1];
+  if (stated) return Math.min(Math.ceil(Number(stated) * 1000) + 1_000, MAX_BACKOFF_MS);
+
+  return Math.min(2_000 * 2 ** attempt, MAX_BACKOFF_MS);
+}
+
+/**
+ * One completion, retrying only when the account is rate-limited.
+ *
+ * This became necessary when the whole system was pinned to gpt-4o: the org's
+ * ceiling is 30,000 tokens per minute and the strategist call alone asks for
+ * ~26,000, so an analyst call in the same minute pushes it over and the run
+ * lost its ideas to a 429 after the expensive part had already succeeded.
+ * Nothing else is retried — a 400 is a bad request and a 500 twice is still
+ * broken, and silently repeating either would only spend money slower.
+ */
+export async function completeJson<T>(
+  options: Parameters<typeof completeJsonOnce<T>>[0],
+): Promise<CompletionResult<T>> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await completeJsonOnce<T>(options);
+    } catch (error) {
+      if (!(error instanceof OpenAiError) || error.status !== 429) throw error;
+
+      // Two different failures share the 429 status, and only one is worth
+      // waiting for. "Rate limit reached ... Used N, Requested M" means this
+      // minute is full and the next one will not be. "Request too large ...
+      // Requested M" means a SINGLE request exceeds the whole per-minute
+      // allowance, so every retry fails identically — it needs a smaller
+      // request or a higher tier, not patience. Retrying it just spends the
+      // wait twice and reports the wrong cause.
+      const tooLarge = /request too large/i.test(error.message);
+      if (tooLarge || attempt >= RATE_LIMIT_ATTEMPTS - 1) throw error;
+
+      const wait = retryDelayMs(error.message, error.retryAfter ?? null, attempt);
+      console.warn(
+        `[openai] rate limited, waiting ${Math.round(wait / 1000)}s then retrying ` +
+          `(attempt ${attempt + 2} of ${RATE_LIMIT_ATTEMPTS})`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, wait));
+    }
+  }
+}
+
+async function completeJsonOnce<T>(options: {
   system: string;
   user: string;
   schemaName: string;
@@ -161,6 +232,7 @@ export async function completeJson<T>(options: {
       throw new OpenAiError(
         `${response.status} ${response.statusText}: ${body.slice(0, 400)}`,
         response.status,
+        response.headers.get("retry-after"),
       );
     }
 

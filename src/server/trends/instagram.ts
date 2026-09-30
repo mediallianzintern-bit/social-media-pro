@@ -44,7 +44,13 @@ export interface InstagramTrendResult {
   /** Breakouts that were found but gated out, so the filtering is inspectable. */
   rejected: InstagramTrend[];
   /** Accounts whose posts were scanned, with the median each was judged against. */
-  scanned: Array<{ handle: string; posts: number; median: number }>;
+  scanned: Array<{
+    handle: string;
+    posts: number;
+    median: number;
+    /** How many of those posts fall inside TREND_WINDOW_DAYS. */
+    recent: number;
+  }>;
   /**
    * Which metric the breakout was measured on. Instagram publishes a view count
    * and LinkedIn does not, so on LinkedIn this is interactions — the same
@@ -175,7 +181,11 @@ export async function instagramTrends(
 
   for (const [handle, posts] of postsByRival) {
     const baseline = median(posts.map(primary));
-    scanned.push({ handle, posts: posts.length, median: Math.round(baseline) });
+    const recent = posts.filter((post) => {
+      const age = (now - new Date(post.publishedAt).getTime()) / 86_400_000;
+      return age >= 0 && age <= TREND_WINDOW_DAYS;
+    }).length;
+    scanned.push({ handle, posts: posts.length, median: Math.round(baseline), recent });
 
     // A median from a handful of posts is not a baseline; one strong post
     // moves it far enough to hide everything else on the account.
@@ -253,6 +263,53 @@ export async function instagramTrends(
     rejected: rejected.slice(0, 10),
     scanned,
     metric,
-    ...(found.length ? {} : { reason: "No breakout posts cleared the lane gate in this window." }),
+    ...(found.length ? {} : { reason: emptyReason(scanned, metric) }),
   };
+}
+
+/**
+ * Why the list is empty, distinguishing "nothing is breaking out" from "this
+ * cannot work here".
+ *
+ * On LinkedIn it is the second, and permanently so for now: the scraper
+ * returns no view or impression count on any post, and every gate downstream
+ * is a multiple of a median of that number. Reporting "no breakout posts
+ * cleared the lane gate" there is true and useless — it describes a filter
+ * doing its job when in fact there was nothing to filter. It sent us looking
+ * for a bug in the gate instead of at the missing column, so the empty state
+ * now names whichever of the three is actually the case.
+ */
+function emptyReason(scanned: InstagramTrendResult["scanned"], metric: string): string {
+  const withPosts = scanned.filter((account) => account.posts > 0);
+  if (!withPosts.length) return "No posts stored for the tracked accounts yet — run a sync.";
+
+  if (withPosts.every((account) => !account.median)) {
+    return (
+      `None of the ${withPosts.length} tracked accounts report ${metric}, so there is no ` +
+      "baseline to call anything a breakout. On LinkedIn that is expected until the " +
+      "Community Management API is approved — the scraper does not expose impressions."
+    );
+  }
+
+  const enough = withPosts.filter((account) => account.posts >= MIN_POSTS_FOR_MEDIAN);
+  if (!enough.length) {
+    return (
+      `Every tracked account has fewer than ${MIN_POSTS_FOR_MEDIAN} stored posts, which is too ` +
+      "few for a median to mean anything. Track more accounts, or sync again to deepen history."
+    );
+  }
+
+  // The window, not the gate. Measured on LinkedIn, the four tracked accounts
+  // held 40 posts between them and 2 inside the window — so the list was empty
+  // because the watchlist has gone quiet, which no amount of tuning the
+  // breakout multiple would fix.
+  const recent = enough.reduce((total, account) => total + account.recent, 0);
+  if (recent < MIN_POSTS_FOR_MEDIAN) {
+    return (
+      `Only ${recent} post${recent === 1 ? "" : "s"} across the tracked accounts ` +
+      `${recent === 1 ? "was" : "were"} published in the last ${TREND_WINDOW_DAYS} days, which ` +
+      "is too little recent activity to spot a breakout. Track more active accounts."
+    );
+  }
+  return "No post beat its own account's median by enough to count as a breakout in this window.";
 }

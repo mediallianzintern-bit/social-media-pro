@@ -352,6 +352,7 @@ export function PlatformView({ data, range }: { data: PlatformData; range: Resol
           <SectionHeading
             title="Content lanes"
             note={`${range.label} · what this account published, scored against its own median`}
+            action={<DeriveLanes platform={data.platform} mode="refresh" />}
           />
           <LearningPanel learning={data.learning} />
         </>
