@@ -14,7 +14,13 @@
 // cheaper model than the analysis calls — see CLASSIFIER_MODEL below.
 import { completeJson, hasOpenAi } from "./client";
 import { CLASSIFY_SCHEMA, TAXONOMY_SCHEMA, classifySchema, taxonomySchema } from "./schemas";
-import { readPosts, readTaxonomy, savePostLanes, saveTaxonomy } from "../store";
+import {
+  readCalendarEntries,
+  readPosts,
+  readTaxonomy,
+  savePostLanes,
+  saveTaxonomy,
+} from "../store";
 import { OWNER_ACCOUNTS } from "../apify/accounts";
 import type { ContentLane, PlatformId, PostRecord } from "@/lib/analytics-types";
 
@@ -57,11 +63,34 @@ export async function deriveTaxonomy(
   platform: PlatformId,
   handle: string,
   posts: PostRecord[],
+  /**
+   * Lane names this team already plans in, from their content calendar.
+   *
+   * When they exist they are the vocabulary, not a suggestion. The calendar,
+   * the lane table and the trend catcher's relevance gate are all keyed on
+   * lane NAME, so a taxonomy derived independently of the calendar silently
+   * splits the system in two: a rebuild renamed four lanes and orphaned all
+   * 165 calendar topics at once, leaving the trend gate scoring against
+   * subjects the lane table no longer knew about.
+   */
+  established: string[] = [],
 ): Promise<ContentLane[]> {
   const sample = posts.slice(0, TAXONOMY_SAMPLE).map(captionFor).filter(Boolean);
   if (sample.length < 4) return [];
 
-  const system = `You define the content vocabulary for one social media account.
+  const system = `You define the content vocabulary for one social media account.${
+    established.length
+      ? `
+
+This team already plans its content in these lanes, and other parts of the system are
+keyed to these exact names:
+${established.map((lane) => `- ${lane}`).join("\n")}
+
+KEEP THESE NAMES, spelled exactly as above, and write each one's definition from the
+captions you are given. Add a lane only for a genuine subject none of them covers, and
+drop one only if no caption belongs to it.`
+      : ""
+  }
 
 You will be given that account's recent captions. Return the 4-7 recurring lanes its
 content falls into.
@@ -185,16 +214,19 @@ export async function ensureLanes(
   platform: PlatformId,
   handle: string,
   posts: PostRecord[],
-  options: { rebuild?: boolean } = {},
+  options: { rebuild?: boolean; established?: string[] } = {},
 ): Promise<ContentLane[]> {
   try {
     // A rebuild derives the vocabulary again from what the account publishes
     // NOW, and re-files every post against it. Reusing the stored taxonomy
     // here would make the whole action a no-op, which is what it was: the
     // button said "rebuild" and only classified whatever had been missed.
-    let lanes = options.rebuild ? await deriveTaxonomy(platform, handle, posts) : null;
+    let lanes = options.rebuild
+      ? await deriveTaxonomy(platform, handle, posts, options.established ?? [])
+      : null;
     if (!lanes?.length) lanes = await readTaxonomy(platform, handle);
-    if (!lanes?.length) lanes = await deriveTaxonomy(platform, handle, posts);
+    if (!lanes?.length)
+      lanes = await deriveTaxonomy(platform, handle, posts, options.established ?? []);
     if (!lanes.length) return [];
     await classifyPosts(platform, lanes, posts, { all: options.rebuild === true });
     return lanes;
@@ -235,7 +267,11 @@ export async function deriveLanesForOwner(
   }
 
   const handle = OWNER_ACCOUNTS[platform].handle;
-  const posts = await readPosts(platform, handle).catch(() => []);
+  // The whole back catalogue, not readPosts' default page of 60. A rebuild
+  // that re-files "every post" against a new vocabulary has to SEE every post;
+  // with the default it re-filed the most recent 60 and left the rest carrying
+  // labels from a taxonomy that no longer existed.
+  const posts = await readPosts(platform, handle, 1000).catch(() => []);
   if (!posts.length) {
     return { lanes: [], reason: "No posts stored for this account yet — run a sync first." };
   }
@@ -248,7 +284,12 @@ export async function deriveLanesForOwner(
     };
   }
 
-  const lanes = await ensureLanes(platform, handle, posts, options);
+  // The team's calendar is the vocabulary of record where one exists; see
+  // deriveTaxonomy's `established`.
+  const calendar = await readCalendarEntries(platform).catch(() => []);
+  const established = [...new Set(calendar.map((entry) => entry.lane).filter(Boolean))] as string[];
+
+  const lanes = await ensureLanes(platform, handle, posts, { ...options, established });
   return lanes.length
     ? { lanes: lanes.map((lane) => lane.name) }
     : {
