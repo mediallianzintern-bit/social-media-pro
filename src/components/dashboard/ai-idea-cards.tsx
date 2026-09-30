@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import { VoteButtons } from "@/components/dashboard/vote-buttons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardContent } from "@/components/ui/card";
@@ -398,6 +399,25 @@ export function AiIdeaCards({
                   {open.post ? "" : " script"}
                 </SheetDescription>
                 <SheetTitle className="text-xl leading-snug">{open.title}</SheetTitle>
+                {/* T67. Voting lives here rather than on the card: the card is
+                    itself a button, and this is where the whole idea and its
+                    script are actually read before anyone judges them. What
+                    is learned from is the hook, the angle and the trait it
+                    reproduces — the topic and the tone together. */}
+                {open.id ? (
+                  <div className="flex items-center gap-2 pt-1">
+                    <span className="text-xs text-muted-foreground">
+                      Want more ideas like this?
+                    </span>
+                    <VoteButtons
+                      platform={platform}
+                      kind="idea"
+                      itemId={open.id}
+                      text={[open.hook, open.angle, open.winningTrait].filter(Boolean).join(" · ")}
+                      lane={open.contentLane ?? null}
+                    />
+                  </div>
+                ) : null}
               </SheetHeader>
 
               <div className="flex-1 space-y-7 overflow-y-auto p-6">

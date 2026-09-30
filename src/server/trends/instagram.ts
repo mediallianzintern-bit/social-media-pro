@@ -19,9 +19,11 @@ import {
   readTaxonomy,
   competitorSnapshots,
   trendSourceSnapshots,
+  readTopicVotes,
 } from "../store";
 import { classifyLane, distinctiveSubjects } from "@/lib/calendar-classify";
 import { LANE_FIT_THRESHOLD, buildLaneVocabulary, laneFit } from "@/lib/lane-fit";
+import { buildPreferenceModel, preferenceFor } from "@/lib/preferences";
 import {
   BREAKOUT_MULTIPLE,
   MIN_POSTS_FOR_MEDIAN,
@@ -113,13 +115,15 @@ export async function instagramTrends(
   // both: a competitor's breakout says what works in this niche, and a trend
   // source's says what the niche is talking about today. Everything else in
   // the system sees competitors only. See AccountRole in apify/accounts.
-  const [competitors, sources, lanes, calendar] = await Promise.all([
+  const [competitors, sources, lanes, calendar, votes] = await Promise.all([
     competitorSnapshots(platform).catch(() => []),
     trendSourceSnapshots(platform).catch(() => []),
     ownerLanes(platform),
     readCalendarEntries(platform).catch(() => []),
+    readTopicVotes(platform).catch(() => []),
   ]);
   const rivals = [...competitors, ...sources];
+  const preferences = buildPreferenceModel(votes);
 
   if (!rivals.length) {
     return {
@@ -237,6 +241,27 @@ export async function instagramTrends(
         continue;
       }
 
+      // The team's ticks and crosses, last. They reorder what already passed
+      // every other gate; they never rescue something the meme filter or the
+      // calendar check threw out, because a tick is a verdict on a subject,
+      // not an override of the rules about what this account makes.
+      const preference = preferenceFor(preferences, {
+        kind: "trend",
+        itemId: base.postId,
+        text: caption,
+        lane,
+      });
+      if (preference.suppressed) {
+        rejected.push({
+          ...base,
+          lane,
+          reason: preference.reason ?? "like posts you crossed",
+          score,
+          voted: preference.voted,
+        });
+        continue;
+      }
+
       found.push({
         ...base,
         lane,
@@ -246,11 +271,14 @@ export async function instagramTrends(
             ? `, reads like your ${lane} topics (${why.slice(0, 3).join(", ")})`
             : lane
               ? `, fits ${lane}`
-              : ", no clear lane — judge it yourself"),
+              : ", no clear lane — judge it yourself") +
+          (preference.reason ? ` · ${preference.reason}` : ""),
         // Breakout size AND fit. A modest breakout squarely in this account's
         // territory outranks a bigger one with no lane, which is what keeps
-        // the top of the list useful without hiding the rest.
-        score: Number((score * (1 + Math.min(fit, 1))).toFixed(3)),
+        // the top of the list useful without hiding the rest. The team's
+        // preference then scales the result.
+        score: Number((score * (1 + Math.min(fit, 1)) * preference.multiplier).toFixed(3)),
+        voted: preference.voted,
       });
     }
   }

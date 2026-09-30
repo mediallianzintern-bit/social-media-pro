@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 
 import { SectionHeading } from "@/components/dashboard/section-heading";
 import { Badge } from "@/components/ui/badge";
+import { TasteSummary } from "@/components/dashboard/taste-summary";
+import { VoteButtons } from "@/components/dashboard/vote-buttons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -77,6 +79,9 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
         title="Topics in the news"
         note="Fetched from a live news search for your lanes — nothing here is generated"
       />
+      {/* What the team's votes have taught — directly under the heading of the
+          first list those votes reorder, so the cause sits beside the effect. */}
+      <TasteSummary platform={platform} />
       <Card>
         <CardContent className="space-y-4 p-5">
           <div className="flex flex-wrap items-center gap-3">
@@ -174,6 +179,9 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                         ) : null}
                         {age != null ? <span>{age === 0 ? "today" : `${age}d ago`}</span> : null}
                         {item.lane ? <span>· {item.lane}</span> : null}
+                        {item.preference?.reason ? (
+                          <span className="italic">· {item.preference.reason}</span>
+                        ) : null}
                         {item.coverage >= TRENDING_COVERAGE ? (
                           <Badge variant="secondary" className="gap-1 font-normal">
                             <Flame className="size-3" style={{ color: meta.color }} aria-hidden />
@@ -182,7 +190,14 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                         ) : null}
                       </p>
                     </div>
-                    <div className="shrink-0 pl-5 sm:pl-0">
+                    <div className="flex shrink-0 items-center gap-2 pl-5 sm:pl-0">
+                      <VoteButtons
+                        platform={platform}
+                        kind="source"
+                        itemId={item.id}
+                        text={item.title}
+                        lane={item.lane}
+                      />
                       {item.used || justWritten ? (
                         <span className="inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400">
                           <Check className="size-3.5" aria-hidden />
@@ -222,6 +237,30 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
             <Button variant="ghost" size="sm" onClick={() => setExpanded((value) => !value)}>
               {expanded ? "Show fewer" : `Show all ${filtered.length}`}
             </Button>
+          ) : null}
+
+          {data?.hidden?.length ? (
+            <details className="rounded-md border px-3 py-2 text-xs">
+              <summary className="cursor-pointer text-muted-foreground">
+                {data.hidden.length} stor{data.hidden.length === 1 ? "y" : "ies"} hidden by your
+                votes
+              </summary>
+              <ul className="mt-2 space-y-1.5">
+                {data.hidden.map((item) => (
+                  <li key={item.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                    <span className="text-muted-foreground">— {item.reason}</span>
+                    <VoteButtons
+                      platform={platform}
+                      kind="source"
+                      itemId={item.id}
+                      text={item.title}
+                      lane={item.lane}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </details>
           ) : null}
 
           {write.data && !write.data.idea ? (

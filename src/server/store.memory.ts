@@ -6,6 +6,7 @@
 // whole point of syncing every two hours, only becomes real once Supabase is
 // wired up. The UI says so rather than letting the gap pass unnoticed.
 import type { ContentEra } from "@/lib/eras";
+import type { TopicVote } from "@/lib/preferences";
 import { isTrendSource } from "./apify/accounts";
 import type {
   AccountSnapshot,
@@ -426,3 +427,45 @@ export async function saveEra(_era: {
 }): Promise<void> {}
 
 export async function deleteEra(_id: string): Promise<void> {}
+
+// ---------------------------------------------------------------------------
+// Topic feedback (T67)
+// ---------------------------------------------------------------------------
+//
+// Kept in memory so a preview without Supabase still shows the ranking react
+// to a vote within the session. Lost on restart, like everything else here.
+
+const votes: Array<TopicVote & { platform: PlatformId }> = [];
+
+export async function readTopicVotes(platform: PlatformId): Promise<TopicVote[]> {
+  return votes
+    .filter((vote) => vote.platform === platform)
+    .map(({ platform: _platform, ...vote }) => vote);
+}
+
+export async function saveTopicVote(vote: {
+  platform: PlatformId;
+  kind: TopicVote["kind"];
+  itemId: string;
+  verdict: TopicVote["verdict"] | null;
+  text: string;
+  lane: string | null;
+  actor: string | null;
+}): Promise<void> {
+  const index = votes.findIndex(
+    (entry) =>
+      entry.platform === vote.platform && entry.kind === vote.kind && entry.itemId === vote.itemId,
+  );
+  if (index >= 0) votes.splice(index, 1);
+  if (vote.verdict === null) return;
+  votes.unshift({
+    platform: vote.platform,
+    kind: vote.kind,
+    itemId: vote.itemId,
+    verdict: vote.verdict,
+    text: vote.text,
+    lane: vote.lane,
+    actor: vote.actor,
+    createdAt: new Date().toISOString(),
+  });
+}

@@ -180,6 +180,20 @@ export interface AccountBrief {
    */
   calendarSubjects?: string[];
   /**
+   * T67 — what the team ticked and crossed. Compact on purpose: the whole
+   * system runs on gpt-4o under a 30k tokens-per-minute ceiling, and this block
+   * is paid on every generation. A handful of real examples each way plus the
+   * learned words says more than a long list would.
+   */
+  teamPreferences?: {
+    liked: string[];
+    disliked: string[];
+    likedWords: string[];
+    dislikedWords: string[];
+    likedLanes: string[];
+    dislikedLanes: string[];
+  };
+  /**
    * §5.1 — how this system's own past suggestions performed once published.
    * Owner only, and built from measured signals.
    */
@@ -264,6 +278,7 @@ export function buildBrief(
         goal?: AccountBrief["goal"];
         calendarTopics?: AccountBrief["calendarTopics"];
         calendarSubjects?: AccountBrief["calendarSubjects"];
+        teamPreferences?: AccountBrief["teamPreferences"];
       }
     | undefined,
 ): AccountBrief {
@@ -357,6 +372,7 @@ export function buildBrief(
     ...(learning?.goal ? { goal: learning.goal } : {}),
     ...(learning?.calendarTopics?.length ? { calendarTopics: learning.calendarTopics } : {}),
     ...(learning?.calendarSubjects?.length ? { calendarSubjects: learning.calendarSubjects } : {}),
+    ...(learning?.teamPreferences ? { teamPreferences: learning.teamPreferences } : {}),
     ...(owned ? { owned } : {}),
   };
 }
@@ -642,6 +658,12 @@ ${
 - Check this block before you commit to a subject, not after. The list is what the record holds,
   not everything the creator has ever made — older posts may be missing — so treat a near-miss
   as a repeat rather than a licence.
+- You may be given a TEAM PREFERENCES block: topics and scripts the team marked ✓ or ✗.
+  Lean toward the subjects, angles and tone of the ✓ examples and the words the team
+  favours, and steer clearly away from the subjects and tone of the ✗ ones. This is the
+  team's taste, not a measure of performance — never cite it as evidence that something
+  will do well, and never let it override a hard rule. Do not simply rewrite a ✓ example:
+  a liked topic is spent like any other, so take a DIFFERENT subject in the same spirit.
 - You are given an ALREADY ON THE CALENDAR block: every topic the social team has planned or
   published in their own calendar, with its status. This is the strongest "do not repeat"
   signal in the brief, because it covers work that has not gone out yet and therefore appears
@@ -870,6 +892,13 @@ already covered even though the script is not quoted:
 ${owner.calendarSubjects.join(", ")}\n`
     : ""
 }`
+    : ""
+}
+${
+  owner.teamPreferences &&
+  (owner.teamPreferences.liked.length || owner.teamPreferences.disliked.length)
+    ? `TEAM PREFERENCES — what the team marked. Taste, not performance:
+${owner.teamPreferences.liked.length ? `✓ liked:\n${owner.teamPreferences.liked.map((text) => `- ${text}`).join("\n")}\n` : ""}${owner.teamPreferences.disliked.length ? `✗ rejected:\n${owner.teamPreferences.disliked.map((text) => `- ${text}`).join("\n")}\n` : ""}${owner.teamPreferences.likedWords.length ? `Words they favour: ${owner.teamPreferences.likedWords.join(", ")}\n` : ""}${owner.teamPreferences.dislikedWords.length ? `Words they avoid: ${owner.teamPreferences.dislikedWords.join(", ")}\n` : ""}${owner.teamPreferences.likedLanes.length ? `Lanes they want more of: ${owner.teamPreferences.likedLanes.join(", ")}\n` : ""}${owner.teamPreferences.dislikedLanes.length ? `Lanes they want less of: ${owner.teamPreferences.dislikedLanes.join(", ")}\n` : ""}`
     : ""
 }
 ${

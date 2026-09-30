@@ -17,6 +17,7 @@ import { hasOpenAi, openAiKeyIsPlaceholder } from "./client";
 import { discoverCompetitors, type DiscoveryResult } from "./discover";
 import { classifyPosts, ensureLanes } from "./lanes";
 import { nicheLanes, suggestionFeedback } from "./feedback";
+import { buildPreferenceModel, learnedSummary } from "@/lib/preferences";
 import { OWNER_ACCOUNTS } from "../apify/accounts";
 import {
   competitorSnapshots,
@@ -33,6 +34,7 @@ import {
   readSourceItemsById,
   readTaxonomy,
   saveAnalysis,
+  readTopicVotes,
 } from "../store";
 import { refreshSources, sourceCandidates } from "../sources";
 import type { AiAnalysis } from "@/lib/ai-types";
@@ -129,6 +131,15 @@ async function prepareOwner(
   // The team's own calendar: the only record of topics that are planned but
   // not yet posted, which no platform data can show.
   const calendar = await readCalendarEntries(platform).catch(() => []);
+  const votes = await readTopicVotes(platform).catch(() => []);
+  const learnedTaste = learnedSummary(buildPreferenceModel(votes));
+  // Newest first, text trimmed: the examples carry the tone, and a headline's
+  // first ~90 characters carry most of that.
+  const exampleOf = (verdict: "like" | "dislike") =>
+    votes
+      .filter((vote) => vote.verdict === verdict)
+      .slice(0, 6)
+      .map((vote) => vote.text.replace(/\s+/g, " ").slice(0, 90));
 
   const [pastSuggestions, priorSuggestions, publishedSubjects, niche] = await Promise.all([
     suggestionFeedback(platform).catch(() => null),
@@ -235,6 +246,18 @@ async function prepareOwner(
       calendarSubjects: [
         ...new Set(calendar.slice(60).flatMap((entry) => entry.subjects.slice(0, 2))),
       ].slice(0, 300),
+      ...(votes.length
+        ? {
+            teamPreferences: {
+              liked: exampleOf("like"),
+              disliked: exampleOf("dislike"),
+              likedWords: learnedTaste.likedWords.map((entry) => entry.key),
+              dislikedWords: learnedTaste.dislikedWords.map((entry) => entry.key),
+              likedLanes: learnedTaste.likedLanes.map((entry) => entry.key),
+              dislikedLanes: learnedTaste.dislikedLanes.map((entry) => entry.key),
+            },
+          }
+        : {}),
       ...(goal ? { goal } : {}),
     },
   );

@@ -51,6 +51,8 @@ export interface InstagramTrend {
   reason: string;
   /** Ranking score: breakout size, tempered by recency. Only meaningful among gated trends. */
   score: number;
+  /** The team's own tick or cross on this post, if any. */
+  voted?: "like" | "dislike" | null;
 }
 
 /** Below this multiple a post is normal variation for that account, not a breakout. */

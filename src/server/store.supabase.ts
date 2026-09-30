@@ -13,6 +13,7 @@ import type {
 } from "@/lib/analytics-types";
 import type { AiAnalysis, ContentIdea } from "@/lib/ai-types";
 import type { ContentEra } from "@/lib/eras";
+import type { TopicVote } from "@/lib/preferences";
 import { scriptFeatures, type ScriptFeatures } from "@/lib/script-features";
 import type { SourceDraft, SourceItem } from "@/lib/sources";
 import type { CalendarEntry } from "@/lib/calendar-types";
@@ -1770,6 +1771,84 @@ export async function deleteEra(id: string): Promise<void> {
   if (error && !schemaNotReady(error)) {
     throw new Error(`content_eras delete failed: ${error.message}`);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Topic feedback (T67)
+// ---------------------------------------------------------------------------
+
+/**
+ * Every vote for an account's platform, newest first.
+ *
+ * [] when the table is absent, like the other enrichment reads: preferences
+ * reorder the lists, and with none the lists are exactly what they were
+ * before this feature existed — which is the correct behaviour until the
+ * migration is applied, not an error.
+ */
+export async function readTopicVotes(platform: PlatformId): Promise<TopicVote[]> {
+  const { data, error } = await db()
+    .from("topic_feedback")
+    .select("item_kind,item_id,verdict,item_text,lane,actor,created_at")
+    .eq("platform", platform)
+    .order("created_at", { ascending: false })
+    .limit(2000);
+  if (error && schemaNotReady(error)) return [];
+  if (error) throw new Error(`topic_feedback read failed: ${error.message}`);
+  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    kind: row["item_kind"] as TopicVote["kind"],
+    itemId: String(row["item_id"]),
+    verdict: row["verdict"] as TopicVote["verdict"],
+    text: String(row["item_text"] ?? ""),
+    lane: (row["lane"] as string | null) ?? null,
+    actor: (row["actor"] as string | null) ?? null,
+    createdAt: String(row["created_at"]),
+  }));
+}
+
+/**
+ * Records a verdict, or clears it when `verdict` is null.
+ *
+ * Upserted on the item so changing your mind replaces the vote. The timestamp
+ * is refreshed on every change: a vote re-cast today is today's opinion, and
+ * the decay should run from now rather than from the first click.
+ */
+export async function saveTopicVote(vote: {
+  platform: PlatformId;
+  kind: TopicVote["kind"];
+  itemId: string;
+  verdict: TopicVote["verdict"] | null;
+  text: string;
+  lane: string | null;
+  actor: string | null;
+}): Promise<void> {
+  if (vote.verdict === null) {
+    const { error } = await db()
+      .from("topic_feedback")
+      .delete()
+      .eq("platform", vote.platform)
+      .eq("item_kind", vote.kind)
+      .eq("item_id", vote.itemId);
+    if (error && !schemaNotReady(error)) {
+      throw new Error(`topic_feedback delete failed: ${error.message}`);
+    }
+    return;
+  }
+  const { error } = await db()
+    .from("topic_feedback")
+    .upsert(
+      {
+        platform: vote.platform,
+        item_kind: vote.kind,
+        item_id: vote.itemId,
+        verdict: vote.verdict,
+        item_text: vote.text.slice(0, 2000),
+        lane: vote.lane,
+        actor: vote.actor,
+        created_at: new Date().toISOString(),
+      },
+      { onConflict: "platform,item_kind,item_id" },
+    );
+  if (error) throw new Error(`topic_feedback upsert failed: ${error.message}`);
 }
 
 /** Links a calendar entry to the post it became. */

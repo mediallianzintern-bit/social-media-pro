@@ -3,6 +3,7 @@ import { ChevronDown, ExternalLink, Filter, Flame } from "lucide-react";
 import { useState } from "react";
 
 import { SectionHeading } from "@/components/dashboard/section-heading";
+import { VoteButtons } from "@/components/dashboard/vote-buttons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -88,6 +89,14 @@ export function InstagramTrends({ platform }: { platform: PlatformId }) {
                         no clear lane
                       </Badge>
                     )}
+                    <VoteButtons
+                      platform={platform}
+                      kind="trend"
+                      itemId={trend.postId}
+                      text={trend.caption || trend.hook}
+                      lane={trend.lane}
+                      className="ml-auto"
+                    />
                   </div>
 
                   <p className="mt-1.5 text-sm leading-snug">{trend.hook}</p>

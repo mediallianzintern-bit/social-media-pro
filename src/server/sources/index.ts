@@ -12,10 +12,12 @@ import {
   readPosts,
   readSourceItems,
   readTaxonomy,
+  readTopicVotes,
   readUsedSourceIds,
   saveSourceItems,
 } from "../store";
 import { lanePerformance, type PlatformId } from "@/lib/analytics-types";
+import { buildPreferenceModel, laneQuota, preferenceFor, type Verdict } from "@/lib/preferences";
 import {
   clusterStories,
   rankSources,
@@ -140,8 +142,23 @@ export async function refreshSources(
   };
 }
 
+/** How the team's votes bear on one story. See lib/preferences.ts. */
+export interface InboxPreference {
+  voted: Verdict | null;
+  /** Why it moved, in words. Null when no vote applied. */
+  reason: string | null;
+}
+
 export interface TopicInbox {
-  items: Array<SourceItem & { used: boolean }>;
+  items: Array<SourceItem & { used: boolean; preference: InboxPreference }>;
+  /**
+   * Stories held back because the team crossed them, or crossed enough like
+   * them. Returned rather than silently dropped, for the same reason the trend
+   * catcher returns what its gate rejected: a filter that removes things
+   * without showing them is one nobody can check, and one bad vote pattern
+   * could quietly empty a lane.
+   */
+  hidden: Array<SourceItem & { reason: string }>;
   lastFetchedAt: string | null;
   /** False before migration 0010: the inbox cannot keep what it fetches. */
   storable: boolean;
@@ -150,14 +167,47 @@ export interface TopicInbox {
 /** Fresh stories for the inbox, trending first, with the ones already turned into ideas marked. */
 export async function topicInbox(platform: PlatformId): Promise<TopicInbox> {
   const since = new Date(Date.now() - SOURCE_WINDOW_DAYS * 86_400_000).toISOString();
-  const [items, used, last] = await Promise.all([
+  const [items, used, last, votes] = await Promise.all([
     readSourceItems(platform, since).catch(() => []),
     readUsedSourceIds(platform).catch(() => []),
     lastSourceFetch(platform).catch(() => null),
+    readTopicVotes(platform).catch(() => []),
   ]);
   const usedSet = new Set(used);
+  const model = buildPreferenceModel(votes);
+
+  // The existing order — trending first, then newest — becomes a score that
+  // falls off gently with position, and the team's preference multiplies it.
+  // With no votes every multiplier is exactly 1 and the order is untouched;
+  // a liked story climbs a few places and a disliked one sinks, rather than
+  // either jumping to an end on one click.
+  const shown: TopicInbox["items"] = [];
+  const hidden: TopicInbox["hidden"] = [];
+  const scored = rankSources(items).map((item, index) => {
+    const preference = preferenceFor(model, {
+      kind: "source",
+      itemId: item.id,
+      text: item.title,
+      lane: item.lane,
+    });
+    return { item, preference, rank: (1 / (1 + index / 10)) * preference.multiplier };
+  });
+
+  for (const { item, preference } of scored.sort((a, b) => b.rank - a.rank)) {
+    if (preference.suppressed) {
+      hidden.push({ ...item, reason: preference.reason ?? "like topics you crossed" });
+      continue;
+    }
+    shown.push({
+      ...item,
+      used: usedSet.has(item.id),
+      preference: { voted: preference.voted, reason: preference.reason },
+    });
+  }
+
   return {
-    items: rankSources(items).map((item) => ({ ...item, used: usedSet.has(item.id) })),
+    items: shown,
+    hidden,
     lastFetchedAt: last,
     storable: last !== null || items.length > 0,
   };
@@ -177,15 +227,22 @@ export async function sourceCandidates(
 ): Promise<SourceItem[]> {
   const perLane = options.perLane ?? 6;
   const limit = options.limit ?? 30;
-  const inbox = await topicInbox(platform);
+  const [inbox, votes] = await Promise.all([
+    topicInbox(platform),
+    readTopicVotes(platform).catch(() => []),
+  ]);
+  const model = buildPreferenceModel(votes);
   const counts = new Map<string, number>();
   const picked: SourceItem[] = [];
   for (const item of inbox.items) {
     if (item.used) continue;
     const lane = item.lane ?? "";
-    if ((counts.get(lane) ?? 0) >= perLane) continue;
+    // A lane the team keeps ticking gets more of the strategist's attention,
+    // one it keeps crossing gets less — the "more of what we like" half of the
+    // feature. Hidden stories never reach here at all.
+    if ((counts.get(lane) ?? 0) >= laneQuota(model, item.lane, perLane)) continue;
     counts.set(lane, (counts.get(lane) ?? 0) + 1);
-    const { used: _used, ...source } = item;
+    const { used: _used, preference: _preference, ...source } = item;
     picked.push(source);
     if (picked.length >= limit) break;
   }

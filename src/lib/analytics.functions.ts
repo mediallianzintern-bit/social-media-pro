@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireStaff } from "@/lib/require-staff";
 
 import type { AiAnalysis } from "@/lib/ai-types";
 import type { DashboardData, PlatformId, SyncResult } from "@/lib/analytics-types";
@@ -391,4 +392,57 @@ export const erasQueryOptions = (platform: PlatformId) => ({
   queryKey: ["eras", platform] as const,
   queryFn: () => getEras({ data: platform }),
   staleTime: 60 * 1000,
+});
+
+/**
+ * T67 — the team's ticks and crosses, plus what the system has learned from
+ * them. The vote list lets every row show its own state; the summary is what
+ * the "what it has learned" card reads.
+ */
+export const getTopicFeedback = createServerFn({ method: "GET" })
+  .validator((input: unknown) => platformSchema.parse(input))
+  .handler(async ({ data }) => {
+    const [{ readTopicVotes }, { buildPreferenceModel, learnedSummary }] = await Promise.all([
+      import("@/server/store"),
+      import("@/lib/preferences"),
+    ]);
+    const votes = await readTopicVotes(data).catch(() => []);
+    return {
+      votes: votes.map((vote) => ({ kind: vote.kind, itemId: vote.itemId, verdict: vote.verdict })),
+      summary: learnedSummary(buildPreferenceModel(votes)),
+    };
+  });
+
+/**
+ * Casts, changes or clears one vote. `verdict: null` clears it.
+ *
+ * The voter is taken from the verified session in requireStaff, never from
+ * the request: a preference that shapes what the whole team is shown should
+ * be traceable to the person who set it, and a name typed into a payload
+ * would not be.
+ */
+export const voteTopic = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .validator((input: unknown) =>
+    z
+      .object({
+        platform: platformSchema,
+        kind: z.enum(["source", "trend", "idea"]),
+        itemId: z.string().min(1).max(200),
+        verdict: z.enum(["like", "dislike"]).nullable(),
+        text: z.string().min(1).max(2000),
+        lane: z.string().max(120).nullable(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { saveTopicVote } = await import("@/server/store");
+    await saveTopicVote({ ...data, actor: context.staffEmail });
+    return { ok: true };
+  });
+
+export const topicFeedbackQueryOptions = (platform: PlatformId) => ({
+  queryKey: ["topic-feedback", platform] as const,
+  queryFn: () => getTopicFeedback({ data: platform }),
+  staleTime: 30 * 1000,
 });
