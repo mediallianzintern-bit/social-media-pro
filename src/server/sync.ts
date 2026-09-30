@@ -302,22 +302,34 @@ async function dueForSchedule(
   };
 }
 
-export function runSync(trigger: "manual" | "schedule" = "manual"): Promise<SyncResult> {
+/**
+ * `platforms` narrows a sync to the platforms named. The "Rising on Instagram"
+ * refresh uses it: it needs fresh Instagram posts and nothing else, and a full
+ * sync would also buy LinkedIn — two Apify runs against the scraper's
+ * fifty-run free allowance, spent on a panel that does not show LinkedIn.
+ */
+export function runSync(
+  trigger: "manual" | "schedule" = "manual",
+  options: { platforms?: PlatformId[] } = {},
+): Promise<SyncResult> {
   if (inFlight) return inFlight;
-  inFlight = runSyncOnce(trigger).finally(() => {
+  inFlight = runSyncOnce(trigger, options.platforms).finally(() => {
     inFlight = null;
   });
   return inFlight;
 }
 
-async function runSyncOnce(trigger: "manual" | "schedule"): Promise<SyncResult> {
+async function runSyncOnce(
+  trigger: "manual" | "schedule",
+  only?: PlatformId[],
+): Promise<SyncResult> {
   const startedAt = new Date().toISOString();
 
   if (!apifyToken()) {
     return {
       startedAt,
       finishedAt: new Date().toISOString(),
-      outcomes: PLATFORM_IDS.map((platform) => ({
+      outcomes: (only?.length ? only : PLATFORM_IDS).map((platform) => ({
         platform,
         status: "error" as const,
         error: "APIFY_TOKEN is not set — add it to .env and restart the dev server.",
@@ -329,7 +341,7 @@ async function runSyncOnce(trigger: "manual" | "schedule"): Promise<SyncResult> 
   // and a parallel fan-out across platforms trips that limit rather than going
   // faster. A sync takes ~20s; nothing is waiting on it.
   const outcomes: SyncOutcome[] = [];
-  for (const platform of PLATFORM_IDS) {
+  for (const platform of only?.length ? only : PLATFORM_IDS) {
     // An unattended pass respects each platform's own cadence. Without this,
     // every page load on stale data and every two-hour tick of a dashboard left
     // open bought BOTH platforms — and LinkedIn is two Apify runs against a

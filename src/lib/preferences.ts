@@ -307,3 +307,59 @@ export function learnedSummary(model: PreferenceModel) {
       .slice(0, 8),
   };
 }
+
+/**
+ * Searches to add to the next news fetch, built from what the team keeps
+ * ticking.
+ *
+ * Ranking alone can only reorder stories that were already fetched, and the
+ * fetch searches only the lanes' standing queries. So a subject the team
+ * plainly wants — ticked again and again — could still be starved simply
+ * because no standing query happened to find it. This is the "pull" half:
+ * the words the team has consistently ticked become a search of their own, so
+ * new stories on that subject are actually brought in.
+ *
+ * Only a PATTERN pulls. A query needs two learned words, and a word is learned
+ * only once it appears in two ticked items — so one tick never changes what is
+ * searched for, and nothing is pulled until a preference has formed. Crosses
+ * are not turned into searches: excluding a word at the source would hide
+ * stories no one has had the chance to judge, and hiding is already handled,
+ * visibly, where the stories are shown.
+ */
+export function pullQueries(
+  votes: TopicVote[],
+  max = 2,
+): Array<{ lane: string | null; query: string }> {
+  const summary = learnedSummary(buildPreferenceModel(votes));
+  // Strongly liked only — a word the team is lukewarm on should not spend a
+  // search.
+  const liked = new Set(
+    summary.likedWords.filter((entry) => entry.affinity >= 0.25).map((entry) => entry.key),
+  );
+  if (liked.size < 2) return [];
+
+  const byLane = new Map<string | null, TopicVote[]>();
+  for (const vote of votes) {
+    if (vote.verdict !== "like") continue;
+    byLane.set(vote.lane, [...(byLane.get(vote.lane) ?? []), vote]);
+  }
+
+  const queries: Array<{ lane: string | null; query: string }> = [];
+  // The lanes with the most ticks first: that is where the preference is
+  // strongest and a search most likely to be wanted.
+  for (const [lane, laneVotes] of [...byLane].sort((a, b) => b[1].length - a[1].length)) {
+    const counts = new Map<string, number>();
+    for (const vote of laneVotes) {
+      for (const word of wordsOf(vote.text)) {
+        if (liked.has(word)) counts.set(word, (counts.get(word) ?? 0) + 1);
+      }
+    }
+    const words = [...counts]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([word]) => word);
+    if (words.length >= 2) queries.push({ lane, query: words.join(" ") });
+    if (queries.length >= max) break;
+  }
+  return queries;
+}

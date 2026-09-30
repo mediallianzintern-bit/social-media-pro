@@ -28,13 +28,17 @@ export const getDashboard = createServerFn({ method: "GET" }).handler(
  * meant the server could not apply a cheaper cadence to an unattended pass, and
  * every page load on stale data bought every platform.
  */
-const syncInputSchema = z.object({ trigger: z.enum(["manual", "schedule"]).default("manual") });
+const syncInputSchema = z.object({
+  trigger: z.enum(["manual", "schedule"]).default("manual"),
+  /** Narrow the sync to these platforms. Omitted means all of them. */
+  platforms: z.array(platformSchema).optional(),
+});
 
 export const syncNow = createServerFn({ method: "POST" })
   .validator((input: unknown) => syncInputSchema.parse(input ?? {}))
   .handler(async ({ data }): Promise<SyncResult> => {
     const { runSync } = await import("@/server/sync");
-    return runSync(data.trigger);
+    return runSync(data.trigger, data.platforms ? { platforms: data.platforms } : {});
   });
 
 export const dashboardQueryOptions = {

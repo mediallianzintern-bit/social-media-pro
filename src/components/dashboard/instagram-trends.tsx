@@ -1,5 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ExternalLink, Filter, Flame } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronDown, ExternalLink, Filter, Flame, Loader2, RefreshCw } from "lucide-react";
 import { useState } from "react";
 
 import { SectionHeading } from "@/components/dashboard/section-heading";
@@ -7,7 +7,11 @@ import { VoteButtons } from "@/components/dashboard/vote-buttons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { instagramTrendsQueryOptions } from "@/lib/analytics.functions";
+import {
+  dashboardQueryOptions,
+  instagramTrendsQueryOptions,
+  syncNow,
+} from "@/lib/analytics.functions";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import { cn } from "@/lib/utils";
 import type { PlatformId } from "@/lib/analytics-types";
@@ -30,6 +34,7 @@ import type { PlatformId } from "@/lib/analytics-types";
  */
 export function InstagramTrends({ platform }: { platform: PlatformId }) {
   const { data, isLoading } = useQuery(instagramTrendsQueryOptions(platform));
+  const refresh = useRefreshRising(platform);
   const [showRejected, setShowRejected] = useState(false);
   const meta = PLATFORM_META[platform];
   const accent = meta.color;
@@ -48,6 +53,23 @@ export function InstagramTrends({ platform }: { platform: PlatformId }) {
       <SectionHeading
         title={`Rising on ${meta.label}`}
         note="Posts beating their own account's median, from the competitors you track — with the post itself as the source"
+        action={
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-auto gap-1.5 px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => refresh.mutate()}
+            disabled={refresh.isPending}
+            title={`Scrapes the latest posts from every tracked ${meta.label} account on Apify, which spends credit`}
+          >
+            {refresh.isPending ? (
+              <Loader2 className="size-3 animate-spin" aria-hidden />
+            ) : (
+              <RefreshCw className="size-3" aria-hidden />
+            )}
+            {refresh.isPending ? "Fetching new posts…" : "Refresh"}
+          </Button>
+        }
       />
       <Card>
         <CardContent className="space-y-4 p-5">
@@ -58,6 +80,23 @@ export function InstagramTrends({ platform }: { platform: PlatformId }) {
                 ? `Scanned ${data.scanned.length} tracked accounts on ${metricNoun}. Each post is scored against that account's own median, so a big post counts as a breakout on a small account and not on a large one.`
                 : "No competitor posts stored yet."}
           </p>
+
+          {refresh.message ? (
+            <p
+              className={cn(
+                "rounded-md border px-3 py-2 text-xs",
+                refresh.failed ? "border-destructive/30 text-destructive" : "text-muted-foreground",
+              )}
+            >
+              {refresh.message}
+            </p>
+          ) : null}
+
+          {data?.scanned.length ? (
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              Watching {data.scanned.map((account) => `@${account.handle}`).join(", ")}.
+            </p>
+          ) : null}
 
           {data?.reason ? <p className="text-xs text-muted-foreground">{data.reason}</p> : null}
 
@@ -160,4 +199,50 @@ export function InstagramTrends({ platform }: { platform: PlatformId }) {
       </Card>
     </>
   );
+}
+
+/**
+ * Fetches fresh posts for this platform's tracked accounts — competitors and
+ * trend sources alike — and re-scores the list.
+ *
+ * Narrowed to this one platform on purpose: a full sync would also buy the
+ * other platform, and on LinkedIn that spends runs from a fifty-run free
+ * allowance on a panel that is not showing LinkedIn. The sync also refreshes
+ * the news topics (free) and captures any matured outcomes, as every sync
+ * does.
+ */
+function useRefreshRising(platform: PlatformId) {
+  const queryClient = useQueryClient();
+  const [message, setMessage] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  const mutation = useMutation({
+    mutationFn: () => syncNow({ data: { trigger: "manual", platforms: [platform] } }),
+    onSuccess: async (result) => {
+      const outcome = result.outcomes.find((entry) => entry.platform === platform);
+      if (!outcome || outcome.status === "error") {
+        setFailed(true);
+        setMessage(outcome?.error ?? "The refresh did not complete.");
+      } else if (outcome.status === "skipped") {
+        setFailed(false);
+        setMessage(outcome.reason ?? "Skipped.");
+      } else {
+        setFailed(false);
+        setMessage(
+          `Fetched ${outcome.postsIngested ?? 0} posts just now. The list below is re-scored against them.`,
+        );
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: instagramTrendsQueryOptions(platform).queryKey }),
+        queryClient.invalidateQueries({ queryKey: dashboardQueryOptions.queryKey }),
+        queryClient.invalidateQueries({ queryKey: ["topic-inbox", platform] }),
+      ]);
+    },
+    onError: (error) => {
+      setFailed(true);
+      setMessage(error instanceof Error ? error.message : String(error));
+    },
+  });
+
+  return { mutate: () => mutation.mutate(), isPending: mutation.isPending, message, failed };
 }

@@ -17,7 +17,13 @@ import {
   saveSourceItems,
 } from "../store";
 import { lanePerformance, type PlatformId } from "@/lib/analytics-types";
-import { buildPreferenceModel, laneQuota, preferenceFor, type Verdict } from "@/lib/preferences";
+import {
+  buildPreferenceModel,
+  laneQuota,
+  preferenceFor,
+  pullQueries,
+  type Verdict,
+} from "@/lib/preferences";
 import {
   clusterStories,
   rankSources,
@@ -90,7 +96,15 @@ export async function refreshSources(
     lanes = (await deriveLanesForOwner(platform)).lanes;
   }
 
-  const plan = lanes.flatMap((lane) => queriesForLane(lane).map((query) => ({ lane, query })));
+  const plan: Array<{ lane: string | null; query: string; pulled?: boolean }> = lanes.flatMap(
+    (lane) => queriesForLane(lane).map((query) => ({ lane, query })),
+  );
+  // T67 — searches pulled in by what the team keeps ticking. Added only once a
+  // pattern has formed; see pullQueries. Marked so their results get their
+  // own share below instead of competing with the lane's standing searches
+  // for the same fifteen places.
+  const votes = await readTopicVotes(platform).catch(() => []);
+  for (const pull of pullQueries(votes)) plan.push({ ...pull, pulled: true });
   if (!plan.length) {
     return {
       ...empty,
@@ -102,10 +116,11 @@ export async function refreshSources(
 
   const failures: string[] = [];
   const byLane = new Map<string, SourceDraft[]>();
-  for (const { lane, query } of plan) {
+  for (const { lane, query, pulled } of plan) {
     try {
       const found = await searchNews(query, lane, { days: SEARCH_DAYS });
-      byLane.set(lane, [...(byLane.get(lane) ?? []), ...found]);
+      const bucket = pulled ? `pulled:${query}` : (lane ?? "");
+      byLane.set(bucket, [...(byLane.get(bucket) ?? []), ...found]);
     } catch (error) {
       failures.push(`${query}: ${error instanceof Error ? error.message : String(error)}`);
     }
