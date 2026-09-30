@@ -306,3 +306,89 @@ export const instagramTrendsQueryOptions = (platform: PlatformId) => ({
   // ones in.
   staleTime: 15 * 60 * 1000,
 });
+
+/** Mirrors EraDetection in lib/eras.ts; validated because it is persisted. */
+const eraDetectionSchema = z.object({
+  score: z.number(),
+  reason: z.string(),
+  evidence: z.object({
+    cadence: z.tuple([z.number(), z.number()]),
+    formatShift: z.number(),
+    laneShift: z.number(),
+    cadenceShift: z.number(),
+    from: z.object({ format: z.string(), lane: z.string().nullable() }),
+    to: z.object({ format: z.string(), lane: z.string().nullable() }),
+  }),
+});
+
+/**
+ * Addendum D — this account's eras, plus any the detector proposes.
+ *
+ * Proposals are computed on every read rather than stored: they are cheap
+ * arithmetic over posts already in memory, and a stored proposal would go
+ * stale the moment new posts arrive. Only a CONFIRMED era is written.
+ */
+export const getEras = createServerFn({ method: "GET" })
+  .validator((input: unknown) => platformSchema.parse(input))
+  .handler(async ({ data }) => {
+    const [{ readEras, readPosts }, { detectEras }, { OWNER_ACCOUNTS }] = await Promise.all([
+      import("@/server/store"),
+      import("@/lib/eras"),
+      import("@/server/apify/accounts"),
+    ]);
+    const handle = OWNER_ACCOUNTS[data].handle;
+    const [eras, posts] = await Promise.all([
+      readEras(data, handle).catch(() => []),
+      readPosts(data, handle, 1000).catch(() => []),
+    ]);
+    const known = new Set(eras.map((era) => era.startsAt));
+    return {
+      eras,
+      // Anything already confirmed is not proposed again.
+      proposed: detectEras(posts).filter((boundary) => !known.has(boundary.startsAt)),
+    };
+  });
+
+export const confirmEra = createServerFn({ method: "POST" })
+  .validator((input: unknown) =>
+    z
+      .object({
+        platform: platformSchema,
+        startsAt: z.string().min(4),
+        label: z.string().min(1).max(120),
+        note: z.string().max(500).optional(),
+        origin: z.enum(["manual", "detected"]).optional(),
+        detection: eraDetectionSchema.optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const [{ saveEra }, { OWNER_ACCOUNTS }] = await Promise.all([
+      import("@/server/store"),
+      import("@/server/apify/accounts"),
+    ]);
+    await saveEra({
+      platform: data.platform,
+      handle: OWNER_ACCOUNTS[data.platform].handle,
+      startsAt: data.startsAt,
+      label: data.label,
+      note: data.note ?? null,
+      origin: data.origin ?? "manual",
+      detection: data.detection ?? null,
+    });
+    return { ok: true };
+  });
+
+export const removeEra = createServerFn({ method: "POST" })
+  .validator((input: unknown) => z.object({ id: z.string().min(1) }).parse(input))
+  .handler(async ({ data }) => {
+    const { deleteEra } = await import("@/server/store");
+    await deleteEra(data.id);
+    return { ok: true };
+  });
+
+export const erasQueryOptions = (platform: PlatformId) => ({
+  queryKey: ["eras", platform] as const,
+  queryFn: () => getEras({ data: platform }),
+  staleTime: 60 * 1000,
+});

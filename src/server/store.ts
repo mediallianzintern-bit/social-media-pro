@@ -41,6 +41,9 @@ export const competitorSnapshots: typeof supabase.competitorSnapshots = (...args
   store().competitorSnapshots(...args);
 export const trendSourceSnapshots: typeof supabase.trendSourceSnapshots = (...args) =>
   store().trendSourceSnapshots(...args);
+export const readEras: typeof supabase.readEras = (...args) => store().readEras(...args);
+export const saveEra: typeof supabase.saveEra = (...args) => store().saveEra(...args);
+export const deleteEra: typeof supabase.deleteEra = (...args) => store().deleteEra(...args);
 export const readPosts: typeof supabase.readPosts = (...args) => store().readPosts(...args);
 export const lastSyncAt: typeof supabase.lastSyncAt = (...args) => store().lastSyncAt(...args);
 export const runAlreadyIngested: typeof supabase.runAlreadyIngested = (...args) =>

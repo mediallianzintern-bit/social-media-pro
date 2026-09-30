@@ -12,6 +12,7 @@ import type {
   PostRecord,
 } from "@/lib/analytics-types";
 import type { AiAnalysis, ContentIdea } from "@/lib/ai-types";
+import type { ContentEra } from "@/lib/eras";
 import { scriptFeatures, type ScriptFeatures } from "@/lib/script-features";
 import type { SourceDraft, SourceItem } from "@/lib/sources";
 import type { CalendarEntry } from "@/lib/calendar-types";
@@ -1694,6 +1695,81 @@ export async function readCalendarEntries(platform: PlatformId): Promise<Calenda
   if (error && schemaNotReady(error)) return [];
   if (error) throw new Error(`content_calendar read failed: ${error.message}`);
   return ((data ?? []) as CalendarRow[]).map(toCalendarEntry);
+}
+
+// ---------------------------------------------------------------------------
+// Content eras (Addendum D)
+// ---------------------------------------------------------------------------
+
+/**
+ * Every era for an account, oldest first.
+ *
+ * Returns [] rather than throwing when the table is absent, like the calendar
+ * reads above: eras are an enrichment, and a system that refuses to render a
+ * dashboard because migration 0013 has not been applied is worse than one that
+ * behaves exactly as it did before eras existed.
+ */
+export async function readEras(platform: PlatformId, handle: string): Promise<ContentEra[]> {
+  const { data, error } = await db()
+    .from("content_eras")
+    .select("id,platform,handle,starts_at,label,note,origin,detection,created_at")
+    .eq("platform", platform)
+    .eq("handle", handle)
+    .order("starts_at", { ascending: true });
+  if (error && schemaNotReady(error)) return [];
+  if (error) throw new Error(`content_eras read failed: ${error.message}`);
+
+  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    id: String(row["id"]),
+    platform: row["platform"] as PlatformId,
+    handle: String(row["handle"]),
+    startsAt: String(row["starts_at"]),
+    label: String(row["label"]),
+    note: (row["note"] as string | null) ?? null,
+    origin: (row["origin"] as ContentEra["origin"]) ?? "manual",
+    detection: (row["detection"] as ContentEra["detection"]) ?? null,
+    createdAt: String(row["created_at"]),
+  }));
+}
+
+/**
+ * Creates or updates one era, keyed on its start date.
+ *
+ * Upserting on (platform, handle, starts_at) means re-running detection
+ * refreshes a proposal in place instead of stacking a new row on the same day,
+ * and a person relabelling an era keeps its identity.
+ */
+export async function saveEra(era: {
+  platform: PlatformId;
+  handle: string;
+  startsAt: string;
+  label: string;
+  note?: string | null;
+  origin?: ContentEra["origin"];
+  detection?: ContentEra["detection"];
+}): Promise<void> {
+  const { error } = await db()
+    .from("content_eras")
+    .upsert(
+      {
+        platform: era.platform,
+        handle: era.handle,
+        starts_at: era.startsAt,
+        label: era.label,
+        note: era.note ?? null,
+        origin: era.origin ?? "manual",
+        detection: era.detection ?? null,
+      },
+      { onConflict: "platform,handle,starts_at" },
+    );
+  if (error) throw new Error(`content_eras upsert failed: ${error.message}`);
+}
+
+export async function deleteEra(id: string): Promise<void> {
+  const { error } = await db().from("content_eras").delete().eq("id", id);
+  if (error && !schemaNotReady(error)) {
+    throw new Error(`content_eras delete failed: ${error.message}`);
+  }
 }
 
 /** Links a calendar entry to the post it became. */

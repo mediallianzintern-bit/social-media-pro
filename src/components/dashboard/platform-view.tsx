@@ -8,6 +8,7 @@ import { GrowthChart } from "@/components/dashboard/growth-chart";
 import { KpiTile } from "@/components/dashboard/kpi-tile";
 import { InsightsPanels } from "@/components/dashboard/insights-panels";
 import { DeriveLanes } from "@/components/dashboard/derive-lanes";
+import { ErasPanel } from "@/components/dashboard/eras-panel";
 import { LearningPanel } from "@/components/dashboard/learning-panel";
 import { LockedPanel } from "@/components/dashboard/locked-panel";
 import { MetricBars, type BarRow } from "@/components/dashboard/metric-bars";
@@ -347,6 +348,8 @@ export function PlatformView({ data, range }: { data: PlatformData; range: Resol
            screen said the two were answering different questions. The guard is on
            the contents rather than on `learning` itself, so a window with no
            classified posts does not leave a heading with nothing beneath it. */}
+      <ErasPanel platform={data.platform} />
+
       {data.learning && (data.learning.lanes.length || data.learning.suggestions) ? (
         <>
           <SectionHeading

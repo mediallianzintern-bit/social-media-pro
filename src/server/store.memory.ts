@@ -5,6 +5,7 @@
 // do is survive a server restart — so the follower growth curve, which is the
 // whole point of syncing every two hours, only becomes real once Supabase is
 // wired up. The UI says so rather than letting the gap pass unnoticed.
+import type { ContentEra } from "@/lib/eras";
 import { isTrendSource } from "./apify/accounts";
 import type {
   AccountSnapshot,
@@ -399,3 +400,29 @@ export async function linkCalendarEntry(contentHash: string, postId: string): Pr
   const entry = calendar.get(contentHash);
   if (entry) calendar.set(contentHash, { ...entry, publishedPostId: postId });
 }
+
+// ---------------------------------------------------------------------------
+// Content eras (Addendum D)
+// ---------------------------------------------------------------------------
+//
+// The in-memory store exists so the app runs without Supabase configured, for
+// local work and previews. Eras are a deliberate, durable statement about
+// strategy, so there is nothing sensible to invent here: reads return none and
+// writes are accepted and dropped, which is the same contract the rest of this
+// file offers for anything a preview cannot persist.
+
+export async function readEras(_platform: PlatformId, _handle: string): Promise<ContentEra[]> {
+  return [];
+}
+
+export async function saveEra(_era: {
+  platform: PlatformId;
+  handle: string;
+  startsAt: string;
+  label: string;
+  note?: string | null;
+  origin?: ContentEra["origin"];
+  detection?: ContentEra["detection"];
+}): Promise<void> {}
+
+export async function deleteEra(_id: string): Promise<void> {}
