@@ -10,10 +10,12 @@ import { currentStaffEmail } from "@/lib/session";
 // The reporting window lives in the URL for every screen, so a view is
 // shareable and survives reload. `.catch` keeps a hand-edited URL from 404ing.
 const searchSchema = z.object({
+  // T56 — the current era by default. With no confirmed era it resolves to the
+  // last 30 days, the previous default, so nothing changes until one exists.
   range: z
-    .enum(["today", "yesterday", "7d", "30d", "90d", "all", "custom"])
-    .catch("30d")
-    .default("30d"),
+    .enum(["era", "today", "yesterday", "7d", "30d", "90d", "all", "custom"])
+    .catch("era")
+    .default("era"),
   from: z.string().optional(),
   to: z.string().optional(),
 });

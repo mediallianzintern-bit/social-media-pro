@@ -1,5 +1,5 @@
 // Applies the selected date range to a platform's stored payload.
-import { withinRange, type ResolvedRange } from "@/lib/date-range";
+import { eraWindow, withinRange, type ResolvedRange } from "@/lib/date-range";
 import { goalReadFor, laneExpectations } from "@/lib/prediction";
 import { lanePerformance } from "@/lib/analytics-types";
 import type { GrowthGoal } from "@/lib/growth";
@@ -51,11 +51,13 @@ export function filterPlatform(
   range: ResolvedRange,
   growthGoal: GrowthGoal | null = null,
 ): PlatformData {
-  const posts = data.posts.filter((post) => withinRange(post.publishedAt, range));
+  // "Current era" is resolved per platform; every other range is unchanged.
+  const window = eraWindow(range, data.currentEra);
+  const posts = data.posts.filter((post) => withinRange(post.publishedAt, window));
   return {
     ...data,
     posts,
-    growth: data.growth.filter((point) => withinRange(point.capturedAt, range)),
+    growth: data.growth.filter((point) => withinRange(point.capturedAt, window)),
     // `latest` is the current follower count and is deliberately NOT filtered —
     // "followers as of now" is the truth regardless of the window being viewed.
     ...(data.learning ? { learning: windowedLearning(data.learning, posts, growthGoal) } : {}),

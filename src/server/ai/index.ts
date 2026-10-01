@@ -18,6 +18,7 @@ import { discoverCompetitors, type DiscoveryResult } from "./discover";
 import { classifyPosts, ensureLanes } from "./lanes";
 import { nicheLanes, suggestionFeedback } from "./feedback";
 import { buildPreferenceModel, learnedSummary } from "@/lib/preferences";
+import { currentEra, scopeToEra } from "@/lib/eras";
 import { OWNER_ACCOUNTS } from "../apify/accounts";
 import {
   competitorSnapshots,
@@ -32,6 +33,7 @@ import {
   readCalendarEntries,
   readRecentSuggestions,
   readSourceItemsById,
+  readEras,
   readTaxonomy,
   saveAnalysis,
   readTopicVotes,
@@ -128,6 +130,26 @@ async function prepareOwner(
     }
   }
 
+  // T56 — compare against the CURRENT era only.
+  //
+  // Medians, lane performance and the best and worst posts are all "against
+  // this account's own history", and that comparison is only fair inside one
+  // strategy. After a deliberate pivot the old posts describe a different
+  // account; averaging them in credits or blames today's ideas for a decision
+  // made on purpose months ago.
+  //
+  // Scoped AFTER lane classification, which labels every post, and only for
+  // the comparison basis. The don't-repeat inputs below — published subjects,
+  // the calendar, prior suggestions — stay full-history: a topic covered
+  // before the pivot is still spent.
+  //
+  // Only a CONFIRMED era counts. The detector's proposals change nothing until
+  // a person accepts one, because only the team knows whether a shift in the
+  // data was a decision.
+  const eras = await readEras(platform, owner.handle).catch(() => []);
+  const scoped = scopeToEra(ownerPosts, currentEra(eras));
+  const comparisonPosts = scoped.posts;
+
   // The team's own calendar: the only record of topics that are planned but
   // not yet posted, which no platform data can show.
   const calendar = await readCalendarEntries(platform).catch(() => []);
@@ -169,7 +191,7 @@ async function prepareOwner(
       ),
     ).then((lists) => lists.flat()),
     lanes.length
-      ? nicheLanes(platform, owner.handle, ownerPosts, rivals).catch(() => [])
+      ? nicheLanes(platform, owner.handle, comparisonPosts, rivals).catch(() => [])
       : Promise.resolve([]),
   ]);
 
@@ -212,10 +234,21 @@ async function prepareOwner(
     snapshot.displayName,
     snapshot.headline ?? "",
     snapshot.followers,
-    ownerPosts,
+    comparisonPosts,
     400,
     graphInsights ?? undefined,
     {
+      ...(scoped.era || scoped.note
+        ? {
+            era: {
+              label: scoped.era?.label ?? null,
+              startsAt: scoped.era?.startsAt ?? null,
+              posts: comparisonPosts.length,
+              totalPosts: ownerPosts.length,
+              note: scoped.note,
+            },
+          }
+        : {}),
       pastSuggestions,
       nicheLanes: niche,
       priorSuggestions: priorSuggestions.map((entry) => ({

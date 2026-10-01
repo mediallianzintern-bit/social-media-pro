@@ -2,6 +2,7 @@
 // Apify — the page must render instantly from history, and syncing is a
 // separate, explicit action.
 import { mergeCompetitors, OWNER_ACCOUNTS } from "./apify/accounts";
+import { currentEra } from "@/lib/eras";
 import { apifyToken } from "./apify/client";
 import { hasInstagramGraph, missingGraphEnv } from "./graph/client";
 import { suggestionFeedback } from "./ai/feedback";
@@ -18,6 +19,7 @@ import {
   readPosts,
   readWatchlist,
   readClient,
+  readEras,
 } from "./store";
 import {
   cadence,
@@ -95,19 +97,24 @@ async function loadPlatform(platform: PlatformId): Promise<PlatformData> {
   }
 
   try {
-    const [latest, growth, posts, competitors, syncedAt, discovered, insights] = await Promise.all([
-      resilient("latestSnapshot", () => latestSnapshot(platform, owner.handle)),
-      resilient("growthSeries", () => growthSeries(platform, owner.handle)),
-      resilient("readPosts", () => readPosts(platform, owner.handle)),
-      resilient("competitorSnapshots", () => competitorSnapshots(platform)),
-      resilient("lastSyncAt", () => lastSyncAt(platform)),
-      readWatchlist(platform).catch(() => [] as string[]),
-      // Instagram-only, and never fatal: the owner-only panels degrade back to
-      // their locked state rather than taking the whole platform down.
-      platform === "instagram" && hasInstagramGraph()
-        ? readInsights(platform, owner.handle).catch(() => null)
-        : Promise.resolve(null),
-    ]);
+    const [latest, growth, posts, competitors, syncedAt, discovered, insights, eras] =
+      await Promise.all([
+        resilient("latestSnapshot", () => latestSnapshot(platform, owner.handle)),
+        resilient("growthSeries", () => growthSeries(platform, owner.handle)),
+        resilient("readPosts", () => readPosts(platform, owner.handle)),
+        resilient("competitorSnapshots", () => competitorSnapshots(platform)),
+        resilient("lastSyncAt", () => lastSyncAt(platform)),
+        readWatchlist(platform).catch(() => [] as string[]),
+        // Instagram-only, and never fatal: the owner-only panels degrade back to
+        // their locked state rather than taking the whole platform down.
+        platform === "instagram" && hasInstagramGraph()
+          ? readInsights(platform, owner.handle).catch(() => null)
+          : Promise.resolve(null),
+        // T56. Never fatal: with no table or no confirmed era, the "Current era"
+        // range simply falls back to the last 30 days.
+        readEras(platform, owner.handle).catch(() => []),
+      ]);
+    const era = currentEra(eras);
 
     if (!latest) {
       return { ...base, status: "empty", lastSyncedAt: syncedAt };
@@ -153,6 +160,7 @@ async function loadPlatform(platform: PlatformId): Promise<PlatformData> {
       competitors: competitorRecords,
       trackedCompetitors: mergeCompetitors(platform, discovered).map((account) => account.handle),
       lastSyncedAt: syncedAt,
+      currentEra: era ? { startsAt: era.startsAt, label: era.label } : null,
       ...(learning ? { learning } : {}),
       ...(insights ? { insights } : {}),
       ...(platform === "instagram" && !hasInstagramGraph()

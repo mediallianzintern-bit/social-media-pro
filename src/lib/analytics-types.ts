@@ -328,6 +328,12 @@ export interface PlatformData {
   trackedCompetitors: string[];
   lastSyncedAt: string | null;
   /**
+   * T56 — the confirmed era in force today, if any. The "Current era" range
+   * resolves against this, per platform: eras are per account, and Instagram
+   * and LinkedIn need not have changed strategy on the same day.
+   */
+  currentEra?: { startsAt: string; label: string } | null;
+  /**
    * §7 — the learning scorecard. Present once at least one suggestion has been
    * linked to a published post, and once posts carry lanes.
    */

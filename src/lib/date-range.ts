@@ -3,7 +3,7 @@
 // The sync stores a rolling window of posts and one snapshot per sync, so every
 // range below is a filter over data already in hand — switching range is instant
 // and never triggers a scrape.
-export type RangeKey = "today" | "yesterday" | "7d" | "30d" | "90d" | "all" | "custom";
+export type RangeKey = "era" | "today" | "yesterday" | "7d" | "30d" | "90d" | "all" | "custom";
 
 export interface ResolvedRange {
   key: RangeKey;
@@ -14,9 +14,19 @@ export interface ResolvedRange {
   label: string;
 }
 
-export const RANGE_ORDER: RangeKey[] = ["today", "yesterday", "7d", "30d", "90d", "all", "custom"];
+export const RANGE_ORDER: RangeKey[] = [
+  "era",
+  "today",
+  "yesterday",
+  "7d",
+  "30d",
+  "90d",
+  "all",
+  "custom",
+];
 
 export const RANGE_LABELS: Record<RangeKey, string> = {
+  era: "Current era",
   today: "Today",
   yesterday: "Yesterday",
   "7d": "7 days",
@@ -27,7 +37,7 @@ export const RANGE_LABELS: Record<RangeKey, string> = {
 };
 
 /** Short labels for the header control; "Custom" is rendered separately. */
-export const QUICK_RANGES: RangeKey[] = ["today", "yesterday", "7d", "30d", "90d", "all"];
+export const QUICK_RANGES: RangeKey[] = ["era", "today", "yesterday", "7d", "30d", "90d", "all"];
 
 function startOfDay(date: Date): Date {
   const copy = new Date(date);
@@ -53,6 +63,11 @@ export function resolveRange(key: RangeKey, from?: string, to?: string): Resolve
   const today = startOfDay(new Date());
 
   switch (key) {
+    // A placeholder bound: eras are per account, so the real start is filled
+    // in per platform by eraWindow(). Resolving it here would force one date
+    // onto both platforms.
+    case "era":
+      return { key, from: null, to: null, label: "Current era" };
     case "today":
       return { key, from: today, to: addDays(today, 1), label: "Today" };
     case "yesterday": {
@@ -103,4 +118,29 @@ export function toInputValue(date: Date | null): string {
   if (!date) return "";
   const offset = date.getTimezoneOffset() * 60_000;
   return new Date(date.getTime() - offset).toISOString().slice(0, 10);
+}
+
+/** The window "Current era" falls back to when an account has no confirmed era. */
+const ERA_FALLBACK_DAYS = 30;
+
+/**
+ * T56 — the "Current era" range, resolved for one account.
+ *
+ * Any other range passes through untouched. With a confirmed era the window
+ * starts on the era's first day; without one it is the last 30 days, which is
+ * exactly what the dashboard showed by default before eras existed. That
+ * fallback is what makes "Current era" safe as the default: an account nobody
+ * has marked an era on looks identical to how it always did.
+ */
+export function eraWindow(
+  range: ResolvedRange,
+  era: { startsAt: string; label: string } | null | undefined,
+): ResolvedRange {
+  if (range.key !== "era") return range;
+  if (!era) {
+    const from = startOfDay(addDays(new Date(), -(ERA_FALLBACK_DAYS - 1)));
+    return { key: "era", from, to: null, label: "Last 30 days — no era marked" };
+  }
+  const from = startOfDay(new Date(`${era.startsAt}T00:00:00`));
+  return { key: "era", from, to: null, label: `${era.label} · since ${formatDay(from)}` };
 }

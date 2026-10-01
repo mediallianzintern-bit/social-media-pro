@@ -185,6 +185,18 @@ export interface AccountBrief {
    * is paid on every generation. A handful of real examples each way plus the
    * learned words says more than a long list would.
    */
+  /**
+   * T56 — which stretch of history the figures above were computed over.
+   * Present when a confirmed era exists, or when one exists but was too thin
+   * to use. Absent means all history, as before eras.
+   */
+  era?: {
+    label: string | null;
+    startsAt: string | null;
+    posts: number;
+    totalPosts: number;
+    note: string | null;
+  };
   teamPreferences?: {
     liked: string[];
     disliked: string[];
@@ -279,6 +291,7 @@ export function buildBrief(
         calendarTopics?: AccountBrief["calendarTopics"];
         calendarSubjects?: AccountBrief["calendarSubjects"];
         teamPreferences?: AccountBrief["teamPreferences"];
+        era?: AccountBrief["era"];
       }
     | undefined,
 ): AccountBrief {
@@ -373,6 +386,7 @@ export function buildBrief(
     ...(learning?.calendarTopics?.length ? { calendarTopics: learning.calendarTopics } : {}),
     ...(learning?.calendarSubjects?.length ? { calendarSubjects: learning.calendarSubjects } : {}),
     ...(learning?.teamPreferences ? { teamPreferences: learning.teamPreferences } : {}),
+    ...(learning?.era ? { era: learning.era } : {}),
     ...(owned ? { owned } : {}),
   };
 }
@@ -658,6 +672,12 @@ ${
 - Check this block before you commit to a subject, not after. The list is what the record holds,
   not everything the creator has ever made — older posts may be missing — so treat a near-miss
   as a repeat rather than a licence.
+- You may be given a CURRENT ERA block. When it names an era, every median, lane figure and
+  best/worst post in this brief was computed over THAT era only — the account changed strategy
+  on that date, and earlier posts belong to a different approach. Judge ideas against the era,
+  not the account's whole past, and do not recommend returning to what it did before the era
+  on the strength of older numbers alone. The ALREADY PUBLISHED and calendar lists still cover
+  all history: a subject from before the era is spent all the same.
 - You may be given a TEAM PREFERENCES block: topics and scripts the team marked ✓ or ✗.
   Lean toward the subjects, angles and tone of the ✓ examples and the words the team
   favours, and steer clearly away from the subjects and tone of the ✗ ones. This is the
@@ -892,6 +912,16 @@ already covered even though the script is not quoted:
 ${owner.calendarSubjects.join(", ")}\n`
     : ""
 }`
+    : ""
+}
+${
+  owner.era
+    ? owner.era.startsAt
+      ? `CURRENT ERA — "${owner.era.label}", since ${owner.era.startsAt}. The figures in this brief use the
+${owner.era.posts} posts from this era, out of ${owner.era.totalPosts} on record.
+`
+      : `CURRENT ERA — ${owner.era.note ?? "none in force"}
+`
     : ""
 }
 ${

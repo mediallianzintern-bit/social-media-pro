@@ -285,3 +285,53 @@ export function detectEras(allPosts: PostRecord[], threshold = ERA_THRESHOLD): E
   }
   return kept;
 }
+
+// ---------------------------------------------------------------------------
+// T56 — scoping comparisons to the current era
+// ---------------------------------------------------------------------------
+
+/**
+ * Fewest posts a current era needs before it becomes the comparison basis.
+ *
+ * Same floor the detector uses for each side of a split. Below it a median is
+ * one or two posts and moves with every new one, so the era would make the
+ * analysis worse rather than fairer — the full history is used instead, and
+ * the brief says so.
+ */
+export const MIN_ERA_POSTS = MIN_POSTS_PER_SIDE;
+
+/** The era in force today: the latest confirmed one that has already started. */
+export function currentEra<T extends { startsAt: string }>(eras: T[], now = new Date()): T | null {
+  const today = now.toISOString().slice(0, 10);
+  let latest: T | null = null;
+  for (const era of eras) {
+    if (era.startsAt > today) continue;
+    if (!latest || era.startsAt > latest.startsAt) latest = era;
+  }
+  return latest;
+}
+
+/**
+ * Which posts a comparison should be made over, and why.
+ *
+ * Returns the current era's posts when there is a confirmed era with enough
+ * posts in it, otherwise all of them. The reason is part of the result
+ * because the fallback is a decision the reader needs to know about: a lane
+ * table that quietly switched back to all-time would look identical and mean
+ * something different.
+ */
+export function scopeToEra<P extends { publishedAt: string }>(
+  posts: P[],
+  era: { startsAt: string; label: string } | null,
+): { posts: P[]; era: { startsAt: string; label: string } | null; note: string | null } {
+  if (!era) return { posts, era: null, note: null };
+  const inEra = posts.filter((post) => post.publishedAt.slice(0, 10) >= era.startsAt);
+  if (inEra.length < MIN_ERA_POSTS) {
+    return {
+      posts,
+      era: null,
+      note: `The current era (${era.label}, since ${era.startsAt}) has only ${inEra.length} post${inEra.length === 1 ? "" : "s"} — too few for a median — so all history is used until it has ${MIN_ERA_POSTS}.`,
+    };
+  }
+  return { posts: inEra, era, note: null };
+}
