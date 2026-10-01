@@ -1,5 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ExternalLink, Filter, Flame, Loader2, RefreshCw } from "lucide-react";
+import {
+  ChevronDown,
+  Clapperboard,
+  ExternalLink,
+  Filter,
+  Flame,
+  Loader2,
+  RefreshCw,
+} from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { SectionHeading } from "@/components/dashboard/section-heading";
@@ -142,6 +151,26 @@ export function InstagramTrends({ platform }: { platform: PlatformId }) {
 
                   <p className="mt-1 text-xs text-muted-foreground">{trend.reason}</p>
 
+                  {trend.url && platform === "instagram" ? (
+                    // Addendum E.5 — a rising post is a candidate to react to.
+                    // The link, handle and views are handed over from the post
+                    // itself, so the source the script will credit is the one
+                    // that actually broke out — never a retyped link.
+                    <Link
+                      to="/reactions"
+                      search={{
+                        url: trend.url,
+                        handle: trend.handle,
+                        // Only a true view count is passed as "views".
+                        ...(data?.metric === "views" ? { views: trend.value } : {}),
+                        found: "trend_listener",
+                      }}
+                      className="mr-3 mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
+                    >
+                      <Clapperboard className="size-3" aria-hidden />
+                      React to this
+                    </Link>
+                  ) : null}
                   {trend.url ? (
                     <a
                       href={trend.url}

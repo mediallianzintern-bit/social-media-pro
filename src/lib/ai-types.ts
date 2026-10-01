@@ -4,6 +4,7 @@
 // computed in TypeScript from scraped data. The model contributes judgement and
 // copy, and is constrained to reference figures it was given rather than
 // producing its own.
+import type { ReactionFields } from "@/lib/reaction";
 import type { PlatformId } from "@/lib/analytics-types";
 import type { Prediction } from "@/lib/prediction";
 
@@ -299,6 +300,12 @@ export interface ContentIdea {
   status?: IdeaStatus;
   /** Set once a creator links this idea to the post they made from it. */
   publishedShortcode?: string;
+  /**
+   * Addendum E — present only on a reaction-hook idea. Carries the borrowed
+   * clip's link and credit, copied from the stored source by the server; the
+   * model that wrote the script never supplies them.
+   */
+  reaction?: ReactionFields;
 }
 
 export interface IdeaSet {

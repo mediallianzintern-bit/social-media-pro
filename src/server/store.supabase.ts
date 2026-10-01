@@ -14,6 +14,7 @@ import type {
 import type { AiAnalysis, ContentIdea } from "@/lib/ai-types";
 import type { ContentEra } from "@/lib/eras";
 import type { TopicVote } from "@/lib/preferences";
+import type { ReactionFields, ReactionSource } from "@/lib/reaction";
 import { scriptFeatures, type ScriptFeatures } from "@/lib/script-features";
 import type { SourceDraft, SourceItem } from "@/lib/sources";
 import type { CalendarEntry } from "@/lib/calendar-types";
@@ -489,6 +490,15 @@ export async function saveSuggestedIdeas(
       payload: idea,
       script_features: scriptFeatures(idea),
       source_item_id: idea.source?.verified ? (idea.source.sourceId ?? null) : null,
+      // Addendum E. Standard ideas carry the default; a reaction idea carries
+      // its format tag, the source it points at, and its reaction fields.
+      ...(idea.reaction
+        ? {
+            format_template: "reaction_hook",
+            reaction_source_id: idea.reaction.sourceId,
+            reaction: idea.reaction,
+          }
+        : {}),
     };
   });
 
@@ -1926,6 +1936,229 @@ export async function saveTopicVote(vote: {
       { onConflict: "platform,item_kind,item_id" },
     );
   if (error) throw new Error(`topic_feedback upsert failed: ${error.message}`);
+}
+
+// ---------------------------------------------------------------------------
+// Addendum E — reaction sources and the client's reaction settings
+// ---------------------------------------------------------------------------
+
+function toReactionSource(row: Record<string, unknown>): ReactionSource {
+  return {
+    id: String(row["id"]),
+    platform: (row["platform"] as ReactionSource["platform"]) ?? "instagram",
+    sourceUrl: String(row["source_url"]),
+    sourcePlatform: (row["source_platform"] as ReactionSource["sourcePlatform"]) ?? "other",
+    sourceCreatorHandle: (row["source_creator_handle"] as string | null) ?? null,
+    sourceType: (row["source_type"] as ReactionSource["sourceType"]) ?? "other",
+    sourcePublicViews: (row["source_public_views"] as number | null) ?? null,
+    transcript: (row["transcript"] as string | null) ?? null,
+    extractedClaim: (row["extracted_claim"] as string | null) ?? null,
+    creditText: (row["credit_text"] as string | null) ?? null,
+    rightsStatus: (row["rights_status"] as ReactionSource["rightsStatus"]) ?? "needs_review",
+    foundBy: (row["found_by"] as ReactionSource["foundBy"]) ?? "team",
+    createdAt: String(row["created_at"]),
+  };
+}
+
+export async function readReactionSources(platform: PlatformId): Promise<ReactionSource[]> {
+  const { data, error } = await db()
+    .from("reaction_sources")
+    .select("*")
+    .eq("platform", platform)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (error && schemaNotReady(error)) return [];
+  if (error) throw new Error(`reaction_sources read failed: ${error.message}`);
+  return ((data ?? []) as Array<Record<string, unknown>>).map(toReactionSource);
+}
+
+export async function readReactionSource(id: string): Promise<ReactionSource | null> {
+  const { data, error } = await db()
+    .from("reaction_sources")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error && schemaNotReady(error)) return null;
+  if (error) throw new Error(`reaction_sources read failed: ${error.message}`);
+  return data ? toReactionSource(data as Record<string, unknown>) : null;
+}
+
+/**
+ * Stores a clip, keyed on its normalised link.
+ *
+ * The same reel pasted twice updates its row instead of becoming a second
+ * source — which matters because ideas point at a source by id, and two rows
+ * for one clip would let two ideas credit it differently.
+ */
+export async function saveReactionSource(input: {
+  platform: PlatformId;
+  sourceUrl: string;
+  sourcePlatform: ReactionSource["sourcePlatform"];
+  sourceCreatorHandle: string | null;
+  sourceType: ReactionSource["sourceType"];
+  sourcePublicViews: number | null;
+  transcript: string | null;
+  extractedClaim: string | null;
+  creditText: string | null;
+  rightsStatus: ReactionSource["rightsStatus"];
+  foundBy: ReactionSource["foundBy"];
+  createdBy: string | null;
+}): Promise<ReactionSource> {
+  const client = await readClient().catch(() => null);
+  const { data, error } = await db()
+    .from("reaction_sources")
+    .upsert(
+      {
+        client_id: client?.id ?? null,
+        platform: input.platform,
+        source_url: input.sourceUrl,
+        source_platform: input.sourcePlatform,
+        source_creator_handle: input.sourceCreatorHandle,
+        source_type: input.sourceType,
+        source_public_views: input.sourcePublicViews,
+        transcript: input.transcript,
+        extracted_claim: input.extractedClaim,
+        credit_text: input.creditText,
+        rights_status: input.rightsStatus,
+        found_by: input.foundBy,
+        created_by: input.createdBy,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "platform,source_url" },
+    )
+    .select("*")
+    .single();
+  if (error && schemaNotReady(error)) {
+    throw new Error(
+      "Reaction hooks need database migration 0015. Apply it in Supabase, then try again.",
+    );
+  }
+  if (error) throw new Error(`reaction_sources upsert failed: ${error.message}`);
+  return toReactionSource(data as Record<string, unknown>);
+}
+
+/** Records the claim the strategist extracted, when the team left it blank. */
+export async function setReactionClaim(id: string, claim: string): Promise<void> {
+  const { error } = await db()
+    .from("reaction_sources")
+    .update({ extracted_claim: claim, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .is("extracted_claim", null);
+  if (error && !schemaNotReady(error)) {
+    throw new Error(`reaction_sources claim failed: ${error.message}`);
+  }
+}
+
+export async function deleteReactionSource(id: string): Promise<void> {
+  const { error } = await db().from("reaction_sources").delete().eq("id", id);
+  if (error && !schemaNotReady(error)) {
+    throw new Error(`reaction_sources delete failed: ${error.message}`);
+  }
+}
+
+export interface ReactionSettings {
+  standardCta: string | null;
+  leadMagnet: string | null;
+  brandSetNotes: string | null;
+  ownedLaneForRedirect: string | null;
+}
+
+/** E.4 — the CTA and brand set a reaction script reuses word for word. */
+export async function readReactionSettings(): Promise<ReactionSettings | null> {
+  const { data, error } = await db()
+    .from("clients")
+    .select("standard_cta,lead_magnet,brand_set_notes,owned_lane_for_redirect")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return null;
+  const row = data as Record<string, unknown>;
+  return {
+    standardCta: (row["standard_cta"] as string | null) ?? null,
+    leadMagnet: (row["lead_magnet"] as string | null) ?? null,
+    brandSetNotes: (row["brand_set_notes"] as string | null) ?? null,
+    ownedLaneForRedirect: (row["owned_lane_for_redirect"] as string | null) ?? null,
+  };
+}
+
+export async function saveReactionSettings(settings: ReactionSettings): Promise<boolean> {
+  const client = await readClient().catch(() => null);
+  if (!client) return false;
+  const { error } = await db()
+    .from("clients")
+    .update({
+      standard_cta: settings.standardCta,
+      lead_magnet: settings.leadMagnet,
+      brand_set_notes: settings.brandSetNotes,
+      owned_lane_for_redirect: settings.ownedLaneForRedirect,
+    })
+    .eq("id", client.id);
+  if (error) throw new Error(`clients reaction settings failed: ${error.message}`);
+  return true;
+}
+
+/** What the E.7 gates need to know about one idea. */
+export async function readIdeaFormat(id: string): Promise<{
+  formatTemplate: "standard" | "reaction_hook";
+  reaction: ReactionFields | null;
+  reactionSourceId: string | null;
+} | null> {
+  const { data, error } = await db()
+    .from("suggested_ideas")
+    .select("format_template,reaction,reaction_source_id")
+    .eq("id", id)
+    .maybeSingle();
+  // Before 0015 there are no reaction ideas, so every idea is standard.
+  if (error && schemaNotReady(error))
+    return { formatTemplate: "standard", reaction: null, reactionSourceId: null };
+  if (error) throw new Error(`suggested_ideas format read failed: ${error.message}`);
+  if (!data) return null;
+  const row = data as Record<string, unknown>;
+  return {
+    formatTemplate: (row["format_template"] as "standard" | "reaction_hook") ?? "standard",
+    reaction: (row["reaction"] as ReactionFields | null) ?? null,
+    reactionSourceId: (row["reaction_source_id"] as string | null) ?? null,
+  };
+}
+
+/** E.9 — every reaction idea on a platform, with its reaction fields. */
+export async function readReactionIdeas(
+  platform: PlatformId,
+): Promise<Array<{ id: string; status: string; reaction: ReactionFields }>> {
+  const { data, error } = await db()
+    .from("suggested_ideas")
+    .select("id,status,reaction")
+    .eq("platform", platform)
+    .eq("format_template", "reaction_hook")
+    .order("created_at", { ascending: false })
+    .limit(500);
+  if (error && schemaNotReady(error)) return [];
+  if (error) throw new Error(`suggested_ideas reaction read failed: ${error.message}`);
+  return ((data ?? []) as Array<Record<string, unknown>>)
+    .filter((row) => row["reaction"])
+    .map((row) => ({
+      id: String(row["id"]),
+      status: String(row["status"] ?? "suggested"),
+      reaction: row["reaction"] as ReactionFields,
+    }));
+}
+
+/** E.7 — the client has confirmed every [VERIFY] item in this script. */
+export async function confirmReactionFacts(id: string, userId: string | null): Promise<boolean> {
+  const current = await readIdeaFormat(id);
+  if (!current?.reaction) return false;
+  const reaction: ReactionFields = {
+    ...current.reaction,
+    verifiedAt: new Date().toISOString(),
+    verifiedBy: userId,
+  };
+  const { data, error } = await db()
+    .from("suggested_ideas")
+    .update({ reaction, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select("id");
+  if (error) throw new Error(`suggested_ideas verify failed: ${error.message}`);
+  return ((data ?? []) as unknown[]).length > 0;
 }
 
 /** Links a calendar entry to the post it became. */

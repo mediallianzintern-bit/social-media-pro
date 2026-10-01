@@ -6,7 +6,15 @@
 // loop's signal. Marking something published is not an extra step bolted on for
 // the analytics — it is the creator's normal action, and the link between
 // suggestion and outcome falls out of it for free.
-import { readQueue, readUsers, resolveStaffUser, transitionIdea } from "./store";
+import {
+  readIdeaFormat,
+  readQueue,
+  readReactionSource,
+  readUsers,
+  resolveStaffUser,
+  transitionIdea,
+} from "./store";
+import { approvalBlockers, productionBlockers } from "@/lib/reaction";
 import { canTransitionAny, QUEUE_STATUS, type IdeaStatus, type Role } from "@/lib/roles";
 import { readAssignments, readClient } from "./store";
 import type { DailyHook, WorkItem, Workspace } from "@/lib/workspace-types";
@@ -180,6 +188,33 @@ export async function advance(inputArg: {
       ok: false,
       reason: `A ${input.role.replace(/_/g, " ")} cannot move an idea from ${from} to ${to}.`,
     };
+  }
+
+  // Addendum E.7 — a reaction idea passes two extra gates.
+  //
+  // Before approval, the borrowed clip must carry an on-screen credit and a
+  // resolved rights status. Before production, the client must have confirmed
+  // every fact marked [VERIFY]. Both are checked here, on the server, so no
+  // screen can skip them. The source is read LIVE rather than from the idea's
+  // copy: setting a clip's rights or credit is what unblocks the ideas waiting
+  // on it.
+  if (to === "approved" || to === "in_production") {
+    const format = await readIdeaFormat(input.id).catch(() => null);
+    if (format?.formatTemplate === "reaction_hook") {
+      if (to === "approved") {
+        const source = format.reactionSourceId
+          ? await readReactionSource(format.reactionSourceId).catch(() => null)
+          : null;
+        const blockers = source
+          ? approvalBlockers(source)
+          : ["This reaction idea has lost its source clip. Re-add the clip before approving."];
+        if (blockers.length) return { ok: false, reason: blockers.join(" ") };
+      }
+      if (to === "in_production" && format.reaction) {
+        const blockers = productionBlockers(format.reaction);
+        if (blockers.length) return { ok: false, reason: blockers.join(" ") };
+      }
+    }
   }
 
   try {

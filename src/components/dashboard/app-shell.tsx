@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
+  Clapperboard,
   FileText,
   Instagram,
   LayoutDashboard,
@@ -39,6 +40,7 @@ const NAV = [
   { to: "/instagram", label: "Instagram", icon: Instagram, group: "Platforms" },
   { to: "/linkedin", label: "LinkedIn", icon: Linkedin, group: "Platforms" },
   { to: "/workspace", label: "Workspace", icon: ListChecks, group: "Analytics" },
+  { to: "/reactions", label: "Reaction hooks", icon: Clapperboard, group: "Analytics" },
   { to: "/report", label: "Client report", icon: FileText, group: "Analytics" },
   { to: "/sources", label: "Data sources", icon: Radio, group: "Setup" },
 ] as const;

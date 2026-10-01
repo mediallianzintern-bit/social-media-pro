@@ -53,6 +53,26 @@ export const markIdeaMeasured: typeof supabase.markIdeaMeasured = (...args) =>
 export const resolveStaffUser: typeof supabase.resolveStaffUser = (...args) =>
   store().resolveStaffUser(...args);
 export const assignIdea: typeof supabase.assignIdea = (...args) => store().assignIdea(...args);
+export const readReactionSources: typeof supabase.readReactionSources = (...args) =>
+  store().readReactionSources(...args);
+export const readReactionSource: typeof supabase.readReactionSource = (...args) =>
+  store().readReactionSource(...args);
+export const saveReactionSource: typeof supabase.saveReactionSource = (...args) =>
+  store().saveReactionSource(...args);
+export const setReactionClaim: typeof supabase.setReactionClaim = (...args) =>
+  store().setReactionClaim(...args);
+export const deleteReactionSource: typeof supabase.deleteReactionSource = (...args) =>
+  store().deleteReactionSource(...args);
+export const readReactionSettings: typeof supabase.readReactionSettings = (...args) =>
+  store().readReactionSettings(...args);
+export const saveReactionSettings: typeof supabase.saveReactionSettings = (...args) =>
+  store().saveReactionSettings(...args);
+export const readIdeaFormat: typeof supabase.readIdeaFormat = (...args) =>
+  store().readIdeaFormat(...args);
+export const confirmReactionFacts: typeof supabase.confirmReactionFacts = (...args) =>
+  store().confirmReactionFacts(...args);
+export const readReactionIdeas: typeof supabase.readReactionIdeas = (...args) =>
+  store().readReactionIdeas(...args);
 export const readPosts: typeof supabase.readPosts = (...args) => store().readPosts(...args);
 export const lastSyncAt: typeof supabase.lastSyncAt = (...args) => store().lastSyncAt(...args);
 export const runAlreadyIngested: typeof supabase.runAlreadyIngested = (...args) =>

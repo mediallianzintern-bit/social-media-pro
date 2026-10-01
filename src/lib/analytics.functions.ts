@@ -497,3 +497,131 @@ export const topicFeedbackQueryOptions = (platform: PlatformId) => ({
   queryFn: () => getTopicFeedback({ data: platform }),
   staleTime: 30 * 1000,
 });
+
+// ---------------------------------------------------------------------------
+// Addendum E — the reaction-hook format
+// ---------------------------------------------------------------------------
+
+const sourceTypeSchema = z.enum([
+  "meme",
+  "street_interview",
+  "podcast",
+  "news",
+  "tutorial",
+  "movie_tv",
+  "other",
+]);
+const rightsSchema = z.enum(["native_remix", "credited_clip", "needs_review"]);
+
+/** The clip library, the client's reaction settings, and what has been learned. */
+export const getReactions = createServerFn({ method: "GET" })
+  .validator((input: unknown) => platformSchema.parse(input))
+  .handler(async ({ data }) => {
+    const [{ readReactionSources, readReactionSettings }, { loadReactionLearning }] =
+      await Promise.all([import("@/server/store"), import("@/server/reactions")]);
+    const [sources, settings, learning] = await Promise.all([
+      readReactionSources(data).catch(() => []),
+      readReactionSettings().catch(() => null),
+      loadReactionLearning(data).catch(() => null),
+    ]);
+    return { sources, settings, learning };
+  });
+
+export const reactionsQueryOptions = (platform: PlatformId) => ({
+  queryKey: ["reactions", platform] as const,
+  queryFn: () => getReactions({ data: platform }),
+  staleTime: 30 * 1000,
+});
+
+/** One clip, read live — the script drawer shows the current credit and rights. */
+export const getReactionSource = createServerFn({ method: "GET" })
+  .validator((input: unknown) => z.string().uuid().parse(input))
+  .handler(async ({ data }) => {
+    const { readReactionSource } = await import("@/server/store");
+    return readReactionSource(data).catch(() => null);
+  });
+
+/**
+ * Stores a clip the team chose (v1: pasted link and transcript). Pasting the
+ * same link again updates it — which is also how its credit and rights are
+ * edited.
+ */
+export const saveReactionClip = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .validator((input: unknown) =>
+    z
+      .object({
+        platform: platformSchema,
+        sourceUrl: z.string().min(4).max(2000),
+        sourceCreatorHandle: z.string().max(100).nullable().optional(),
+        sourceType: sourceTypeSchema,
+        sourcePublicViews: z.number().nonnegative().nullable().optional(),
+        transcript: z.string().max(20_000).nullable().optional(),
+        extractedClaim: z.string().max(1_000).nullable().optional(),
+        creditText: z.string().max(300).nullable().optional(),
+        rightsStatus: rightsSchema.optional(),
+        foundBy: z.enum(["team", "trend_listener"]).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { createReactionSource } = await import("@/server/reactions");
+    return createReactionSource(data, context.staffEmail);
+  });
+
+export const deleteReactionClip = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .validator((input: unknown) => z.string().uuid().parse(input))
+  .handler(async ({ data }) => {
+    const { deleteReactionSource } = await import("@/server/store");
+    await deleteReactionSource(data);
+    return { ok: true };
+  });
+
+/** E.4 — the standard CTA, lead magnet, brand set and owned lane. */
+export const saveReactionSettingsFn = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .validator((input: unknown) =>
+    z
+      .object({
+        standardCta: z.string().max(500).nullable(),
+        leadMagnet: z.string().max(300).nullable(),
+        brandSetNotes: z.string().max(500).nullable(),
+        ownedLaneForRedirect: z.string().max(120).nullable(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { saveReactionSettings } = await import("@/server/store");
+    const clean = (value: string | null) => (value?.trim() ? value.trim() : null);
+    const ok = await saveReactionSettings({
+      standardCta: clean(data.standardCta),
+      leadMagnet: clean(data.leadMagnet),
+      brandSetNotes: clean(data.brandSetNotes),
+      ownedLaneForRedirect: clean(data.ownedLaneForRedirect),
+    });
+    return ok ? { ok } : { ok: false, reason: "Apply migration 0015 to store these settings." };
+  });
+
+/**
+ * E.6 — writes the reaction script for one clip. One model call, made only
+ * from this explicit click.
+ */
+export const writeReactionScript = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .validator((input: unknown) => z.string().uuid().parse(input))
+  .handler(async ({ data }) => {
+    const { generateReaction } = await import("@/server/ai/reaction");
+    return generateReaction(data);
+  });
+
+/** E.7 — the client has confirmed every [VERIFY] fact in this script. */
+export const confirmReactionFactsFn = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .validator((input: unknown) => z.string().uuid().parse(input))
+  .handler(async ({ data, context }) => {
+    const { confirmReactionFacts, resolveStaffUser } = await import("@/server/store");
+    const userId = await resolveStaffUser(context.staffEmail, "growth_manager").catch(() => null);
+    const ok = await confirmReactionFacts(data, userId);
+    return ok ? { ok } : { ok: false, reason: "That idea could not be found." };
+  });

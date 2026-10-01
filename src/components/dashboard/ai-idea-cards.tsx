@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import { ReactionPanel } from "@/components/dashboard/reaction-panel";
 import { VoteButtons } from "@/components/dashboard/vote-buttons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -329,7 +330,7 @@ export function AiIdeaCards({
             <CardContent className="relative p-5">
               <span className="absolute right-5 top-5 flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-bold">
                 <Sparkles className="size-2.5" style={{ color: accent }} aria-hidden />
-                {FORMAT_LABEL[idea.format] ?? idea.format}
+                {idea.reaction ? "Reaction hook" : (FORMAT_LABEL[idea.format] ?? idea.format)}
               </span>
               {/* The reasoning grew from a one-line kicker into a full paragraph
                   once the model was given reach, saves and the weak-post contrast
@@ -421,6 +422,7 @@ export function AiIdeaCards({
               </SheetHeader>
 
               <div className="flex-1 space-y-7 overflow-y-auto p-6">
+                {open.reaction ? <ReactionPanel idea={open} /> : null}
                 <section>
                   <SectionLabel>Why this, from your data</SectionLabel>
                   <p className="rounded-lg border bg-muted/40 p-4 text-sm leading-relaxed">

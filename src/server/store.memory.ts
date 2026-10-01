@@ -7,6 +7,7 @@
 // wired up. The UI says so rather than letting the gap pass unnoticed.
 import type { ContentEra } from "@/lib/eras";
 import type { TopicVote } from "@/lib/preferences";
+import type { ReactionFields, ReactionSource } from "@/lib/reaction";
 import { isTrendSource } from "./apify/accounts";
 import type {
   AccountSnapshot,
@@ -487,4 +488,104 @@ export async function resolveStaffUser(_email: string, _actedAs: Role): Promise<
 
 export async function assignIdea(_id: string, _userId: string | null): Promise<boolean> {
   return false;
+}
+
+// ---------------------------------------------------------------------------
+// Addendum E — reaction sources
+// ---------------------------------------------------------------------------
+//
+// Previews without Supabase keep sources for the session so the flow can be
+// clicked through; settings and the approval gates need the real tables.
+
+const reactionSources: ReactionSource[] = [];
+
+export async function readReactionSources(platform: PlatformId): Promise<ReactionSource[]> {
+  return reactionSources.filter((source) => source.platform === platform);
+}
+
+export async function readReactionSource(id: string): Promise<ReactionSource | null> {
+  return reactionSources.find((source) => source.id === id) ?? null;
+}
+
+export async function saveReactionSource(input: {
+  platform: PlatformId;
+  sourceUrl: string;
+  sourcePlatform: ReactionSource["sourcePlatform"];
+  sourceCreatorHandle: string | null;
+  sourceType: ReactionSource["sourceType"];
+  sourcePublicViews: number | null;
+  transcript: string | null;
+  extractedClaim: string | null;
+  creditText: string | null;
+  rightsStatus: ReactionSource["rightsStatus"];
+  foundBy: ReactionSource["foundBy"];
+  createdBy: string | null;
+}): Promise<ReactionSource> {
+  const existing = reactionSources.findIndex(
+    (source) => source.platform === input.platform && source.sourceUrl === input.sourceUrl,
+  );
+  const row: ReactionSource = {
+    id: existing >= 0 ? reactionSources[existing]!.id : crypto.randomUUID(),
+    platform: input.platform,
+    sourceUrl: input.sourceUrl,
+    sourcePlatform: input.sourcePlatform,
+    sourceCreatorHandle: input.sourceCreatorHandle,
+    sourceType: input.sourceType,
+    sourcePublicViews: input.sourcePublicViews,
+    transcript: input.transcript,
+    extractedClaim: input.extractedClaim,
+    creditText: input.creditText,
+    rightsStatus: input.rightsStatus,
+    foundBy: input.foundBy,
+    createdAt: new Date().toISOString(),
+  };
+  if (existing >= 0) reactionSources[existing] = row;
+  else reactionSources.unshift(row);
+  return row;
+}
+
+export async function setReactionClaim(id: string, claim: string): Promise<void> {
+  const source = reactionSources.find((entry) => entry.id === id);
+  if (source && !source.extractedClaim) source.extractedClaim = claim;
+}
+
+export async function deleteReactionSource(id: string): Promise<void> {
+  const index = reactionSources.findIndex((entry) => entry.id === id);
+  if (index >= 0) reactionSources.splice(index, 1);
+}
+
+export async function readReactionSettings(): Promise<{
+  standardCta: string | null;
+  leadMagnet: string | null;
+  brandSetNotes: string | null;
+  ownedLaneForRedirect: string | null;
+} | null> {
+  return null;
+}
+
+export async function saveReactionSettings(_settings: {
+  standardCta: string | null;
+  leadMagnet: string | null;
+  brandSetNotes: string | null;
+  ownedLaneForRedirect: string | null;
+}): Promise<boolean> {
+  return false;
+}
+
+export async function readIdeaFormat(_id: string): Promise<{
+  formatTemplate: "standard" | "reaction_hook";
+  reaction: ReactionFields | null;
+  reactionSourceId: string | null;
+} | null> {
+  return { formatTemplate: "standard", reaction: null, reactionSourceId: null };
+}
+
+export async function confirmReactionFacts(_id: string, _userId: string | null): Promise<boolean> {
+  return false;
+}
+
+export async function readReactionIdeas(
+  _platform: PlatformId,
+): Promise<Array<{ id: string; status: string; reaction: ReactionFields }>> {
+  return [];
 }
