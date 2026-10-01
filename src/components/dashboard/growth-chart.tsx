@@ -52,6 +52,7 @@ export function GrowthChart({
   const min = Math.min(...values);
   const max = Math.max(...values);
   const pad = Math.max(Math.round((max - min) * 0.15), 5);
+  const narrow = max - min < 2_000;
   const { markers, spansWhole } = eraMarkers(
     points.map((point) => point.capturedAt),
     eras,
@@ -84,9 +85,14 @@ export function GrowthChart({
             <YAxis
               tickLine={false}
               axisLine={false}
-              width={56}
+              width={narrow ? 64 : 56}
               domain={[Math.max(0, min - pad), max + pad]}
-              tickFormatter={(value: number) => compactNumber(value)}
+              // Full numbers when the range is narrow. Follower counts move by
+              // tens against a base of thousands, and rounding to one decimal
+              // of a thousand gave two ticks both labelled "11.1K".
+              tickFormatter={(value: number) =>
+                narrow ? fullNumber(Math.round(value)) : compactNumber(value)
+              }
             />
             <ChartTooltip
               content={

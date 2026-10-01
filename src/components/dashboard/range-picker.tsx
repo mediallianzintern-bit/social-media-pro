@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useDashboard } from "@/lib/use-dashboard";
 import {
   QUICK_RANGES,
   RANGE_LABELS,
@@ -21,7 +22,14 @@ import {
 export function RangePicker() {
   const navigate = useNavigate();
   const search = useSearch({ from: "/_app" });
-  const active = search.range;
+  const raw = useDashboard();
+  // The strategy-change range exists only once someone has confirmed a
+  // strategy change. Without one it would be a second button showing exactly
+  // the last 30 days, so it is hidden — and the default, which asks for it,
+  // lights "Last 30 days", because that is what is on screen.
+  const hasEra = raw.platforms.some((platform) => platform.currentEra);
+  const active = search.range === "era" && !hasEra ? "30d" : search.range;
+  const ranges = hasEra ? QUICK_RANGES : QUICK_RANGES.filter((key) => key !== "era");
   const resolved = resolveRange(active, search.from, search.to);
 
   const [draftFrom, setDraftFrom] = useState(() => toInputValue(resolved.from));
@@ -52,7 +60,7 @@ export function RangePicker() {
         aria-label="Reporting window"
         className="hidden items-center gap-1 rounded-lg border bg-card p-1 md:inline-flex"
       >
-        {QUICK_RANGES.map((key) => (
+        {ranges.map((key) => (
           <Button
             key={key}
             size="sm"

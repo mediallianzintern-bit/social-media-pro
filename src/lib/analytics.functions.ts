@@ -125,7 +125,7 @@ export const dismissIdea = createServerFn({ method: "POST" })
  * link cannot spend Apify credit however often it is opened.
  */
 export const getReport = createServerFn({ method: "GET" })
-  .validator((input: unknown) => z.enum(["30d", "90d", "era", "all"]).catch("30d").parse(input))
+  .validator((input: unknown) => z.enum(["30d", "90d", "all"]).catch("30d").parse(input))
   .handler(async ({ data }): Promise<ClientReport> => {
     const { loadReport } = await import("@/server/report");
     return loadReport(data);

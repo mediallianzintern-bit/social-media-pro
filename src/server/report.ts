@@ -32,7 +32,6 @@ import {
   type GrowthTrajectory,
 } from "@/lib/growth";
 import { goalScorecard } from "@/lib/goal-scorecard";
-import { currentEra } from "@/lib/eras";
 import { REPORT_PERIOD_LABEL, type ReportPeriod } from "@/lib/report-types";
 import type { ClientReport, ClientReportPlatform } from "@/lib/report-types";
 
@@ -50,25 +49,11 @@ function bestPosts(posts: PostRecord[], limit: number): PostRecord[] {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/**
- * Where a period starts for one account, and how to describe it.
- *
- * "Current era" uses the account's confirmed era and falls back to 30 days
- * when there is none, exactly as the dashboard does — and the label says
- * which, so a report never presents a fallback as if it were the era.
- */
-function periodStart(
-  period: ReportPeriod,
-  era: { startsAt: string; label: string } | null,
-): { since: string | null; label: string } {
+/** Where a reporting period starts, and how to describe it. */
+function periodStart(period: ReportPeriod): { since: string | null; label: string } {
   const daysAgo = (days: number) => new Date(Date.now() - days * DAY_MS).toISOString();
   if (period === "30d") return { since: daysAgo(30), label: REPORT_PERIOD_LABEL["30d"] };
   if (period === "90d") return { since: daysAgo(90), label: REPORT_PERIOD_LABEL["90d"] };
-  if (period === "era") {
-    return era
-      ? { since: `${era.startsAt}T00:00:00.000Z`, label: `${era.label}, since ${era.startsAt}` }
-      : { since: daysAgo(30), label: "Last 30 days — no era marked yet" };
-  }
   return { since: null, label: REPORT_PERIOD_LABEL.all };
 }
 
@@ -93,7 +78,7 @@ async function platformReport(
   // calibration and the goal scorecard — stay cumulative on purpose: they
   // answer "has the advice worked", which a 30-day slice would answer from
   // a handful of posts.
-  const { since, label: periodLabel } = periodStart(period, currentEra(eras));
+  const { since, label: periodLabel } = periodStart(period);
   const inPeriod = (iso: string) => !since || iso >= since;
   const growth = allGrowth.filter((point) => inPeriod(point.capturedAt));
   const posts = allPosts.filter((post) => inPeriod(post.publishedAt));

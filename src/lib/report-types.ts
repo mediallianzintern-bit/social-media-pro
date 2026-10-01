@@ -4,15 +4,20 @@ import type { CalibrationReport } from "@/lib/prediction";
 import type { GrowthGoal, GrowthTrajectory } from "@/lib/growth";
 import type { GoalScorecard } from "@/lib/goal-scorecard";
 
-/** T49 — the reporting period a client report covers. */
-export type ReportPeriod = "30d" | "90d" | "era" | "all";
+/**
+ * T49 — the reporting period a client report covers.
+ *
+ * Calendar periods only. "Era" is the agency's own word for a strategy change
+ * and means nothing to a client reading a report, so it stays on the internal
+ * dashboard and never appears here.
+ */
+export type ReportPeriod = "30d" | "90d" | "all";
 
-export const REPORT_PERIODS: ReportPeriod[] = ["30d", "90d", "era", "all"];
+export const REPORT_PERIODS: ReportPeriod[] = ["30d", "90d", "all"];
 
 export const REPORT_PERIOD_LABEL: Record<ReportPeriod, string> = {
   "30d": "Last 30 days",
   "90d": "Last 90 days",
-  era: "Current era",
   all: "All time",
 };
 

@@ -26,7 +26,9 @@ export const RANGE_ORDER: RangeKey[] = [
 ];
 
 export const RANGE_LABELS: Record<RangeKey, string> = {
-  era: "Current era",
+  // Plain words for the button. "Era" is the internal term; what a person is
+  // choosing is everything since the account last changed strategy.
+  era: "Since strategy change",
   today: "Today",
   yesterday: "Yesterday",
   "7d": "7 days",
@@ -67,7 +69,7 @@ export function resolveRange(key: RangeKey, from?: string, to?: string): Resolve
     // in per platform by eraWindow(). Resolving it here would force one date
     // onto both platforms.
     case "era":
-      return { key, from: null, to: null, label: "Current era" };
+      return { key, from: null, to: null, label: "Since strategy change" };
     case "today":
       return { key, from: today, to: addDays(today, 1), label: "Today" };
     case "yesterday": {
@@ -139,7 +141,7 @@ export function eraWindow(
   if (range.key !== "era") return range;
   if (!era) {
     const from = startOfDay(addDays(new Date(), -(ERA_FALLBACK_DAYS - 1)));
-    return { key: "era", from, to: null, label: "Last 30 days — no era marked" };
+    return { key: "era", from, to: null, label: "Last 30 days" };
   }
   const from = startOfDay(new Date(`${era.startsAt}T00:00:00`));
   return { key: "era", from, to: null, label: `${era.label} · since ${formatDay(from)}` };

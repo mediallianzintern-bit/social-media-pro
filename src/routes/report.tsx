@@ -30,7 +30,9 @@ export const Route = createFileRoute("/report")({
   ssr: false,
   // T49 — the period lives in the URL, so a link to "last 30 days" stays one.
   validateSearch: z.object({
-    period: z.enum(["30d", "90d", "era", "all"]).catch("30d").default("30d"),
+    // An old link carrying ?period=era lands on the 30-day report rather than
+    // an error.
+    period: z.enum(["30d", "90d", "all"]).catch("30d").default("30d"),
   }),
   beforeLoad: async ({ location }) => ({
     staffEmail: await currentStaffEmail(),
