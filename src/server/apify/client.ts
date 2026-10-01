@@ -99,9 +99,17 @@ export async function runActor(
   actor: string,
   input: unknown,
   deadlineMs = 10 * 60_000,
+  /**
+   * For pay-per-event actors: the most this one run may be charged, enforced
+   * by Apify itself. Used by the per-clip reaction steps so a misbehaving or
+   * repriced actor can never turn one click into a large bill.
+   */
+  options: { maxTotalChargeUsd?: number } = {},
 ): Promise<{ runId: string; datasetId: string; status: string }> {
+  const cap =
+    options.maxTotalChargeUsd != null ? `&maxTotalChargeUsd=${options.maxTotalChargeUsd}` : "";
   let run = await request<RunInfo>(
-    `${API}/acts/${actorPath(actor)}/runs?waitForFinish=${MAX_WAIT_SECS}`,
+    `${API}/acts/${actorPath(actor)}/runs?waitForFinish=${MAX_WAIT_SECS}${cap}`,
     { method: "POST", body: JSON.stringify(input) },
   );
 

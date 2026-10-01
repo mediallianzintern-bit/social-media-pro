@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
@@ -13,7 +13,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   deleteReactionClip,
+  prepareReactionFn,
+  reactableQueryOptions,
+  reactionSourceFile,
   reactionsQueryOptions,
+  transcribeReactionClip,
   saveReactionClip,
   saveReactionSettingsFn,
   writeReactionScript,
@@ -85,7 +89,13 @@ function ReactionsPage() {
 
       <SettingsCard settings={data?.settings ?? null} />
 
-      <SectionHeading title="Add a source clip" note="v1: paste the link and what the clip says" />
+      <SectionHeading
+        title="Clips worth reacting to"
+        note="Found in the reels of the creators you track — free to list, about 3¢ to prepare"
+      />
+      <FoundClips />
+
+      <SectionHeading title="Or add a clip yourself" note="paste the link and what the clip says" />
       <NewClipCard />
 
       <SectionHeading
@@ -109,6 +119,153 @@ function ReactionsPage() {
 
       {data?.learning ? <LearningCard learning={data.learning} /> : null}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// E.5 v2 — clips the system found
+// ---------------------------------------------------------------------------
+
+/**
+ * Reels from tracked creators that beat their own median and make a claim the
+ * expert can answer. Listing them costs nothing — they come from the sync.
+ * "Prepare reaction" is the one paid step, and it does everything: stores the
+ * clip from its real permalink, fetches the transcript, writes the script.
+ */
+function FoundClips() {
+  const { data, isLoading } = useQuery(reactableQueryOptions(PLATFORM));
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center gap-2 p-5 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" aria-hidden />
+          Reading the tracked creators&rsquo; reels…
+        </CardContent>
+      </Card>
+    );
+  }
+  if (!data?.length) {
+    return (
+      <Card>
+        <CardContent className="p-5 text-sm text-muted-foreground">
+          No reel from a tracked creator is both breaking out and making a claim worth answering
+          right now. Refresh Rising on Instagram to fetch newer reels, or add a clip yourself below.
+        </CardContent>
+      </Card>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      {data.map((clip) => (
+        <FoundClipRow key={clip.postId} clip={clip} />
+      ))}
+    </div>
+  );
+}
+
+function FoundClipRow({
+  clip,
+}: {
+  clip: Awaited<ReturnType<ReturnType<typeof reactableQueryOptions>["queryFn"]>>[number];
+}) {
+  const queryClient = useQueryClient();
+  const prepare = useMutation({
+    mutationFn: () =>
+      prepareReactionFn({
+        data: {
+          platform: PLATFORM,
+          url: clip.url,
+          handle: clip.handle,
+          views: clip.views,
+          hook: clip.hook,
+        },
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["reactions", PLATFORM] }),
+        queryClient.invalidateQueries({ queryKey: ["reactable", PLATFORM] }),
+        queryClient.invalidateQueries({ queryKey: ["analysis", PLATFORM] }),
+        queryClient.invalidateQueries({ queryKey: ["workspace"] }),
+      ]);
+    },
+  });
+
+  return (
+    <Card>
+      <CardContent className="space-y-2 p-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary" className="font-semibold tabular-nums">
+            {clip.vsCreatorMedian}×
+          </Badge>
+          <a
+            href={clip.url}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-1 text-sm font-medium hover:underline"
+          >
+            @{clip.handle}
+            <ExternalLink className="size-3 text-muted-foreground" aria-hidden />
+          </a>
+          <span className="text-xs text-muted-foreground">
+            {clip.ageDays === 0 ? "today" : `${clip.ageDays}d ago`} ·{" "}
+            {clip.views.toLocaleString("en-US")} public views
+          </span>
+        </div>
+        <p className="text-sm leading-snug">{clip.hook}</p>
+        <p className="text-xs text-muted-foreground">{clip.reason}</p>
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <Button
+            size="sm"
+            className="gap-1.5"
+            onClick={() => prepare.mutate()}
+            disabled={prepare.isPending || prepare.isSuccess}
+            title="Stores the clip, fetches its transcript and writes the script — about 3¢"
+          >
+            {prepare.isPending ? (
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            ) : (
+              <Sparkles className="size-3.5" aria-hidden />
+            )}
+            {prepare.isPending ? "Preparing — about a minute…" : "Prepare reaction"}
+          </Button>
+          <Link
+            to="/reactions"
+            search={{
+              url: clip.url,
+              handle: clip.handle,
+              views: clip.views,
+              found: "trend_listener",
+            }}
+            className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+          >
+            Fill the form instead
+          </Link>
+        </div>
+        {prepare.data ? (
+          <ul className="space-y-1 pt-1 text-xs">
+            {prepare.data.steps.map((entry) => (
+              <li
+                key={entry.step}
+                className={
+                  entry.ok
+                    ? "text-emerald-700 dark:text-emerald-400"
+                    : "text-amber-700 dark:text-amber-400"
+                }
+              >
+                {entry.ok ? "✓" : "!"} {entry.step}: {entry.note}
+              </li>
+            ))}
+            {prepare.data.idea ? (
+              <li className="text-muted-foreground">
+                Open it from the Instagram ideas or the Workspace — the source clip, credit and CTA
+                are on the script.
+              </li>
+            ) : null}
+          </ul>
+        ) : null}
+        {prepare.error ? <p className="text-xs text-destructive">{String(prepare.error)}</p> : null}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -486,6 +643,33 @@ function ClipCard({ source }: { source: ReactionSource }) {
     onSuccess: invalidate,
   });
 
+  const transcribe = useMutation({
+    mutationFn: () => transcribeReactionClip({ data: source.id }),
+    onSuccess: async (result) => {
+      setMessage("reason" in result ? result.reason : "Transcript fetched, with timestamps.");
+      await invalidate();
+    },
+    onError: (error) => setMessage(String(error)),
+  });
+
+  // A fresh link each time: Instagram's file links expire within days, so a
+  // stored one would be dead by the time the editor needed it.
+  const file = useMutation({
+    mutationFn: () => reactionSourceFile({ data: source.id }),
+    onSuccess: (result) => {
+      if ("reason" in result) {
+        setMessage(result.reason);
+        return;
+      }
+      setMessage(
+        `Source file ready — save it as ${result.filename}. The link works for about a day.`,
+      );
+      window.open(result.videoUrl, "_blank", "noopener,noreferrer");
+    },
+    onError: (error) => setMessage(String(error)),
+  });
+  const isInstagram = source.sourcePlatform === "instagram";
+
   return (
     <Card>
       <CardContent className="space-y-3 p-5">
@@ -518,6 +702,14 @@ function ClipCard({ source }: { source: ReactionSource }) {
         </div>
         <p className="break-all text-[11px] text-muted-foreground">{source.sourceUrl}</p>
 
+        {source.transcript ? (
+          <details className="text-xs">
+            <summary className="cursor-pointer text-muted-foreground">Transcript</summary>
+            <pre className="mt-1.5 max-h-48 overflow-auto whitespace-pre-wrap rounded-md bg-muted/50 p-2 font-sans">
+              {source.transcript}
+            </pre>
+          </details>
+        ) : null}
         {source.extractedClaim ? (
           <p className="text-sm">
             <span className="text-muted-foreground">Claim: </span>
@@ -586,6 +778,40 @@ function ClipCard({ source }: { source: ReactionSource }) {
             )}
             {write.isPending ? "Writing…" : "Write reaction script"}
           </Button>
+          {isInstagram ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => transcribe.mutate()}
+              disabled={transcribe.isPending}
+              title="Fetches the clip's transcript with timestamps — about 1.5¢"
+            >
+              {transcribe.isPending ? (
+                <Loader2 className="size-3.5 animate-spin" aria-hidden />
+              ) : null}
+              {source.transcript ? "Re-fetch transcript" : "Get transcript"}
+            </Button>
+          ) : null}
+          {isInstagram ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => file.mutate()}
+              disabled={file.isPending || rights !== "credited_clip"}
+              title={
+                rights === "credited_clip"
+                  ? "Fetches the clip's video file for the editor — about 0.3¢"
+                  : rights === "native_remix"
+                    ? "Native remix is made inside Instagram — no file needed"
+                    : "Set the rights to Credited clip first"
+              }
+            >
+              {file.isPending ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : null}
+              Get source file
+            </Button>
+          ) : null}
           <Button
             size="sm"
             variant="ghost"

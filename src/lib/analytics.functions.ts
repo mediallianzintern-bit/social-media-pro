@@ -625,3 +625,57 @@ export const confirmReactionFactsFn = createServerFn({ method: "POST" })
     const ok = await confirmReactionFacts(data, userId);
     return ok ? { ok } : { ok: false, reason: "That idea could not be found." };
   });
+
+/** E.5 v2 — clips worth reacting to, from reels the sync already stores. Free. */
+export const getReactableClips = createServerFn({ method: "GET" })
+  .validator((input: unknown) => platformSchema.parse(input))
+  .handler(async ({ data }) => {
+    const { reactableClips } = await import("@/server/reactions");
+    return reactableClips(data).catch(() => []);
+  });
+
+export const reactableQueryOptions = (platform: PlatformId) => ({
+  queryKey: ["reactable", platform] as const,
+  queryFn: () => getReactableClips({ data: platform }),
+  staleTime: 5 * 60 * 1000,
+});
+
+/**
+ * Clip → stored source → transcript → script, in one click. About three
+ * cents: one capped Apify transcript run and one model call.
+ */
+export const prepareReactionFn = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .validator((input: unknown) =>
+    z
+      .object({
+        platform: platformSchema,
+        url: z.string().url(),
+        handle: z.string().min(1).max(100),
+        views: z.number().nonnegative().nullable(),
+        hook: z.string().max(500),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { prepareReaction } = await import("@/server/reaction-pipeline");
+    return prepareReaction(data, context.staffEmail);
+  });
+
+/** Fetches what a stored clip says. One capped Apify run, about $0.015. */
+export const transcribeReactionClip = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .validator((input: unknown) => z.string().uuid().parse(input))
+  .handler(async ({ data }) => {
+    const { transcribeSource } = await import("@/server/reaction-pipeline");
+    return transcribeSource(data);
+  });
+
+/** A fresh link to the clip's video, once rights are cleared. About $0.003. */
+export const reactionSourceFile = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .validator((input: unknown) => z.string().uuid().parse(input))
+  .handler(async ({ data }) => {
+    const { sourceVideoFile } = await import("@/server/reaction-pipeline");
+    return sourceVideoFile(data);
+  });

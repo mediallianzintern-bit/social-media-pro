@@ -193,7 +193,20 @@ export function normalizeSourceUrl(
       parsed = new URL("https://www.youtube.com/watch");
       parsed.searchParams.set("v", id);
     }
-  } else if (["instagram", "youtube", "linkedin", "facebook"].includes(platform)) {
+  } else if (platform === "instagram") {
+    // One spelling per post, keyed on its shortcode. Instagram serves the same
+    // post at /p/CODE/, /reel/CODE/, /reels/CODE/, /tv/CODE/ and
+    // /<handle>/reel/CODE/, with or without the trailing slash. The sync
+    // stores the /p/ form, so that is the canonical one — otherwise a reel
+    // pasted from the app would not match the same reel found by the sync,
+    // and would be saved, and credited, twice. Found by testing: a trailing
+    // slash alone produced a second row.
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    const at = parts.findIndex((part) => ["p", "reel", "reels", "tv"].includes(part));
+    const code = at >= 0 ? parts[at + 1] : undefined;
+    parsed.hostname = "www.instagram.com";
+    if (code) parsed.pathname = `/p/${code}/`;
+  } else if (["youtube", "linkedin", "facebook"].includes(platform)) {
     parsed.hostname = `www.${host}`;
   } else if (platform === "tiktok") {
     parsed.hostname = "www.tiktok.com";
@@ -201,6 +214,9 @@ export function normalizeSourceUrl(
     parsed.hostname = "x.com";
   }
   parsed.protocol = "https:";
+  if (platform !== "instagram" && parsed.pathname.length > 1) {
+    parsed.pathname = parsed.pathname.replace(/\/+$/, "");
+  }
   const url = parsed.toString().replace(/\?$/, "");
 
   // A handle where the link itself carries one. Instagram reel and YouTube

@@ -2021,7 +2021,9 @@ export async function saveReactionSource(input: {
         credit_text: input.creditText,
         rights_status: input.rightsStatus,
         found_by: input.foundBy,
-        created_by: input.createdBy,
+        // Only when known: an update made by the pipeline carries no person,
+        // and writing null would erase who originally added the clip.
+        ...(input.createdBy ? { created_by: input.createdBy } : {}),
         updated_at: new Date().toISOString(),
       },
       { onConflict: "platform,source_url" },
