@@ -469,3 +469,22 @@ export async function saveTopicVote(vote: {
     createdAt: new Date().toISOString(),
   });
 }
+
+// ---------------------------------------------------------------------------
+// T45b — lifecycle stages and people
+// ---------------------------------------------------------------------------
+//
+// Previews without Supabase have no ideas table to move rows through, so these
+// accept the call and report that nothing changed.
+
+export async function markIdeaMeasured(_id: string): Promise<boolean> {
+  return false;
+}
+
+export async function resolveStaffUser(_email: string, _actedAs: Role): Promise<string | null> {
+  return null;
+}
+
+export async function assignIdea(_id: string, _userId: string | null): Promise<boolean> {
+  return false;
+}

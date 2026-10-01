@@ -48,6 +48,11 @@ export const readTopicVotes: typeof supabase.readTopicVotes = (...args) =>
   store().readTopicVotes(...args);
 export const saveTopicVote: typeof supabase.saveTopicVote = (...args) =>
   store().saveTopicVote(...args);
+export const markIdeaMeasured: typeof supabase.markIdeaMeasured = (...args) =>
+  store().markIdeaMeasured(...args);
+export const resolveStaffUser: typeof supabase.resolveStaffUser = (...args) =>
+  store().resolveStaffUser(...args);
+export const assignIdea: typeof supabase.assignIdea = (...args) => store().assignIdea(...args);
 export const readPosts: typeof supabase.readPosts = (...args) => store().readPosts(...args);
 export const lastSyncAt: typeof supabase.lastSyncAt = (...args) => store().lastSyncAt(...args);
 export const runAlreadyIngested: typeof supabase.runAlreadyIngested = (...args) =>

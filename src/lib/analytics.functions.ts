@@ -158,6 +158,7 @@ export const getWorkspace = createServerFn({ method: "GET" })
  * is the enforcement.
  */
 export const advanceIdea = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
   .validator((input: unknown) =>
     z
       .object({
@@ -165,14 +166,58 @@ export const advanceIdea = createServerFn({ method: "POST" })
         from: z.string().min(1),
         to: z.string().min(1),
         role: roleSchema,
-        actorId: z.string().optional(),
         shortcode: z.string().optional(),
       })
       .parse(input),
   )
-  .handler(async ({ data }): Promise<{ ok: boolean; reason?: string }> => {
+  .handler(async ({ data, context }): Promise<{ ok: boolean; reason?: string }> => {
     const { advance } = await import("@/server/workspace");
-    return advance(data);
+    // The actor comes from the verified session, never the request. This
+    // function used to accept an actorId from the browser, and advance() reads
+    // that id to decide which roles the person holds — so a request could
+    // simply name someone else's user and act with their permissions.
+    return advance({ ...data, staffEmail: context.staffEmail });
+  });
+
+/** Who can be handed an idea: everyone who has acted in the workspace. */
+export const getTeam = createServerFn({ method: "GET" }).handler(async () => {
+  const { readUsers } = await import("@/server/store");
+  const users = await readUsers().catch(() => []);
+  return users.map((user) => ({ id: user.id, name: user.name, role: user.role }));
+});
+
+export const teamQueryOptions = {
+  queryKey: ["team"] as const,
+  queryFn: () => getTeam(),
+  staleTime: 60 * 1000,
+};
+
+/**
+ * Hands an idea to a person, or clears who has it.
+ *
+ * Limited to the growth manager and team manager lenses, matching B.8.1:
+ * deciding who makes what is a planning decision. As with every workspace
+ * move, the lens is a claim until T46 ties people to roles — the session is
+ * verified, the role is not yet.
+ */
+export const assignIdeaTo = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .validator((input: unknown) =>
+    z
+      .object({
+        id: z.string().min(1),
+        userId: z.string().uuid().nullable(),
+        role: roleSchema,
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }): Promise<{ ok: boolean; reason?: string }> => {
+    if (data.role !== "growth_manager" && data.role !== "team_manager") {
+      return { ok: false, reason: "Only a growth manager or team manager assigns ideas." };
+    }
+    const { assignIdea } = await import("@/server/store");
+    const ok = await assignIdea(data.id, data.userId);
+    return ok ? { ok } : { ok: false, reason: "That idea no longer exists." };
   });
 
 export const workspaceQueryOptions = (role: Role) => ({

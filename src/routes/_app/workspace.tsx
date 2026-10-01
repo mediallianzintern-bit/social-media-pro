@@ -8,7 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { advanceIdea, workspaceQueryOptions } from "@/lib/analytics.functions";
+import {
+  advanceIdea,
+  assignIdeaTo,
+  teamQueryOptions,
+  workspaceQueryOptions,
+} from "@/lib/analytics.functions";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import {
   ROLE_LABEL,
@@ -72,8 +77,9 @@ function WorkspacePage() {
         {data?.noUsers ? (
           <CardContent>
             <p className="rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-              No team members have been added yet, so every role falls back to this single login.
-              Moves are still checked against the lifecycle rules on the server.
+              No team members yet. Each person is added automatically the first time they move an
+              idea, so who approved, made and published each one is recorded from then on — and they
+              become available to assign work to.
             </p>
           </CardContent>
         ) : null}
@@ -138,9 +144,30 @@ function WorkCard({ item, role }: { item: WorkItem; role: Role }) {
   const queryClient = useQueryClient();
   const [shortcode, setShortcode] = useState("");
   const [failure, setFailure] = useState<string | null>(null);
+  const { data: team } = useQuery(teamQueryOptions);
 
   const moves = transitionsForAny([role], item.status);
   const accent = PLATFORM_META[item.platform].color;
+  const assignee = team?.find((person) => person.id === item.assignedTo) ?? null;
+  // B.8.1: deciding who makes what is a planning call. Only ideas that are
+  // still to be made can be handed on — reassigning a published post would
+  // rewrite who made it.
+  const canAssign =
+    (role === "growth_manager" || role === "team_manager") &&
+    (item.status === "approved" || item.status === "in_production");
+
+  const assign = useMutation({
+    mutationFn: (userId: string | null) => assignIdeaTo({ data: { id: item.id, userId, role } }),
+    onSuccess: async (result) => {
+      if (!result.ok) {
+        setFailure(result.reason ?? "Could not assign that idea.");
+        return;
+      }
+      setFailure(null);
+      await queryClient.invalidateQueries({ queryKey: ["workspace"] });
+    },
+    onError: (error) => setFailure(String(error)),
+  });
 
   const mutation = useMutation({
     mutationFn: (move: Transition) =>
@@ -185,7 +212,29 @@ function WorkCard({ item, role }: { item: WorkItem; role: Role }) {
           <span className="text-xs text-muted-foreground">
             {item.ageDays === 0 ? "today" : `waiting ${item.ageDays}d`}
           </span>
+          {assignee ? (
+            <span className="text-xs text-muted-foreground">· with {assignee.name}</span>
+          ) : null}
         </div>
+
+        {canAssign ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">Assign to</span>
+            <select
+              className="h-8 rounded-md border bg-background px-2 text-sm"
+              value={item.assignedTo ?? ""}
+              disabled={assign.isPending || !team?.length}
+              onChange={(event) => assign.mutate(event.target.value || null)}
+            >
+              <option value="">{team?.length ? "Nobody yet" : "No team members yet"}</option>
+              {(team ?? []).map((person) => (
+                <option key={person.id} value={person.id}>
+                  {person.name} · {ROLE_LABEL[person.role].toLowerCase()}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
 
         <p className="text-sm font-medium leading-snug">{item.hook}</p>
         {item.whyNow ? (

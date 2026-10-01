@@ -16,6 +16,8 @@ export interface WorkItem {
   approvedAt: string | null;
   productionAt: string | null;
   publishedShortcode: string | null;
+  /** The users row this idea has been handed to, or who started producing it. */
+  assignedTo: string | null;
   /** Days since this item last moved — what makes a queue feel stale. */
   ageDays: number;
 }

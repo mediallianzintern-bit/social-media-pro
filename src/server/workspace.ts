@@ -6,7 +6,7 @@
 // loop's signal. Marking something published is not an extra step bolted on for
 // the analytics — it is the creator's normal action, and the link between
 // suggestion and outcome falls out of it for free.
-import { readQueue, readUsers, transitionIdea } from "./store";
+import { readQueue, readUsers, resolveStaffUser, transitionIdea } from "./store";
 import { canTransitionAny, QUEUE_STATUS, type IdeaStatus, type Role } from "@/lib/roles";
 import { readAssignments, readClient } from "./store";
 import type { DailyHook, WorkItem, Workspace } from "@/lib/workspace-types";
@@ -89,6 +89,7 @@ export async function loadWorkspace(role: Role): Promise<Workspace> {
     approvedAt: row.approvedAt,
     productionAt: row.productionAt,
     publishedShortcode: row.publishedShortcode,
+    assignedTo: row.assignedTo,
     ageDays: ageOf(row),
   }));
 
@@ -130,7 +131,7 @@ export async function loadWorkspace(role: Role): Promise<Workspace> {
  * permission problem, and telling a person "not allowed" when someone else
  * simply got there first would send them looking for the wrong fix.
  */
-export async function advance(input: {
+export async function advance(inputArg: {
   id: string;
   from: string;
   to: string;
@@ -139,9 +140,20 @@ export async function advance(input: {
   // payload with an absent optional field carries undefined, not nothing.
   actorId?: string | undefined;
   shortcode?: string | undefined;
+  /** Verified by requireStaff. Turned into actorId above. */
+  staffEmail?: string | undefined;
 }): Promise<{ ok: boolean; reason?: string }> {
+  let input = inputArg;
   const from = input.from as IdeaStatus;
   const to = input.to as IdeaStatus;
+
+  // The person acting, as a users row. Resolved from the verified session
+  // email by the caller; created on first use so the audit columns —
+  // approved_by, assigned_to, produced_by — finally record a real person.
+  if (!input.actorId && input.staffEmail) {
+    const resolved = await resolveStaffUser(input.staffEmail, input.role).catch(() => null);
+    if (resolved) input = { ...input, actorId: resolved };
+  }
 
   // Which roles this person ACTUALLY holds, rather than the one they claimed.
   //

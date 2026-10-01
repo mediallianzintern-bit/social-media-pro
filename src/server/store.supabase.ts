@@ -630,7 +630,13 @@ export async function readUsedSuggestions(platform: PlatformId): Promise<UsedSug
       .from("suggested_ideas")
       .select(select)
       .eq("platform", platform)
-      .eq("status", "used")
+      // Every published state. "used" is what the code writes, "published" is
+      // its accepted synonym, and "measured" is where an idea goes once its
+      // outcome is captured. Matching "used" alone would drop an idea from the
+      // learning loop at the exact moment it is graded — the moment it becomes
+      // worth learning from — and would already miss any row written as
+      // "published".
+      .in("status", ["used", "published", "measured"])
       .not("published_shortcode", "is", null)
       .order("created_at", { ascending: false })
       .limit(60);
@@ -1321,6 +1327,77 @@ export async function transitionIdea(
   // No row matched: someone else moved it first. Not an error, but not a
   // success either — the caller re-reads rather than reporting a change it did
   // not make.
+  return ((data ?? []) as unknown[]).length > 0;
+}
+
+/**
+ * B.3's last stage: an outcome has been captured for this idea.
+ *
+ * Called by the system, not by a person, so it does not go through the role
+ * transition table. Guarded on the published states so it can never move an
+ * idea backwards, and so a second capture is a no-op rather than a rewrite.
+ */
+export async function markIdeaMeasured(id: string): Promise<boolean> {
+  const now = new Date().toISOString();
+  const { data, error } = await db()
+    .from("suggested_ideas")
+    .update({ status: "measured", measured_at: now, updated_at: now })
+    .eq("id", id)
+    .in("status", ["used", "published"])
+    .select("id");
+  if (error) throw new Error(`suggested_ideas measure failed: ${error.message}`);
+  return ((data ?? []) as unknown[]).length > 0;
+}
+
+/**
+ * The users row for a signed-in staff member, created on first use.
+ *
+ * approved_by, assigned_to and produced_by all reference users(id), and until
+ * now nothing ever wrote one — every idea moved through the lifecycle with no
+ * record of who moved it. A login is already a verified @mediallianz.com
+ * address, so the row is keyed on that email and made the first time the
+ * person does anything.
+ *
+ * The role recorded is the one they first acted as and is never overwritten
+ * here: deciding what someone's role IS belongs to T46, and silently
+ * re-labelling a person each time they switch lens would be worse than not
+ * recording it.
+ */
+export async function resolveStaffUser(email: string, actedAs: Role): Promise<string | null> {
+  const address = email.trim().toLowerCase();
+  if (!address) return null;
+  const found = await db().from("users").select("id").eq("email", address).maybeSingle();
+  if (found.error && !schemaNotReady(found.error)) {
+    throw new Error(`users lookup failed: ${found.error.message}`);
+  }
+  if (found.data) return String((found.data as { id: string }).id);
+
+  const name = address
+    .split("@")[0]!
+    .replace(/[._-]+/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+  const created = await db()
+    .from("users")
+    .insert({ name, email: address, role: actedAs })
+    .select("id")
+    .single();
+  if (created.error) {
+    // Two first actions racing on the same email: the unique key rejects the
+    // second insert, and the row the first one made is the right answer.
+    const retry = await db().from("users").select("id").eq("email", address).maybeSingle();
+    return retry.data ? String((retry.data as { id: string }).id) : null;
+  }
+  return String((created.data as { id: string }).id);
+}
+
+/** Hands an idea to a person. Not a status change: who does it, not where it is. */
+export async function assignIdea(id: string, userId: string | null): Promise<boolean> {
+  const { data, error } = await db()
+    .from("suggested_ideas")
+    .update({ assigned_to: userId, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select("id");
+  if (error) throw new Error(`suggested_ideas assign failed: ${error.message}`);
   return ((data ?? []) as unknown[]).length > 0;
 }
 

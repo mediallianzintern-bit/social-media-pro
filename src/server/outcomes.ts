@@ -14,6 +14,7 @@ import {
   readClient,
   readOutcomes,
   readPosts,
+  markIdeaMeasured,
   readUsedSuggestions,
   saveOutcome,
   type OutcomeRow,
@@ -150,7 +151,16 @@ export async function captureOutcomes(platform: PlatformId): Promise<number> {
         }
       }
 
-      if (await saveOutcome(base)) written += 1;
+      if (await saveOutcome(base)) {
+        written += 1;
+        // B.3's final stage. The outcome row is the measurement; this moves the
+        // idea itself along so the workspace shows it as measured rather than
+        // leaving it at "published" forever. Never fatal: the outcome is what
+        // the learning loop reads, and it is already saved.
+        await markIdeaMeasured(suggestion.id).catch((error: unknown) =>
+          console.error(`[outcomes:${platform}] could not mark ${suggestion.id} measured:`, error),
+        );
+      }
     }
 
     return written;

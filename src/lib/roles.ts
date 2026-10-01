@@ -88,6 +88,17 @@ export const TRANSITIONS: Transition[] = [
     action: "Filmed this one",
     needsPermalink: true,
   },
+  // The editor's queue is everything in production, and until this entry an
+  // editor could see all of it and act on none of it. The cut is the last
+  // step before a post goes out, so publishing it — with the permalink that
+  // links the idea to its outcome — is theirs as much as the creator's.
+  {
+    from: ["in_production"],
+    to: "used",
+    owner: "editor",
+    action: "Edited and published",
+    needsPermalink: true,
+  },
 ];
 
 /** Every transition this role is allowed to make from this status. */
