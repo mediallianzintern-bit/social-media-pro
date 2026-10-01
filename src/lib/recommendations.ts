@@ -7,6 +7,16 @@
 import { compactNumber, percent } from "@/lib/format";
 import { engagementsOf, type PlatformId, type PostRecord, viewsOf } from "@/lib/analytics-types";
 import { confidenceFor, MIN_SAMPLE, type Confidence, type InsightSet } from "@/lib/insights";
+import {
+  alternativeHook,
+  findHit,
+  HOOK_DIRECTION,
+  HOOK_PAST,
+  HOOK_PRESENT,
+  hookScores,
+  isWritten,
+} from "@/lib/double-down";
+import type { HookType } from "@/lib/script-features";
 
 export interface ScriptBeat {
   /** Timecode on Instagram ("0:00"), section name on LinkedIn ("Open"). */
@@ -236,63 +246,6 @@ const IG_TIMING: Play = {
   },
 };
 
-const IG_OUTLIER: Play = {
-  id: "ig-outlier",
-  platform: "instagram",
-  build: (insights) => {
-    const best = insights.best;
-    if (!best || insights.overallMedian <= 0) return null;
-    const value = insights.useViews ? viewsOf(best) : engagementsOf(best);
-    const ratio = value / insights.overallMedian;
-    if (ratio < 2) return null;
-
-    const opening = best.caption.split(/[.!?\n]/)[0]?.trim() ?? "";
-    return {
-      id: "ig-outlier",
-      platform: "instagram",
-      evidence: `Your best post in this window did ${compactNumber(value)} — ${ratio.toFixed(1)}× your median of ${compactNumber(insights.overallMedian)}`,
-      confidence: "solid",
-      score: 5,
-      title: "Rebuild your best post's structure, new subject",
-      pitch: `It opened with “${opening.slice(0, 70)}${opening.length > 70 ? "…" : ""}”. That structure — a flat claim that contradicts what the viewer expects — is what to reuse. The topic is disposable; the shape is not.`,
-      kicker: "Reel script · structural template",
-      hook: "Open with the claim, not the context. The context is why people scroll.",
-      beats: [
-        {
-          mark: "0:00",
-          line: "State the surprising claim outright. No “hey guys”, no framing, no throat-clearing.",
-          direction: "Your best post does exactly this — copy the shape",
-        },
-        {
-          mark: "0:04",
-          line: "Immediately concede the obvious objection. “You'd think X. It isn't X.”",
-          direction: "Earns the next five seconds",
-        },
-        {
-          mark: "0:10",
-          line: "One mechanism, explained once. Not three. One.",
-          direction: "Visual demo beats narration here",
-        },
-        {
-          mark: "0:20",
-          line: "The number that proves it. Specific, sourced, on screen.",
-        },
-        {
-          mark: "0:26",
-          line: "The generalisable lesson — the line people screenshot.",
-        },
-        {
-          mark: "0:30",
-          line: "One ask. Comment, save, or follow — pick one, never all three.",
-        },
-      ],
-      caption:
-        "Production note: this is a structural template, not a topic. Take whatever you were going to post next and force it into this shape — claim, concession, one mechanism, one number, one lesson, one ask. The post it's modelled on is your best performer in the current window.",
-      tags: ["#ContentStrategy", "#DigitalMarketing", "#MarketingTips"],
-    };
-  },
-};
-
 const IG_FORMAT: Play = {
   id: "ig-format",
   platform: "instagram",
@@ -489,8 +442,114 @@ const LI_CROSS_POST: Play = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// T62 — double down on a winner
+// ---------------------------------------------------------------------------
+//
+// Replaces the old "rebuild your best post" play, which printed the same
+// sentence about the winner's structure over every post whatever it actually
+// did. The opening type is now read from the post itself, and the alternative
+// opening is the one this account's posts measurably reward. See double-down.ts.
+
+function beatsFor(platform: PlatformId, opening: HookType, middle: string): ScriptBeat[] {
+  if (isWritten(platform)) {
+    return [
+      { mark: "Open", line: HOOK_DIRECTION[opening], direction: "Measured from your own posts" },
+      { mark: "Turn", line: middle },
+      { mark: "Proof", line: "One specific number or named example. Not three." },
+      { mark: "Close", line: "One question worth answering in the comments." },
+    ];
+  }
+  return [
+    { mark: "0:00", line: HOOK_DIRECTION[opening], direction: "Measured from your own posts" },
+    { mark: "0:04", line: middle },
+    {
+      mark: "0:10",
+      line: "One mechanism, explained once.",
+      direction: "Template — not taken from the hit",
+    },
+    { mark: "0:20", line: "The proof: a specific number or example, on screen." },
+    { mark: "0:28", line: "One ask — save, share or comment. Pick one." },
+  ];
+}
+
+function doubleDownPlays(platform: PlatformId): Play[] {
+  const unit = platform === "linkedin" ? "post" : "reel";
+  return [
+    {
+      // A — same subject, a new opening. Only for a FRESH hit: riding a
+      // subject is about the people who just found it, and they move on.
+      id: `${platform}-double-angle`,
+      platform,
+      build: (insights, posts) => {
+        const hit = findHit(posts, insights.useViews, insights.overallMedian);
+        if (!hit || !hit.fresh) return null;
+        const alt = alternativeHook(
+          hit,
+          hookScores(posts, insights.useViews, insights.overallMedian),
+        );
+        return {
+          id: `${platform}-double-angle`,
+          platform,
+          evidence: `“${hit.opening.slice(0, 70)}${hit.opening.length > 70 ? "…" : ""}” did ${hit.multiple}× your median ${hit.ageDays === 0 ? "today" : `${hit.ageDays} day${hit.ageDays === 1 ? "" : "s"} ago`}.${alt.evidence ? ` ${alt.evidence}` : ""}`,
+          confidence: insights.sampleSize >= MIN_SAMPLE ? "solid" : "tentative",
+          score: 5,
+          title: "Double down: same subject, a new opening",
+          pitch: `If the subject was the draw, a fresh angle on it lands again with the people who just discovered it. Your hit ${HOOK_PAST[hit.hook]}; this one should ${HOOK_PRESENT[alt.hook]} instead.`,
+          kicker: `Variation A · ${unit} · same subject`,
+          hook: HOOK_DIRECTION[alt.hook],
+          beats: beatsFor(
+            platform,
+            alt.hook,
+            "Make it unmistakably the same subject as the hit — a new angle, not a rerun.",
+          ),
+          caption: `Production note: make this within the next few days, while the hit is still being seen. Variation B keeps the opening and changes the subject — making both is how you find out which half of the hit worked.`,
+          tags: ["#ContentStrategy", "#DigitalMarketing"],
+        };
+      },
+    },
+    {
+      // B — same opening, the next subject. Offered for an older winner too,
+      // as a structure to reuse; only the framing changes.
+      id: `${platform}-double-shape`,
+      platform,
+      build: (insights, posts) => {
+        const hit = findHit(posts, insights.useViews, insights.overallMedian);
+        if (!hit) return null;
+        const lane =
+          hit.post.contentLane && hit.post.contentLane !== "other" ? hit.post.contentLane : null;
+        return {
+          id: `${platform}-double-shape`,
+          platform,
+          evidence: `Your best ${unit} here did ${hit.multiple}× your median. It ${HOOK_PAST[hit.hook]} — read from its own first line, not assumed.`,
+          confidence: insights.sampleSize >= MIN_SAMPLE ? "solid" : "tentative",
+          score: hit.fresh ? 5 : 4,
+          title: hit.fresh
+            ? "Double down: same opening, the next subject"
+            : "Reuse your best post's opening on a new subject",
+          pitch: hit.fresh
+            ? `If the structure was the draw, it carries over. ${HOOK_PRESENT[hit.hook][0]!.toUpperCase()}${HOOK_PRESENT[hit.hook].slice(1)} again, and point it at the next subject${lane ? ` in ${lane}` : ""}.`
+            : `It is ${hit.ageDays} days old, so this is a structure to reuse rather than a moment to ride. ${HOOK_PRESENT[hit.hook][0]!.toUpperCase()}${HOOK_PRESENT[hit.hook].slice(1)} again, on a new subject${lane ? ` in ${lane}` : ""}.`,
+          kicker: hit.fresh
+            ? `Variation B · ${unit} · same opening`
+            : `${unit} · structural template`,
+          hook: HOOK_DIRECTION[hit.hook],
+          beats: beatsFor(
+            platform,
+            hit.hook,
+            `Bring in the new subject${lane ? ` — still within ${lane}` : ""} — inside exactly the same shape.`,
+          ),
+          caption: `Production note: the opening is the part taken from the hit — classified from its first line. Everything after it is a template; the subject is yours to choose.`,
+          tags: ["#ContentStrategy", "#DigitalMarketing"],
+        };
+      },
+    },
+  ];
+}
+
 const PLAYS: Play[] = [
-  IG_OUTLIER,
+  ...doubleDownPlays("instagram"),
+  ...doubleDownPlays("linkedin"),
   IG_CTA,
   IG_CASE_STUDY,
   IG_FORMAT,

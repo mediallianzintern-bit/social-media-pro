@@ -7,6 +7,7 @@ import { ContentTiles } from "@/components/dashboard/content-tiles";
 import { GrowthChart } from "@/components/dashboard/growth-chart";
 import { KpiTile } from "@/components/dashboard/kpi-tile";
 import { InsightsPanels } from "@/components/dashboard/insights-panels";
+import { CadenceNudge } from "@/components/dashboard/cadence-nudge";
 import { DeriveLanes } from "@/components/dashboard/derive-lanes";
 import { ErasPanel } from "@/components/dashboard/eras-panel";
 import { LearningPanel } from "@/components/dashboard/learning-panel";
@@ -187,6 +188,7 @@ export function PlatformView({ data, range }: { data: PlatformData; range: Resol
 
   return (
     <>
+      <CadenceNudge platform={data.platform} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <span

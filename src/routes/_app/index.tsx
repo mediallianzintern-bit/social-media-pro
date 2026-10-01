@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, Info, Users } from "lucide-react";
 
+import { CadenceNudge } from "@/components/dashboard/cadence-nudge";
 import { GrowthChart } from "@/components/dashboard/growth-chart";
 import { KpiTile } from "@/components/dashboard/kpi-tile";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -192,6 +193,7 @@ function Overview() {
               <CardContent className="space-y-4">
                 {platform.status === "ok" && platform.latest ? (
                   <>
+                    <CadenceNudge platform={platform.platform} compact />
                     <dl className="grid grid-cols-3 gap-3">
                       <div>
                         <dt className="text-xs text-muted-foreground">Followers</dt>
