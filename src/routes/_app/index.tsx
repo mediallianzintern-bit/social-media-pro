@@ -218,7 +218,11 @@ function Overview() {
                         </dd>
                       </div>
                     </dl>
-                    <GrowthChart points={platform.growth} color={meta.color} />
+                    <GrowthChart
+                      points={platform.growth}
+                      color={meta.color}
+                      eras={platform.eras ?? []}
+                    />
                   </>
                 ) : (
                   <p className="rounded-md border border-dashed p-4 text-xs leading-relaxed text-muted-foreground">

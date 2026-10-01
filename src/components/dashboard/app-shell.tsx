@@ -1,6 +1,14 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Instagram, LayoutDashboard, Linkedin, ListChecks, LogOut, Radio } from "lucide-react";
+import {
+  FileText,
+  Instagram,
+  LayoutDashboard,
+  Linkedin,
+  ListChecks,
+  LogOut,
+  Radio,
+} from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -31,6 +39,7 @@ const NAV = [
   { to: "/instagram", label: "Instagram", icon: Instagram, group: "Platforms" },
   { to: "/linkedin", label: "LinkedIn", icon: Linkedin, group: "Platforms" },
   { to: "/workspace", label: "Workspace", icon: ListChecks, group: "Analytics" },
+  { to: "/report", label: "Client report", icon: FileText, group: "Analytics" },
   { to: "/sources", label: "Data sources", icon: Radio, group: "Setup" },
 ] as const;
 

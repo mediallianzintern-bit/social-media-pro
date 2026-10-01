@@ -147,3 +147,24 @@
     color: var(--color-foreground);
   }
 }
+
+/*
+ * T49 — the client report as a PDF.
+ *
+ * Cards are kept whole across page breaks, and shadows dropped: they print as
+ * grey smudges. Scoped to the report so nothing else changes when printed.
+ */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+
+  [data-report] .shadow {
+    box-shadow: none;
+  }
+
+  [data-report] .rounded-xl,
+  [data-report] header {
+    break-inside: avoid;
+  }
+}

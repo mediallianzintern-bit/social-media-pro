@@ -161,6 +161,7 @@ async function loadPlatform(platform: PlatformId): Promise<PlatformData> {
       trackedCompetitors: mergeCompetitors(platform, discovered).map((account) => account.handle),
       lastSyncedAt: syncedAt,
       currentEra: era ? { startsAt: era.startsAt, label: era.label } : null,
+      eras: eras.map((entry) => ({ startsAt: entry.startsAt, label: entry.label })),
       ...(learning ? { learning } : {}),
       ...(insights ? { insights } : {}),
       ...(platform === "instagram" && !hasInstagramGraph()

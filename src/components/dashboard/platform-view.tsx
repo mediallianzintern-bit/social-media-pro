@@ -252,7 +252,7 @@ export function PlatformView({ data, range }: { data: PlatformData; range: Resol
       <SectionHeading title="Follower growth" note="One point per stored sync" />
       <Card>
         <CardContent className="pt-6">
-          <GrowthChart points={data.growth} color={color} />
+          <GrowthChart points={data.growth} color={color} eras={data.eras ?? []} />
         </CardContent>
       </Card>
 
@@ -304,7 +304,12 @@ export function PlatformView({ data, range }: { data: PlatformData; range: Resol
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <PostPerformanceChart posts={organic} color={color} metric={metric} />
+              <PostPerformanceChart
+                posts={organic}
+                color={color}
+                metric={metric}
+                eras={data.eras ?? []}
+              />
             </CardContent>
           </Card>
         </>

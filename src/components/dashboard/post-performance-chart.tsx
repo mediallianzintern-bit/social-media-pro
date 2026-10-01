@@ -1,4 +1,13 @@
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ReferenceLine,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import {
   ChartContainer,
@@ -8,6 +17,8 @@ import {
 } from "@/components/ui/chart";
 import { compactNumber, shortDate } from "@/lib/format";
 import { engagementsOf, type PostRecord, viewsOf } from "@/lib/analytics-types";
+import { eraMarkers } from "@/lib/eras";
+import { EraCaption } from "@/components/dashboard/era-caption";
 
 /**
  * Per-post performance, oldest to newest. Bars rather than a line: each post is
@@ -21,10 +32,13 @@ export function PostPerformanceChart({
   posts,
   color,
   metric,
+  eras = [],
 }: {
   posts: PostRecord[];
   color: string;
   metric: "views" | "engagements";
+  /** T58 — confirmed eras, drawn between the posts either side of each boundary. */
+  eras?: Array<{ startsAt: string; label: string }>;
 }) {
   const rows = [...posts]
     .sort((a, b) => a.publishedAt.localeCompare(b.publishedAt))
@@ -42,49 +56,72 @@ export function PostPerformanceChart({
 
   const label = metric === "views" ? "Views" : "Interactions";
   const config: ChartConfig = { value: { label, color } };
+  const { markers, spansWhole } = eraMarkers(
+    rows.map((row) => row.date),
+    eras,
+  );
 
   return (
-    <ChartContainer
-      config={config}
-      className="aspect-auto h-[260px] w-full"
-      aria-label={`${label} per post`}
-    >
-      <ResponsiveContainer>
-        <BarChart data={rows} margin={{ top: 8, right: 12, bottom: 0, left: 4 }}>
-          <CartesianGrid vertical={false} strokeDasharray="3 3" />
-          <XAxis
-            dataKey="date"
-            tickLine={false}
-            axisLine={false}
-            tickMargin={10}
-            minTickGap={24}
-            tickFormatter={shortDate}
-          />
-          <YAxis
-            tickLine={false}
-            axisLine={false}
-            width={52}
-            tickFormatter={(value: number) => compactNumber(value)}
-          />
-          <ChartTooltip
-            content={
-              <ChartTooltipContent
-                labelFormatter={(value) => shortDate(String(value))}
-                formatter={(value) => [`${compactNumber(Number(value))}  `, label]}
-              />
-            }
-          />
-          <Bar dataKey="value" radius={[3, 3, 0, 0]} maxBarSize={28} isAnimationActive={false}>
-            {rows.map((row, index) => (
-              <Cell
-                key={index}
-                fill={color}
-                fillOpacity={row.value >= outlierFloor && outlierFloor > 0 ? 1 : 0.55}
+    <>
+      <ChartContainer
+        config={config}
+        className="aspect-auto h-[260px] w-full"
+        aria-label={`${label} per post`}
+      >
+        <ResponsiveContainer>
+          <BarChart data={rows} margin={{ top: 8, right: 12, bottom: 0, left: 4 }}>
+            <CartesianGrid vertical={false} strokeDasharray="3 3" />
+            <XAxis
+              dataKey="date"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={10}
+              minTickGap={24}
+              tickFormatter={shortDate}
+            />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              width={52}
+              tickFormatter={(value: number) => compactNumber(value)}
+            />
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                  labelFormatter={(value) => shortDate(String(value))}
+                  formatter={(value) => [`${compactNumber(Number(value))}  `, label]}
+                />
+              }
+            />
+            <Bar dataKey="value" radius={[3, 3, 0, 0]} maxBarSize={28} isAnimationActive={false}>
+              {rows.map((row, index) => (
+                <Cell
+                  key={index}
+                  fill={color}
+                  fillOpacity={row.value >= outlierFloor && outlierFloor > 0 ? 1 : 0.55}
+                />
+              ))}
+            </Bar>
+            {markers.map((marker) => (
+              <ReferenceLine
+                key={marker.startsAt}
+                x={marker.x}
+                stroke="currentColor"
+                strokeOpacity={0.45}
+                strokeDasharray="4 4"
+                label={{
+                  value: marker.label,
+                  position: "insideTopLeft",
+                  fontSize: 11,
+                  fill: "currentColor",
+                  opacity: 0.7,
+                }}
               />
             ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-    </ChartContainer>
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartContainer>
+      <EraCaption markers={markers} spansWhole={spansWhole} />
+    </>
   );
 }

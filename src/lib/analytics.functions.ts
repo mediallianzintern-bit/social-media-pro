@@ -4,6 +4,7 @@ import { requireStaff } from "@/lib/require-staff";
 
 import type { AiAnalysis } from "@/lib/ai-types";
 import type { DashboardData, PlatformId, SyncResult } from "@/lib/analytics-types";
+import type { ReportPeriod } from "@/lib/report-types";
 import type { ClientReport } from "@/lib/report-types";
 import type { Role } from "@/lib/roles";
 import type { Workspace } from "@/lib/workspace-types";
@@ -123,18 +124,19 @@ export const dismissIdea = createServerFn({ method: "POST" })
  * The client report. Read-only by construction: it never syncs, so a shared
  * link cannot spend Apify credit however often it is opened.
  */
-export const getReport = createServerFn({ method: "GET" }).handler(
-  async (): Promise<ClientReport> => {
+export const getReport = createServerFn({ method: "GET" })
+  .validator((input: unknown) => z.enum(["30d", "90d", "era", "all"]).catch("30d").parse(input))
+  .handler(async ({ data }): Promise<ClientReport> => {
     const { loadReport } = await import("@/server/report");
-    return loadReport();
-  },
-);
+    return loadReport(data);
+  });
 
-export const reportQueryOptions = {
-  queryKey: ["report"] as const,
-  queryFn: () => getReport(),
+/** One cache entry per period, so switching back and forth is instant. */
+export const reportQueryOptions = (period: ReportPeriod = "30d") => ({
+  queryKey: ["report", period] as const,
+  queryFn: () => getReport({ data: period }),
   staleTime: 5 * 60 * 1000,
-};
+});
 
 // ---------------------------------------------------------------------------
 // Addendum B — the role workspace

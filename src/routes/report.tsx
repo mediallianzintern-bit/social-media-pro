@@ -4,12 +4,15 @@
 // competitor table. This is the shareable artifact, so everything an agency
 // would want and a client should not see is absent by construction rather than
 // hidden with a flag.
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { TrendingUp } from "lucide-react";
+import { Download, TrendingUp } from "lucide-react";
+import { useEffect } from "react";
+import { z } from "zod";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Wordmark } from "@/components/brand";
 import { GrowthChart } from "@/components/dashboard/growth-chart";
 import { compactNumber, dateTime } from "@/lib/format";
@@ -18,20 +21,27 @@ import { GoToLogin } from "@/components/auth/go-to";
 import { currentStaffEmail } from "@/lib/session";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import { trajectoryStatement } from "@/lib/growth";
-import type { ClientReportPlatform } from "@/lib/report-types";
+import { REPORT_PERIOD_LABEL, REPORT_PERIODS, type ClientReportPlatform } from "@/lib/report-types";
 
 export const Route = createFileRoute("/report")({
   // Behind the same login as the dashboard. It was built as a shareable client
   // view, but it carries the client's data; a public share link can be added
   // back deliberately (a signed, expiring token) rather than left open.
   ssr: false,
+  // T49 — the period lives in the URL, so a link to "last 30 days" stays one.
+  validateSearch: z.object({
+    period: z.enum(["30d", "90d", "era", "all"]).catch("30d").default("30d"),
+  }),
   beforeLoad: async ({ location }) => ({
     staffEmail: await currentStaffEmail(),
     returnTo: location.href,
   }),
+  loaderDeps: ({ search }) => ({ period: search.period }),
   component: ReportGate,
-  loader: ({ context }) =>
-    context.staffEmail ? context.queryClient.ensureQueryData(reportQueryOptions) : null,
+  loader: ({ context, deps }) =>
+    context.staffEmail
+      ? context.queryClient.ensureQueryData(reportQueryOptions(deps.period))
+      : null,
 });
 
 /**
@@ -113,6 +123,7 @@ function PlatformSection({ report }: { report: ClientReportPlatform }) {
       <div className="flex flex-wrap items-baseline gap-3">
         <h2 className="text-lg font-bold tracking-tight">{meta.label}</h2>
         <span className="text-sm text-muted-foreground">@{report.handle}</span>
+        <span className="text-xs text-muted-foreground">· {report.periodLabel}</span>
       </div>
 
       {report.trajectory ? (
@@ -173,10 +184,10 @@ function PlatformSection({ report }: { report: ClientReportPlatform }) {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Follower growth</CardTitle>
-            <CardDescription>One point per sync, oldest first.</CardDescription>
+            <CardDescription>One point per sync, oldest first, within the period.</CardDescription>
           </CardHeader>
           <CardContent>
-            <GrowthChart points={report.growth} color={meta.color} />
+            <GrowthChart points={report.growth} color={meta.color} eras={report.eras} />
           </CardContent>
         </Card>
       ) : null}
@@ -291,7 +302,30 @@ function ReportPage() {
   // Suspense, not useQuery: a plain useQuery returns undefined on the server's
   // first pass, so SSR would render the empty state while the client rendered
   // the report — the two disagree and hydration fails.
-  const { data } = useSuspenseQuery(reportQueryOptions);
+  const { period } = Route.useSearch();
+  const navigate = useNavigate({ from: "/report" });
+  const { data } = useSuspenseQuery(reportQueryOptions(period));
+
+  // A PDF is printed in light mode whatever the screen is set to: dark cards
+  // print as solid black blocks and a client receives an unreadable report.
+  // Listening for the print events, not just the button, covers Ctrl+P too.
+  useEffect(() => {
+    const root = document.documentElement;
+    let wasDark = false;
+    const before = () => {
+      wasDark = root.classList.contains("dark");
+      if (wasDark) root.classList.remove("dark");
+    };
+    const after = () => {
+      if (wasDark) root.classList.add("dark");
+    };
+    window.addEventListener("beforeprint", before);
+    window.addEventListener("afterprint", after);
+    return () => {
+      window.removeEventListener("beforeprint", before);
+      window.removeEventListener("afterprint", after);
+    };
+  }, []);
 
   if (!data.platforms.length) {
     return (
@@ -304,12 +338,37 @@ function ReportPage() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl space-y-10 px-4 py-10 sm:py-16">
+    <main data-report className="mx-auto max-w-3xl space-y-10 px-4 py-10 sm:py-16 print:py-0">
       <header className="space-y-2">
         {/* This is the shareable artifact — the one screen that leaves the
             agency — so it is the one that has to be unmistakably ours. */}
         <Wordmark className="mb-5 h-7" />
+        {/* Controls are for the agency, not the client: none of them prints. */}
+        <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
+          <div
+            role="group"
+            aria-label="Reporting period"
+            className="inline-flex items-center gap-1 rounded-lg border bg-card p-1"
+          >
+            {REPORT_PERIODS.map((option) => (
+              <Button
+                key={option}
+                size="sm"
+                variant={option === period ? "secondary" : "ghost"}
+                aria-pressed={option === period}
+                onClick={() => void navigate({ search: { period: option } })}
+              >
+                {REPORT_PERIOD_LABEL[option]}
+              </Button>
+            ))}
+          </div>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => window.print()}>
+            <Download className="size-3.5" aria-hidden />
+            Download PDF
+          </Button>
+        </div>
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Performance report</h1>
+        <p className="text-sm font-medium">{REPORT_PERIOD_LABEL[data.period]}</p>
         {data.goal ? (
           <p className="text-sm font-medium">
             Goal: {data.goal.label}

@@ -335,3 +335,49 @@ export function scopeToEra<P extends { publishedAt: string }>(
   }
   return { posts: inEra, era, note: null };
 }
+
+// ---------------------------------------------------------------------------
+// T58 — era markers on charts
+// ---------------------------------------------------------------------------
+
+export interface EraMarker {
+  /** The chart's own x value to draw the line at — an existing category key. */
+  x: string;
+  label: string;
+  startsAt: string;
+}
+
+/**
+ * Where each era boundary falls on a chart whose x axis is a list of dates.
+ *
+ * The dashboard's charts plot one category per sync or per post rather than a
+ * continuous timeline, so a line can only sit on a key that exists. Each era
+ * is snapped to the first point on or after its start. An era that began
+ * before the first point is reported separately, not drawn: the whole chart
+ * is inside it, and a line pinned to the left edge would claim a change
+ * happened on a day the chart cannot show.
+ */
+export function eraMarkers(
+  keys: string[],
+  eras: Array<{ startsAt: string; label: string }>,
+): { markers: EraMarker[]; spansWhole: { startsAt: string; label: string } | null } {
+  const sorted = [...keys].sort();
+  const first = sorted[0]?.slice(0, 10);
+  const last = sorted[sorted.length - 1]?.slice(0, 10);
+  const markers: EraMarker[] = [];
+  let spansWhole: { startsAt: string; label: string } | null = null;
+
+  for (const era of [...eras].sort((a, b) => a.startsAt.localeCompare(b.startsAt))) {
+    if (!first || !last) break;
+    if (era.startsAt <= first) {
+      // Later eras overwrite earlier ones: the most recent era that began
+      // before the chart is the one the whole chart sits inside.
+      spansWhole = era;
+      continue;
+    }
+    if (era.startsAt > last) continue;
+    const key = sorted.find((value) => value.slice(0, 10) >= era.startsAt);
+    if (key) markers.push({ x: key, label: era.label, startsAt: era.startsAt });
+  }
+  return { markers, spansWhole };
+}

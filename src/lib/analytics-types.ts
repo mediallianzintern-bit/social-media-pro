@@ -333,6 +333,8 @@ export interface PlatformData {
    * and LinkedIn need not have changed strategy on the same day.
    */
   currentEra?: { startsAt: string; label: string } | null;
+  /** T58 — every confirmed era, oldest first, for markers on the charts. */
+  eras?: Array<{ startsAt: string; label: string }>;
   /**
    * §7 — the learning scorecard. Present once at least one suggestion has been
    * linked to a published post, and once posts carry lanes.

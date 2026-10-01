@@ -4,6 +4,18 @@ import type { CalibrationReport } from "@/lib/prediction";
 import type { GrowthGoal, GrowthTrajectory } from "@/lib/growth";
 import type { GoalScorecard } from "@/lib/goal-scorecard";
 
+/** T49 — the reporting period a client report covers. */
+export type ReportPeriod = "30d" | "90d" | "era" | "all";
+
+export const REPORT_PERIODS: ReportPeriod[] = ["30d", "90d", "era", "all"];
+
+export const REPORT_PERIOD_LABEL: Record<ReportPeriod, string> = {
+  "30d": "Last 30 days",
+  "90d": "Last 90 days",
+  era: "Current era",
+  all: "All time",
+};
+
 export interface ClientReportPlatform {
   platform: PlatformId;
   handle: string;
@@ -24,10 +36,19 @@ export interface ClientReportPlatform {
   trajectory: GrowthTrajectory | null;
   /** Addendum A.5 — did our advice move the primary metric? Correlational. */
   goalScore: GoalScorecard | null;
+  /** T58 — confirmed eras, for markers on the growth chart. */
+  eras: Array<{ startsAt: string; label: string }>;
+  /**
+   * The window the follower change, best posts and lanes were computed over,
+   * in words — for "Current era" that names the era, or says it fell back.
+   */
+  periodLabel: string;
 }
 
 export interface ClientReport {
   generatedAt: string;
+  /** The period this report was asked for. */
+  period: ReportPeriod;
   /** Addendum A.6 — the goal the whole report is written against. */
   goal: { growthGoal: GrowthGoal; primaryMetric: string; label: string } | null;
   platforms: ClientReportPlatform[];
