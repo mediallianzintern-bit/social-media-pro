@@ -111,6 +111,29 @@ export const markIdeaUsed = createServerFn({ method: "POST" })
     return { shortcode: link.value };
   });
 
+/**
+ * T63 — records which of an idea's hooks is being filmed.
+ *
+ * The hook must be one the idea actually offers; the store checks that against
+ * the stored idea rather than trusting the request, so this cannot be used to
+ * write arbitrary text onto a row. Passing null returns the idea to its own
+ * first hook.
+ */
+export const chooseHook = createServerFn({ method: "POST" })
+  .validator((input: unknown) =>
+    z.object({ ideaId: z.string().min(1), hook: z.string().nullable() }).parse(input),
+  )
+  .handler(async ({ data }): Promise<{ ok: boolean; reason?: string }> => {
+    const { setChosenHook } = await import("@/server/store");
+    const ok = await setChosenHook(data.ideaId, data.hook);
+    return ok
+      ? { ok }
+      : {
+          ok: false,
+          reason: "That hook could not be saved — reload the ideas and try again.",
+        };
+  });
+
 const dismissInputSchema = z.object({ ideaId: z.string() });
 
 export const dismissIdea = createServerFn({ method: "POST" })

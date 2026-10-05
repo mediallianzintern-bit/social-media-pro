@@ -45,7 +45,25 @@ import { DEFAULT_PRIMARY_METRIC, DEFAULT_SECONDARY_METRICS, growthTrajectory } f
 import { goalScorecard } from "@/lib/goal-scorecard";
 
 export async function loadAnalysis(platform: PlatformId): Promise<AiAnalysis | null> {
-  return readAnalysis(platform);
+  const analysis = await readAnalysis(platform);
+  if (!analysis?.ideas.length) return analysis;
+
+  // T63 — the cached analysis is the batch as it was written; which hook the
+  // team picked afterwards lives on the idea's own row. Merging it here is
+  // what makes a choice survive a reload.
+  const { readChosenHooks } = await import("../store");
+  const chosen = await readChosenHooks(analysis.ideas.map((idea) => idea.id)).catch(
+    () => new Map<string, string>(),
+  );
+  if (!chosen.size) return analysis;
+
+  return {
+    ...analysis,
+    ideas: analysis.ideas.map((idea) => {
+      const hook = chosen.get(idea.id);
+      return hook ? { ...idea, chosenHook: hook } : idea;
+    }),
+  };
 }
 
 function unavailable(platform: PlatformId, error: string): AiAnalysis {

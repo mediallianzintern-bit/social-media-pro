@@ -13,7 +13,7 @@ import {
   Target,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { ReactionPanel } from "@/components/dashboard/reaction-panel";
 import { VoteButtons } from "@/components/dashboard/vote-buttons";
@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils";
 import { dateTime } from "@/lib/format";
 import {
   analysisQueryOptions,
+  chooseHook,
   dismissIdea,
   generateOneIdea,
   markIdeaUsed,
@@ -50,6 +51,10 @@ import { PLATFORM_META } from "@/lib/platform-meta";
 import type { Prediction } from "@/lib/prediction";
 import { FORMAT_LABEL, type AiAnalysis, type ContentIdea } from "@/lib/ai-types";
 import type { PlatformId } from "@/lib/analytics-types";
+import { hookScores } from "@/lib/double-down";
+import { hookTest } from "@/lib/hook-variants";
+import { computeInsights } from "@/lib/insights";
+import { usePlatform } from "@/lib/use-dashboard";
 
 /**
  * The handover document, as plain text.
@@ -433,15 +438,12 @@ export function AiIdeaCards({
                 {/* Read the story first — so it sits above the script. */}
                 {open.source ? <SourceBlock source={open.source} /> : null}
 
-                <section>
-                  <SectionLabel>{open.post ? "Opening line" : "Hook"}</SectionLabel>
-                  <p
-                    className="rounded-lg border border-l-[3px] bg-muted/40 p-4 text-base font-semibold leading-snug"
-                    style={{ borderLeftColor: accent }}
-                  >
-                    “{open.hook}”
-                  </p>
-                </section>
+                <HookChoice
+                  idea={open}
+                  platform={platform}
+                  accent={accent}
+                  onChoose={(hook) => patchIdea(open.id, { chosenHook: hook ?? undefined })}
+                />
 
                 {open.production ? (
                   <section>
@@ -867,5 +869,135 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
       {children}
       <span aria-hidden className="h-px flex-1 bg-border" />
     </h3>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// T63 — the hook A/B
+// ---------------------------------------------------------------------------
+
+/**
+ * The idea's openings, side by side, with this account's record on each shape.
+ *
+ * The point is not to give the team three things to read: it is to put the
+ * choice next to the evidence for it. A hook that opens with a number is
+ * recommended here only because posts opening with a number have measurably
+ * done better on THIS account — so the recommendation is arguable, and the
+ * team can overrule it with one click.
+ *
+ * Which one they pick is stored, because the learning loop groups outcomes by
+ * the opening shape. Filming B and recording A would teach the loop the wrong
+ * lesson, quietly, forever.
+ */
+function HookChoice({
+  idea,
+  platform,
+  accent,
+  onChoose,
+}: {
+  idea: ContentIdea;
+  platform: PlatformId;
+  accent: string;
+  onChoose: (hook: string | null) => void;
+}) {
+  const { allPosts } = usePlatform(platform);
+  const insights = useMemo(() => computeInsights(allPosts), [allPosts]);
+  const scores = useMemo(
+    () => hookScores(allPosts, insights.useViews, insights.overallMedian),
+    [allPosts, insights.useViews, insights.overallMedian],
+  );
+  const test = useMemo(() => hookTest(idea, scores), [idea, scores]);
+  const [reason, setReason] = useState<string | null>(null);
+
+  const choose = useMutation({
+    mutationFn: (hook: string) => chooseHook({ data: { ideaId: idea.id, hook } }),
+    onSuccess: (result, hook) => {
+      setReason(result.ok ? null : (result.reason ?? "That did not save."));
+      if (result.ok) onChoose(hook);
+    },
+    onError: (error) => setReason(error instanceof Error ? error.message : String(error)),
+  });
+
+  if (!test.variants.length) return null;
+
+  const single = test.variants.length === 1;
+  const picked = test.variants.find((variant) => variant.chosen);
+
+  return (
+    <section>
+      <SectionLabel>
+        {single
+          ? idea.post
+            ? "Opening line"
+            : "Hook"
+          : idea.post
+            ? "Opening lines — pick one"
+            : "Hooks — pick one to film"}
+      </SectionLabel>
+
+      <div className="space-y-2">
+        {test.variants.map((variant) => {
+          // The picked one is highlighted; with nothing picked, the
+          // recommendation is, so the drawer always shows a default.
+          const active = picked ? variant.chosen : variant.recommended;
+          return (
+            <div
+              key={variant.label}
+              className={cn(
+                "rounded-lg border p-4",
+                active ? "border-l-[3px] bg-muted/40" : "bg-card",
+              )}
+              style={active ? { borderLeftColor: accent } : undefined}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                {!single ? (
+                  <span className="text-xs font-bold tabular-nums" style={{ color: accent }}>
+                    {variant.label}
+                  </span>
+                ) : null}
+                <Badge variant="outline" className="text-[10px] font-normal">
+                  {variant.typeLabel}
+                </Badge>
+                {variant.multiple != null ? (
+                  <span className="text-[11px] text-muted-foreground">
+                    {variant.multiple}× your median across {variant.posts} post
+                    {variant.posts === 1 ? "" : "s"}
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-muted-foreground">
+                    too few posts of this kind to say
+                  </span>
+                )}
+                {variant.chosen ? (
+                  <Badge className="text-[10px] font-normal">Filming this one</Badge>
+                ) : variant.recommended && !picked ? (
+                  <Badge variant="secondary" className="text-[10px] font-normal">
+                    Suggested
+                  </Badge>
+                ) : null}
+              </div>
+
+              <p className="mt-2 text-base font-semibold leading-snug">“{variant.hook}”</p>
+
+              {!single && !variant.chosen ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="mt-2 h-auto px-2 py-1 text-xs"
+                  disabled={choose.isPending}
+                  onClick={() => choose.mutate(variant.hook)}
+                >
+                  Film {variant.label} instead
+                </Button>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+
+      {test.reason ? <p className="mt-2 text-xs text-muted-foreground">{test.reason}</p> : null}
+      {test.warning ? <p className="mt-1 text-xs text-muted-foreground">{test.warning}</p> : null}
+      {reason ? <p className="mt-1 text-xs text-destructive">{reason}</p> : null}
+    </section>
   );
 }

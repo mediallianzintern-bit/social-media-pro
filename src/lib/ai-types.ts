@@ -275,6 +275,24 @@ export interface ContentIdea {
    */
   source?: IdeaSource | undefined;
   hook: string;
+  /**
+   * T63 — two other ways into the same idea, for an A/B.
+   *
+   * Written in the same generation call as the idea, so they cost nothing
+   * extra, and required to open in DIFFERENT ways from each other: three
+   * phrasings of one question is not a test. Which one is worth filming is
+   * decided in TypeScript from the account's own measured performance per
+   * opening type — see hook-variants.ts — not by the model that wrote them.
+   *
+   * Absent on ideas generated before this existed; those show one hook.
+   */
+  altHooks?: string[] | undefined;
+  /**
+   * The hook the team picked to film, when it was not the first one. What the
+   * learning loop classifies, so the shape it records is the shape that was
+   * actually made.
+   */
+  chosenHook?: string | undefined;
   /** Reel shots or carousel slides. Empty for LinkedIn's written formats. */
   shots: Shot[];
   /** Filmed/designed formats only. Absent on a LinkedIn written format. */

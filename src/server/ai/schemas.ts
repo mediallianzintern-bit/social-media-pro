@@ -241,6 +241,7 @@ export function ideasSchemaFor(options: {
       "source",
       "sourceSignal",
       "hook",
+      "altHooks",
       ...(written ? ["post"] : ["shots", "production", "caption"]),
       "hashtags",
     ],
@@ -346,6 +347,17 @@ export function ideasSchemaFor(options: {
         description: written
           ? 'The first line of the post — what shows above LinkedIn\'s "see more" fold.'
           : "The literal first line, spoken or on screen.",
+      },
+      altHooks: {
+        type: "array",
+        description:
+          "Exactly 2 OTHER first lines for this same idea, for an A/B test. Each must open " +
+          "in a genuinely different way from `hook` and from each other — one may ask a " +
+          "question, another lead with a number, another contradict an assumption, name the " +
+          "brand first, or open mid-story. Three rewordings of the same opening are not a " +
+          "test and are the one thing this field must not contain. Same subject, same claim, " +
+          "same length as `hook`.",
+        items: { type: "string" },
       },
       ...(written
         ? {}
@@ -514,6 +526,8 @@ export const ideaSetSchema = z.object({
       contentLane: z.string(),
       sourceSignal: z.enum(["owner", "niche", "niche_trend"]),
       hook: z.string(),
+      // Older cached analyses have no alternatives; they render a single hook.
+      altHooks: z.array(z.string()).default([]),
       shots: z.array(shotSchema).default([]),
       production: productionSchema.optional(),
       post: z

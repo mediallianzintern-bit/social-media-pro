@@ -608,3 +608,12 @@ export async function saveThumbnailUrl(): Promise<void> {}
 export async function postsMissingThumbnails(): Promise<Array<{ postId: string; url: string }>> {
   return [];
 }
+
+/** The ephemeral store keeps no suggestions table, so there is no choice to record. */
+export async function setChosenHook(): Promise<boolean> {
+  return false;
+}
+
+export async function readChosenHooks(): Promise<Map<string, string>> {
+  return new Map();
+}

@@ -15,7 +15,7 @@ import type { AiAnalysis, ContentIdea } from "@/lib/ai-types";
 import type { ContentEra } from "@/lib/eras";
 import type { TopicVote } from "@/lib/preferences";
 import type { ReactionFields, ReactionSource } from "@/lib/reaction";
-import { scriptFeatures, type ScriptFeatures } from "@/lib/script-features";
+import { classifyHook, scriptFeatures, type ScriptFeatures } from "@/lib/script-features";
 import type { SourceDraft, SourceItem } from "@/lib/sources";
 import type { CalendarEntry } from "@/lib/calendar-types";
 import { isTrendSource } from "./apify/accounts";
@@ -651,6 +651,83 @@ export async function markIdeaUsed(id: string, shortcode: string): Promise<void>
     })
     .eq("id", id);
   if (error) throw new Error(`suggested_ideas update failed: ${error.message}`);
+}
+
+/**
+ * T63 — records which of an idea's hooks is the one being filmed.
+ *
+ * Also rewrites that idea's stored hook shape. The loop groups outcomes by the
+ * opening type it computed when the idea was saved, which was read from hook
+ * A; leaving that in place after the team picks B would file the result under
+ * an opening nobody used, and the loop would learn from a hook that was never
+ * spoken.
+ *
+ * Passing null clears the choice, returning the idea to its own first hook.
+ */
+export async function setChosenHook(id: string, hook: string | null): Promise<boolean> {
+  const current = await db()
+    .from("suggested_ideas")
+    .select("payload,script_features")
+    .eq("id", id)
+    .maybeSingle();
+  if (current.error && !schemaNotReady(current.error)) {
+    throw new Error(`suggested_ideas read failed: ${current.error.message}`);
+  }
+
+  const row = current.data as { payload?: ContentIdea; script_features?: ScriptFeatures } | null;
+  if (!row) return false;
+
+  const idea = row.payload;
+  const chosen = hook?.trim() || null;
+  // Only a hook this idea actually offers. Otherwise the column becomes a free
+  // text field that anything could be written into from a request.
+  if (chosen && idea) {
+    const offered = [idea.hook, ...(idea.altHooks ?? [])].map((entry) => entry?.trim());
+    if (!offered.includes(chosen)) return false;
+  }
+
+  const features =
+    row.script_features && idea
+      ? { ...row.script_features, hookType: classifyHook(chosen ?? idea.hook, idea.title) }
+      : row.script_features;
+
+  const { data, error } = await db()
+    .from("suggested_ideas")
+    .update({
+      chosen_hook: chosen,
+      ...(features ? { script_features: features } : {}),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .select("id");
+  if (error) {
+    if (schemaNotReady(error)) {
+      console.warn(
+        `[store] suggested_ideas.chosen_hook is missing (${error.message}). ` +
+          `Apply supabase/migrations/0017_hook_variants.sql.`,
+      );
+      return false;
+    }
+    throw new Error(`suggested_ideas chosen_hook update failed: ${error.message}`);
+  }
+  return ((data ?? []) as unknown[]).length > 0;
+}
+
+/** The hooks already picked, by idea id — merged into a cached analysis on read. */
+export async function readChosenHooks(ids: string[]): Promise<Map<string, string>> {
+  if (!ids.length) return new Map();
+  const { data, error } = await db()
+    .from("suggested_ideas")
+    .select("id,chosen_hook")
+    .in("id", ids)
+    .not("chosen_hook", "is", null);
+  if (error) return new Map();
+  return new Map(
+    ((data ?? []) as Array<{ id: string; chosen_hook: string }>).map((row) => [
+      String(row.id),
+      row.chosen_hook,
+    ]),
+  );
 }
 
 /** The stable lane vocabulary for one account, or null if never derived. */
