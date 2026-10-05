@@ -8,13 +8,13 @@ import { compactNumber, percent } from "@/lib/format";
 import { engagementsOf, type PlatformId, type PostRecord, viewsOf } from "@/lib/analytics-types";
 import { confidenceFor, MIN_SAMPLE, type Confidence, type InsightSet } from "@/lib/insights";
 import {
-  alternativeHook,
   findHit,
   HOOK_DIRECTION,
   HOOK_PAST,
   HOOK_PRESENT,
   hookScores,
   isWritten,
+  newAngle,
 } from "@/lib/double-down";
 import type { HookType } from "@/lib/script-features";
 
@@ -484,26 +484,25 @@ function doubleDownPlays(platform: PlatformId): Play[] {
       build: (insights, posts) => {
         const hit = findHit(posts, insights.useViews, insights.overallMedian);
         if (!hit || !hit.fresh) return null;
-        const alt = alternativeHook(
-          hit,
-          hookScores(posts, insights.useViews, insights.overallMedian),
-        );
+        const angle = newAngle(hit, hookScores(posts, insights.useViews, insights.overallMedian));
+        const lane =
+          hit.post.contentLane && hit.post.contentLane !== "other" ? hit.post.contentLane : null;
         return {
           id: `${platform}-double-angle`,
           platform,
-          evidence: `“${hit.opening.slice(0, 70)}${hit.opening.length > 70 ? "…" : ""}” did ${hit.multiple}× your median ${hit.ageDays === 0 ? "today" : `${hit.ageDays} day${hit.ageDays === 1 ? "" : "s"} ago`}.${alt.evidence ? ` ${alt.evidence}` : ""}`,
+          evidence: `“${hit.opening.slice(0, 70)}${hit.opening.length > 70 ? "…" : ""}” did ${hit.multiple}× your median ${hit.ageDays === 0 ? "today" : `${hit.ageDays} day${hit.ageDays === 1 ? "" : "s"} ago`}.${angle.evidence ? ` ${angle.evidence}` : ""}`,
           confidence: insights.sampleSize >= MIN_SAMPLE ? "solid" : "tentative",
           score: 5,
-          title: "Double down: same subject, a new opening",
-          pitch: `If the subject was the draw, a fresh angle on it lands again with the people who just discovered it. Your hit ${HOOK_PAST[hit.hook]}; this one should ${HOOK_PRESENT[alt.hook]} instead.`,
-          kicker: `Variation A · ${unit} · same subject`,
-          hook: HOOK_DIRECTION[alt.hook],
+          title: `Double down: same subject, ${angle.title}`,
+          pitch: `If the subject was the draw, a fresh angle on it lands again with the people who just discovered it. Your hit ${HOOK_PAST[hit.hook]}; the angle to take now is to ${angle.title} — ${angle.direction.charAt(0).toLowerCase()}${angle.direction.slice(1)}`,
+          kicker: `Variation A · ${unit} · ${angle.title}`,
+          hook: HOOK_DIRECTION[angle.hook],
           beats: beatsFor(
             platform,
-            alt.hook,
-            "Make it unmistakably the same subject as the hit — a new angle, not a rerun.",
+            angle.hook,
+            `${angle.direction} Keep it unmistakably the same subject as the hit${lane ? ` — still ${lane}` : ""}.`,
           ),
-          caption: `Production note: make this within the next few days, while the hit is still being seen. Variation B keeps the opening and changes the subject — making both is how you find out which half of the hit worked.`,
+          caption: `Production note: make this within the next few days, while the hit is still being seen. The angle is suggested from the opening your own posts reward, not picked at random. Variation B keeps the opening and changes the subject — making both is how you find out which half of the hit worked.`,
           tags: ["#ContentStrategy", "#DigitalMarketing"],
         };
       },

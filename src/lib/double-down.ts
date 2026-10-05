@@ -165,6 +165,79 @@ export function alternativeHook(
 }
 
 /**
+ * The angle each opening type implies — what to actually CHANGE about the
+ * subject, not just how to start the sentence.
+ *
+ * Variation A used to say "a new angle, not a rerun" and leave the angle to
+ * the person reading it, which is the one part of the play that needed saying.
+ * The angle is not invented here either: it follows from the opening this
+ * account's own posts reward, so "put the number on it" is only ever suggested
+ * because posts that open with a number measurably do better here.
+ */
+export const ANGLE: Record<HookType, { title: string; direction: string }> = {
+  question: {
+    title: "answer what the hit left open",
+    direction:
+      "Open on the question your hit raised and never answered — the one the comments kept asking — then answer it with one mechanism.",
+  },
+  number: {
+    title: "put the number on it",
+    direction:
+      "Same subject, led by the figure: what it cost, what it earned, or how long it took. On screen in the first second, and sourced.",
+  },
+  contrarian: {
+    title: "argue the other side",
+    direction:
+      "Same subject, opposite stance: who this fails for, and why. Name the case where the advice in the hit breaks.",
+  },
+  direct_address: {
+    title: "make it the viewer's problem",
+    direction:
+      "Same subject, aimed at one person: what they should do differently this week because of it.",
+  },
+  named_subject: {
+    title: "open on the brand behind it",
+    direction:
+      "Same mechanism, but name the company or person at the centre of it first — no setup, no preamble.",
+  },
+  story: {
+    title: "tell the moment behind it",
+    direction:
+      "Same subject as a scene: where you were, what happened, what it changed. Start in the middle of it.",
+  },
+  statement: {
+    title: "lead with the conclusion",
+    direction:
+      "Same subject, but state the conclusion in the first line and spend the rest of it proving the claim.",
+  },
+};
+
+export interface NewAngle {
+  hook: HookType;
+  /** The angle as a short phrase, for a label: "put the number on it". */
+  title: string;
+  /** How to execute it — one line, concrete enough to film from. */
+  direction: string;
+  /** The account's own figures behind the choice, where they exist. */
+  evidence: string | null;
+}
+
+/**
+ * The angle to take on the hit's subject, and why that one.
+ *
+ * A breakout is a subject the audience has just shown it wants more of, and
+ * the cheapest second hit is the same subject turned a different way. Which
+ * way is decided by alternativeHook — the opening this account rewards that
+ * the hit did not already use — so the angle inherits that evidence rather
+ * than being a stock suggestion.
+ */
+export function newAngle(hit: Hit, scores: HookScore[]): NewAngle {
+  const alternative = alternativeHook(hit, scores);
+  const angle = ANGLE[alternative.hook];
+  return { hook: alternative.hook, ...angle, evidence: alternative.evidence };
+}
+
+/**
  * Each opening as a verb phrase, present and past, for use inside a sentence.
  *
  * HOOK_LABEL is a list of chip labels and mixes noun phrases ("Plain

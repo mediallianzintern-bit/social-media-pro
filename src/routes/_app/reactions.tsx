@@ -1,6 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, Sparkles, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ExternalLink,
+  Loader2,
+  RefreshCw,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 
@@ -35,6 +43,8 @@ import {
 } from "@/lib/reaction";
 import { REACTION_MIN_SAMPLE, type ReactionGroup } from "@/lib/reaction-learning";
 import { useDashboard } from "@/lib/use-dashboard";
+import { useRefreshTracked } from "@/lib/use-refresh-tracked";
+import { cn } from "@/lib/utils";
 
 /**
  * "React to this" on a rising post opens this page with the clip filled in —
@@ -89,10 +99,6 @@ function ReactionsPage() {
 
       <SettingsCard settings={data?.settings ?? null} />
 
-      <SectionHeading
-        title="Clips worth reacting to"
-        note="Found in the reels of the creators you track — free to list, about 3¢ to prepare"
-      />
       <FoundClips />
 
       <SectionHeading title="Or add a clip yourself" note="paste the link and what the clip says" />
@@ -134,6 +140,53 @@ function ReactionsPage() {
  */
 function FoundClips() {
   const { data, isLoading } = useQuery(reactableQueryOptions(PLATFORM));
+  const refresh = useRefreshTracked(PLATFORM, [reactableQueryOptions(PLATFORM).queryKey]);
+
+  return (
+    <>
+      <SectionHeading
+        title="Clips worth reacting to"
+        note="Found in the reels of the creators you track — free to list, about 3¢ to prepare"
+        action={
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-auto gap-1.5 px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => refresh.mutate()}
+            disabled={refresh.isPending}
+            title="Scrapes the latest reels from every tracked Instagram account on Apify, which spends credit"
+          >
+            {refresh.isPending ? (
+              <Loader2 className="size-3 animate-spin" aria-hidden />
+            ) : (
+              <RefreshCw className="size-3" aria-hidden />
+            )}
+            {refresh.isPending ? "Fetching new reels…" : "Refresh"}
+          </Button>
+        }
+      />
+      {refresh.message ? (
+        <p
+          className={cn(
+            "rounded-md border px-3 py-2 text-xs",
+            refresh.failed ? "border-destructive/30 text-destructive" : "text-muted-foreground",
+          )}
+        >
+          {refresh.message}
+        </p>
+      ) : null}
+      <FoundClipsList data={data} isLoading={isLoading} />
+    </>
+  );
+}
+
+function FoundClipsList({
+  data,
+  isLoading,
+}: {
+  data: Awaited<ReturnType<ReturnType<typeof reactableQueryOptions>["queryFn"]>> | undefined;
+  isLoading: boolean;
+}) {
   if (isLoading) {
     return (
       <Card>
@@ -149,7 +202,7 @@ function FoundClips() {
       <Card>
         <CardContent className="p-5 text-sm text-muted-foreground">
           No reel from a tracked creator is both breaking out and making a claim worth answering
-          right now. Refresh Rising on Instagram to fetch newer reels, or add a clip yourself below.
+          right now. Refresh to fetch newer reels from those accounts, or add a clip yourself below.
         </CardContent>
       </Card>
     );
