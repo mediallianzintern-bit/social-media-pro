@@ -276,6 +276,36 @@ export async function postsWithThumbnails(
 }
 
 /**
+ * Posts with no cover frame yet, newest first — what a backfill works through.
+ *
+ * Only posts with a permalink, since the shortcode in it is what matches a
+ * stored post to the media Graph lists.
+ */
+export async function postsMissingThumbnails(
+  platform: PlatformId,
+  handle: string,
+  limit: number,
+): Promise<Array<{ postId: string; url: string }>> {
+  const { data, error } = await db()
+    .from("post_metrics")
+    .select("post_id,url")
+    .eq("platform", platform)
+    .eq("handle", handle)
+    .is("thumbnail_url", null)
+    .not("url", "is", null)
+    .order("published_at", { ascending: false })
+    .limit(limit);
+  if (error) {
+    if (schemaNotReady(error)) return [];
+    throw new Error(`missing-thumbnail lookup failed: ${error.message}`);
+  }
+  return ((data ?? []) as Array<{ post_id: string; url: string }>).map((row) => ({
+    postId: row.post_id,
+    url: row.url,
+  }));
+}
+
+/**
  * Points one post at its mirrored cover frame.
  *
  * A targeted update rather than part of the savePosts upsert on purpose:

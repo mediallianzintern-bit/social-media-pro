@@ -165,6 +165,23 @@ export async function syncInstagram(trigger: "manual" | "schedule"): Promise<Syn
     } catch (error) {
       console.error("[sync:instagram] insight backfill skipped:", error);
     }
+
+    // Same idea for the posters. A profile page renders about a dozen posts,
+    // so the scrape above can only ever carry covers for those; Graph lists
+    // the whole catalogue, for free. A slice per sync keeps one run short, and
+    // the newest posts come first — so the wall fills in from the top.
+    try {
+      const { backfillThumbnails } = await import("./thumbnails");
+      const covers = await backfillThumbnails(OWNER_ACCOUNTS.instagram.handle);
+      if (covers.stored || covers.failed) {
+        console.log(
+          `[sync:instagram] covers stored ${covers.stored}, failed ${covers.failed}, ` +
+            `${covers.pending} still without one.`,
+        );
+      }
+    } catch (error) {
+      console.error("[sync:instagram] cover backfill skipped:", error);
+    }
   }
 
   if (hasInstagramGraph()) {

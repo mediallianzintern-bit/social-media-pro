@@ -15,8 +15,8 @@
 // Every failure is survivable by design. A cover that will not download leaves
 // the post without one, and the tile falls back to its opening line.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { postsWithThumbnails, saveThumbnailUrl } from "./store";
-import type { PlatformId, PostRecord } from "@/lib/analytics-types";
+import { postsMissingThumbnails, postsWithThumbnails, saveThumbnailUrl } from "./store";
+import type { PlatformId } from "@/lib/analytics-types";
 
 const BUCKET = "post-thumbnails";
 
@@ -28,6 +28,16 @@ const FETCH_TIMEOUT_MS = 15_000;
 
 /** Downloads in flight at once. Polite to the CDN, still finishes in seconds. */
 const CONCURRENCY = 4;
+
+/**
+ * What the mirror needs of a post: which row to point at the copy, and where
+ * the cover can be read from right now. A PostRecord satisfies it, and so does
+ * a row pulled straight from the database during a backfill.
+ */
+export interface MirrorTarget {
+  postId: string;
+  thumbnailUrl?: string;
+}
 
 export interface MirrorResult {
   stored: number;
@@ -46,7 +56,7 @@ const EXTENSIONS: Record<string, string> = {
 /** Downloads one cover and returns its permanent link, or why there isn't one. */
 async function mirrorOne(
   platform: PlatformId,
-  post: PostRecord,
+  post: MirrorTarget,
 ): Promise<{ url: string } | { reason: string }> {
   const response = await fetch(post.thumbnailUrl!, {
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
@@ -84,7 +94,7 @@ async function mirrorOne(
  */
 export async function mirrorThumbnails(
   platform: PlatformId,
-  posts: PostRecord[],
+  posts: MirrorTarget[],
 ): Promise<MirrorResult> {
   const candidates = posts.filter((post) => post.thumbnailUrl);
   if (!candidates.length) return { stored: 0, failed: 0 };
@@ -127,4 +137,46 @@ export async function mirrorThumbnails(
 
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, worker));
   return result;
+}
+
+/**
+ * How many covers one backfill pass will fetch.
+ *
+ * A back catalogue of a few hundred posts is too much to download inside a
+ * single sync request, so a pass takes a slice of it and the next sync takes
+ * the next. The newest posts are always first in the queue, which is the half
+ * of the dashboard anyone is looking at.
+ */
+export const BACKFILL_PER_RUN = 40;
+
+/**
+ * Fills in covers for posts the scrape never carried one for.
+ *
+ * A profile page renders about a dozen posts, so that is all a sync's scrape
+ * can see — everything older would stay a text poster forever. Graph lists the
+ * owner's whole catalogue instead, and it is free, so the back catalogue costs
+ * nothing to fill: no Apify run, no model call.
+ *
+ * Owner-only by nature. A token reads the account it belongs to and no other,
+ * which is exactly the account whose posters the dashboard shows.
+ */
+export async function backfillThumbnails(
+  handle: string,
+  budget = BACKFILL_PER_RUN,
+): Promise<MirrorResult & { pending: number }> {
+  const { fetchMediaCovers, shortcodeOf } = await import("./graph/instagram");
+
+  const waiting = await postsMissingThumbnails("instagram", handle, budget);
+  if (!waiting.length) return { stored: 0, failed: 0, pending: 0 };
+
+  const covers = await fetchMediaCovers();
+  if (!covers.size) return { stored: 0, failed: 0, pending: waiting.length };
+
+  const targets: MirrorTarget[] = waiting.flatMap((post) => {
+    const cover = covers.get(shortcodeOf(post.url) ?? "");
+    return cover ? [{ postId: post.postId, thumbnailUrl: cover }] : [];
+  });
+
+  const result = await mirrorThumbnails("instagram", targets);
+  return { ...result, pending: waiting.length - result.stored };
 }

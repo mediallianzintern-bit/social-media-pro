@@ -278,6 +278,53 @@ export async function fetchMediaInsights(): Promise<Map<string, MediaInsight>> {
   return byShortcode;
 }
 
+/**
+ * Every post's cover frame, keyed by shortcode — the whole back catalogue.
+ *
+ * The scrape only ever carries covers for the dozen posts a profile page
+ * renders, so without this everything older stays a text poster forever.
+ * Graph lists all of the owner's own media and will page through the lot, for
+ * free, which is exactly what is needed to fill them in once.
+ *
+ * `thumbnail_url` is the still frame of a video or reel; a photo has none and
+ * `media_url` IS the image. Both are short-lived links on Meta's CDN, so they
+ * are only ever something to copy from — see server/thumbnails.ts.
+ *
+ * Keyed by shortcode for the same reason insights are: Graph and Apify assign
+ * different ids to the same post, and the permalink is the common ground.
+ */
+export async function fetchMediaCovers(max = 500): Promise<Map<string, string>> {
+  const igId = igAccountId();
+  if (!igId) return new Map();
+
+  const covers = new Map<string, string>();
+  let after: string | undefined;
+
+  while (covers.size < max) {
+    const page = await graph<{
+      data?: Array<GraphMedia & { thumbnail_url?: string; media_url?: string }>;
+      paging?: { cursors?: { after?: string } };
+    }>(`${igId}/media`, {
+      fields: "id,permalink,media_type,thumbnail_url,media_url",
+      limit: "100",
+      ...(after ? { after } : {}),
+    });
+
+    const items = page.data ?? [];
+    for (const item of items) {
+      const code = shortcodeOf(item.permalink);
+      const cover = item.thumbnail_url ?? item.media_url;
+      if (code && cover) covers.set(code, cover);
+    }
+
+    after = page.paging?.cursors?.after;
+    // No cursor, or a page Graph could not fill, means the catalogue ended.
+    if (!after || !items.length) break;
+  }
+
+  return covers;
+}
+
 // ---------------------------------------------------------------------------
 
 /** Everything the account level and audience panels need, in one call. */

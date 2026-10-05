@@ -604,3 +604,7 @@ export async function postsWithThumbnails(
 }
 
 export async function saveThumbnailUrl(): Promise<void> {}
+
+export async function postsMissingThumbnails(): Promise<Array<{ postId: string; url: string }>> {
+  return [];
+}

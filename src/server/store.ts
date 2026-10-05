@@ -37,6 +37,8 @@ export const postsWithThumbnails: typeof supabase.postsWithThumbnails = (...args
   store().postsWithThumbnails(...args);
 export const saveThumbnailUrl: typeof supabase.saveThumbnailUrl = (...args) =>
   store().saveThumbnailUrl(...args);
+export const postsMissingThumbnails: typeof supabase.postsMissingThumbnails = (...args) =>
+  store().postsMissingThumbnails(...args);
 export const latestSnapshot: typeof supabase.latestSnapshot = (...args) =>
   store().latestSnapshot(...args);
 export const growthSeries: typeof supabase.growthSeries = (...args) =>
