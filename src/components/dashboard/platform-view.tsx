@@ -245,6 +245,7 @@ export function PlatformView({ data, range }: { data: PlatformData; range: Resol
           icon={Send}
           hint={best ? shortDate(best.publishedAt) : undefined}
           accent={color}
+          {...(best?.url ? { href: best.url } : {})}
         />
       </section>
 
@@ -266,6 +267,7 @@ export function PlatformView({ data, range }: { data: PlatformData; range: Resol
           <SectionHeading
             title="Best performer breakdown"
             note={best.caption.split(/[.!?\n]/)[0]?.slice(0, 60) ?? ""}
+            {...(best.url ? { noteHref: best.url } : {})}
           />
           <div className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
             <MetricBars

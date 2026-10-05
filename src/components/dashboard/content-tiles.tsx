@@ -82,7 +82,7 @@ export function ContentTiles({
       {posts.map((post) => (
         <Card
           key={post.postId}
-          className="overflow-hidden transition-colors hover:border-foreground/20"
+          className="relative overflow-hidden transition-colors hover:border-foreground/20"
         >
           <Poster post={post} color={color} />
           <CardContent className="space-y-2 p-3">
@@ -94,12 +94,18 @@ export function ContentTiles({
                 </span>
               </span>
               {post.url ? (
+                // T68a — the whole tile opens the post, not just this icon.
+                // People click the picture; a 14px target in the corner was the
+                // only way through. `before:absolute inset-0` stretches this one
+                // anchor over the card, so there is still a single link for a
+                // screen reader and for the keyboard rather than a card-wide
+                // click handler that neither can reach.
                 <a
                   href={post.url}
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="text-muted-foreground hover:text-foreground"
-                  aria-label="Open post"
+                  className="text-muted-foreground before:absolute before:inset-0 hover:text-foreground"
+                  aria-label="Open this post"
                 >
                   <ExternalLink className="size-3.5" />
                 </a>

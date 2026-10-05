@@ -27,6 +27,13 @@ import { EraCaption } from "@/components/dashboard/era-caption";
  *
  * Posts above 3× the median are tinted with the accent so outliers are findable
  * without reading every bar — the label in the tooltip carries the exact value.
+ *
+ * T68a — a bar is clickable: it opens the post it stands for. Finding the spike
+ * and then not being able to reach the reel behind it was the gap; the whole
+ * point of spotting an outlier is going and looking at it. Bars for posts with
+ * no stored permalink stay unclickable rather than looking live and doing
+ * nothing. Clicking a chart is mouse-only, so it is an addition to the posts
+ * table below, which lists every post with a link and is reachable by keyboard.
  */
 export function PostPerformanceChart({
   posts,
@@ -46,6 +53,7 @@ export function PostPerformanceChart({
       date: post.publishedAt,
       value: metric === "views" ? viewsOf(post) : engagementsOf(post),
       caption: post.caption.slice(0, 70),
+      url: post.url ?? null,
     }));
 
   if (!rows.length) return null;
@@ -55,6 +63,13 @@ export function PostPerformanceChart({
   const outlierFloor = mid * 3;
 
   const label = metric === "views" ? "Views" : "Interactions";
+  const openable = rows.some((row) => row.url);
+
+  /** Opens the post a bar stands for. Noop for a post with no stored link. */
+  const openPost = (entry: unknown) => {
+    const url = (entry as { url?: string | null } | undefined)?.url;
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+  };
   const config: ChartConfig = { value: { label, color } };
   const { markers, spansWhole } = eraMarkers(
     rows.map((row) => row.date),
@@ -89,11 +104,23 @@ export function PostPerformanceChart({
               content={
                 <ChartTooltipContent
                   labelFormatter={(value) => shortDate(String(value))}
-                  formatter={(value) => [`${compactNumber(Number(value))}  `, label]}
+                  formatter={(value, _name, item) => [
+                    `${compactNumber(Number(value))}  `,
+                    (item?.payload as { url?: string | null } | undefined)?.url
+                      ? `${label} — click to open`
+                      : label,
+                  ]}
                 />
               }
             />
-            <Bar dataKey="value" radius={[3, 3, 0, 0]} maxBarSize={28} isAnimationActive={false}>
+            <Bar
+              dataKey="value"
+              radius={[3, 3, 0, 0]}
+              maxBarSize={28}
+              isAnimationActive={false}
+              onClick={openPost}
+              className={openable ? "cursor-pointer" : ""}
+            >
               {rows.map((row, index) => (
                 <Cell
                   key={index}
