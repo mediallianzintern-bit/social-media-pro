@@ -17,9 +17,18 @@ import { normalizeInstagram, readInstagramDataset } from "../apify/instagram";
 import { normalizeLinkedInProfile } from "../apify/linkedin";
 import { datasetItems, runActor } from "../apify/client";
 import { searchInstagram, searchLinkedIn, type Candidate } from "../apify/search";
-import { savePosts, saveSnapshots, saveWatchlist } from "../store";
+import {
+  readCalendarEntries,
+  readPosts,
+  readTaxonomy,
+  savePosts,
+  saveSnapshots,
+  saveWatchlist,
+} from "../store";
+import { buildLaneVocabulary, LANE_FIT_THRESHOLD, laneFit } from "@/lib/lane-fit";
 import { engagementsOf, median, medianViews, organicPosts } from "@/lib/analytics-types";
 import type { AccountSnapshot, PlatformId, PostRecord } from "@/lib/analytics-types";
+import { winningLanes, type LaneSeed } from "@/lib/lane-seeds";
 
 /**
  * Two kinds of competitor are worth tracking, and they answer different
@@ -67,6 +76,10 @@ export interface DiscoveryResult {
   niche: string;
   audience: string;
   searchQueries: string[];
+  /** T25 — the winning lanes the search was seeded from. Empty means bio-based. */
+  seededFrom: LaneSeed[];
+  /** Each search actually run, and the winning lane it was written for. */
+  queryPlan: Array<{ query: string; lane: string | null }>;
   candidatesFound: number;
   candidatesScreened: number;
   selected: DiscoveredCompetitor[];
@@ -82,28 +95,51 @@ interface EnrichedCandidate extends Candidate {
   medianViews: number;
   medianInteractions: number;
   sampleCaptions: string[];
+  /** T25 — the winning lane whose search found this account, if any. */
+  foundForLane?: string | null;
+  /** T25 — which of the owner's lanes their captions actually read like. Measured, not modelled. */
+  laneEvidence?: { lane: string; matched: string[] } | null;
   /** Retained so a selected candidate can be persisted without re-scraping. */
   snapshot: AccountSnapshot;
   posts: PostRecord[];
 }
 
-/** Stage 1 — turn the owner's own content into search terms. */
-async function profileNiche(
+/**
+ * Stage 1 — the request that turns the owner into search terms.
+ *
+ * T25: when the account has WINNING LANES, those lead. The model writes one
+ * search phrase per winning lane, from that lane's definition, so each search
+ * hunts for creators who are good at something that already works here — not
+ * for accounts that merely resemble the bio, which finds look-alikes in lanes
+ * the owner should be doing less of. With no winning lane yet, it falls back
+ * to the bio and captions, as discovery always did.
+ *
+ * Built separately from the call so it can be read and tested for free.
+ */
+export function buildNicheRequest(
   platform: PlatformId,
   owner: AccountBrief,
-): Promise<{
-  niche: string;
-  audience: string;
-  contentLanes: string[];
-  searchQueries: string[];
-  model: string;
-}> {
+  seeds: LaneSeed[],
+): { system: string; user: string } {
   const platformNote =
     platform === "instagram"
       ? `These go into Instagram's search box. Keep them 2-4 words — Instagram's search is literal
 and shallow, and long phrases return nothing.`
       : `These go into LinkedIn's people search. 3-6 words works well, and professional role
 language ("digital marketing consultant", "marketing AI trainer") outperforms consumer phrasing.`;
+
+  const seeded = seeds.length
+    ? `
+
+WINNING LANES are given: the subjects where this account measurably beats its own median.
+They are the point of this search — find creators who are STRONG IN THESE LANES.
+- In laneQueries, return exactly one phrase per winning lane, in the order given, with the lane
+  name copied exactly. Write each phrase from that lane's definition, not from the bio.
+- searchQueries may add a couple of broader phrases for the niche as a whole.`
+    : `
+
+No winning lanes are given, so propose phrases from the bio and captions, and return an empty
+laneQueries list.`;
 
   const system = `You classify social media accounts so similar creators can be found by search.
 
@@ -116,7 +152,7 @@ Rules:
 - Plain keyword phrases only. No hashtags, no "@", no usernames.
 - Describe the CRAFT, not the person. "ai marketing tools" not "pritesh patel".
 - Vary the angle across the phrases so the searches do not all return the same accounts.
-- Order them best-first: only the first few are actually run.`;
+- Order them best-first: only the first few are actually run.${seeded}`;
 
   const user = `ACCOUNT:
 ${JSON.stringify(
@@ -130,9 +166,32 @@ ${JSON.stringify(
   null,
   2,
 )}
-
+${
+  seeds.length
+    ? `
+WINNING LANES (strongest first, judged on ${seeds[0]!.metric}):
+${seeds.map((seed) => `- ${seed.lane} — ${seed.multiple}× the account median on ${seed.metric}, ${seed.posts} posts. Covers: ${seed.definition}`).join("\n")}
+`
+    : ""
+}
 Classify this account and propose the search phrases.`;
 
+  return { system, user };
+}
+
+async function profileNiche(
+  platform: PlatformId,
+  owner: AccountBrief,
+  seeds: LaneSeed[],
+): Promise<{
+  niche: string;
+  audience: string;
+  contentLanes: string[];
+  laneQueries: Array<{ lane: string; query: string }>;
+  searchQueries: string[];
+  model: string;
+}> {
+  const { system, user } = buildNicheRequest(platform, owner, seeds);
   const result = await completeJson<unknown>({
     system,
     user,
@@ -144,6 +203,38 @@ Classify this account and propose the search phrases.`;
 
   const parsed = nicheSchema.parse(result.data);
   return { ...parsed, model: result.model };
+}
+
+/**
+ * The searches actually run, and which winning lane each came from.
+ *
+ * Lane phrases go first, one per winning lane, in strength order; any slots
+ * left are filled with the broader niche phrases. A lane phrase naming a lane
+ * that was not given is ignored rather than trusted — the model was told to
+ * copy the names, and a drifted name cannot be traced back to a lane.
+ */
+export function planQueries(
+  seeds: LaneSeed[],
+  laneQueries: Array<{ lane: string; query: string }>,
+  searchQueries: string[],
+  slots: number,
+): Array<{ query: string; lane: string | null }> {
+  const plan: Array<{ query: string; lane: string | null }> = [];
+  const seen = new Set<string>();
+  const add = (query: string, lane: string | null) => {
+    const key = query.trim().toLowerCase();
+    if (!key || seen.has(key) || plan.length >= slots) return;
+    seen.add(key);
+    plan.push({ query: query.trim(), lane });
+  };
+  for (const seed of seeds) {
+    const match = laneQueries.find(
+      (entry) => entry.lane.trim().toLowerCase() === seed.lane.toLowerCase(),
+    );
+    if (match) add(match.query, seed.lane);
+  }
+  for (const query of searchQueries) add(query, null);
+  return plan;
 }
 
 /**
@@ -263,6 +354,7 @@ async function enrichLinkedIn(candidates: Candidate[]): Promise<EnrichedCandidat
 async function screenCandidates(
   owner: AccountBrief,
   candidates: EnrichedCandidate[],
+  seeds: LaneSeed[] = [],
 ): Promise<{
   selected: Array<{ handle: string; lane: string; whyComparable: string }>;
   note: string;
@@ -293,7 +385,17 @@ Rules:
 6. Select up to ${TARGET_SELECTION}. Return an empty list only if nothing is in the same domain
    at all, and say so in rejectedReason.
 7. Reject dormant accounts (no recent posts), pure agency or course-selling accounts with no
-   original content, and anything whose captions are in a language the owner does not post in.`;
+   original content, and anything whose captions are in a language the owner does not post in.${
+     seeds.length
+       ? `
+8. WINNING LANES. The owner wins in the lanes listed under winningLanes, and this search was
+   seeded from them: find creators STRONG IN THOSE LANES. Each candidate's foundForLane says
+   which winning lane's search surfaced it; laneEvidence is a measured word-match of their
+   captions against the owner's own lanes. A candidate whose laneEvidence agrees with its
+   foundForLane is the strongest fit. Set "lane" to the winning lane the account competes in
+   wherever one applies, and cover more than one winning lane if the candidates allow.`
+       : ""
+   }`;
 
   const user = `OWNER:
 ${JSON.stringify(
@@ -304,6 +406,15 @@ ${JSON.stringify(
     medianViews: owner.medianViews,
     postsPerWeek: owner.postsPerWeek,
     sampleCaptions: owner.topPosts.slice(0, 4).map((post) => post.caption.slice(0, 200)),
+    ...(seeds.length
+      ? {
+          winningLanes: seeds.map((seed) => ({
+            lane: seed.lane,
+            multipleOfMedian: seed.multiple,
+            metric: seed.metric,
+          })),
+        }
+      : {}),
   },
   null,
   2,
@@ -320,6 +431,12 @@ ${JSON.stringify(
     medianInteractions: candidate.medianInteractions,
     bio: candidate.biography,
     sampleCaptions: candidate.sampleCaptions,
+    ...(seeds.length
+      ? {
+          foundForLane: candidate.foundForLane ?? null,
+          laneEvidence: candidate.laneEvidence ?? null,
+        }
+      : {}),
   })),
   null,
   2,
@@ -345,18 +462,64 @@ export async function discoverCompetitors(
   owner: AccountBrief,
 ): Promise<DiscoveryResult> {
   const ownerAccount = OWNER_ACCOUNTS[platform];
-  const niche = await profileNiche(platform, owner);
+
+  // T25 — seed from the lanes that win, judged on the goal metric. The brief
+  // is already scoped to the current era (T56), so these are the lanes that
+  // win under the strategy in force now, not across every past one.
+  const [taxonomy, ownPosts, calendar] = await Promise.all([
+    readTaxonomy(platform, ownerAccount.handle).catch(() => null),
+    readPosts(platform, ownerAccount.handle, 400).catch(() => [] as PostRecord[]),
+    readCalendarEntries(platform).catch(() => []),
+  ]);
+  const definitions = new Map((taxonomy ?? []).map((lane) => [lane.name, lane.definition]));
+  const seeds = winningLanes(
+    owner.lanes,
+    owner.expectations,
+    owner.goal?.growthGoal ?? null,
+    definitions,
+  );
+
+  const niche = await profileNiche(platform, owner, seeds);
 
   // Instagram search is shallow, so a handful of distinct queries beats one
   // broad query with a high cap. LinkedIn's is deeper; two suffice.
-  const queries = niche.searchQueries.slice(0, platform === "instagram" ? 3 : 2);
+  const plan = planQueries(
+    seeds,
+    niche.laneQueries,
+    niche.searchQueries,
+    platform === "instagram" ? 3 : 2,
+  );
+  const queries = plan.map((entry) => entry.query);
+  const laneForQuery = new Map(plan.map((entry) => [entry.query.toLowerCase(), entry.lane]));
   const candidates =
     platform === "instagram"
       ? await searchInstagram(queries, [ownerAccount.handle])
       : await searchLinkedIn(queries, [ownerAccount.handle]);
 
-  const enriched =
+  const enrichedRaw =
     platform === "instagram" ? await enrichInstagram(candidates) : await enrichLinkedIn(candidates);
+
+  // Which of the owner's lanes each candidate actually writes in, measured
+  // against a vocabulary built from the owner's OWN classified posts — plus
+  // the team's calendar where one exists. Free, and it does not take the
+  // search's word for it: a phrase written for a lane can still surface an
+  // account that writes about something else.
+  const vocabulary = buildLaneVocabulary([
+    ...ownPosts
+      .filter((post) => post.contentLane && post.contentLane !== "other")
+      .map((post) => ({ lane: post.contentLane ?? null, content: post.caption })),
+    ...calendar.map((entry) => ({ lane: entry.lane, content: entry.content })),
+  ]);
+  const enriched = enrichedRaw.map((candidate) => {
+    const fit = candidate.sampleCaptions.length
+      ? laneFit(candidate.sampleCaptions.join(" "), vocabulary, LANE_FIT_THRESHOLD, 2)
+      : null;
+    return {
+      ...candidate,
+      foundForLane: laneForQuery.get(candidate.matchedQuery.toLowerCase()) ?? null,
+      laneEvidence: fit?.lane ? { lane: fit.lane, matched: fit.matched.slice(0, 4) } : null,
+    };
+  });
 
   // Only a floor now: tiny accounts have too little signal to read. There is no
   // ceiling — a million-follower account in the same domain is the most
@@ -376,7 +539,9 @@ export async function discoverCompetitors(
       platform,
       niche: niche.niche,
       audience: niche.audience,
-      searchQueries: niche.searchQueries,
+      searchQueries: queries,
+      seededFrom: seeds,
+      queryPlan: plan,
       candidatesFound: candidates.length,
       candidatesScreened: 0,
       selected: [],
@@ -385,7 +550,7 @@ export async function discoverCompetitors(
     };
   }
 
-  const screening = await screenCandidates(owner, inBand);
+  const screening = await screenCandidates(owner, inBand, seeds);
   const byHandle = new Map(inBand.map((candidate) => [candidate.handle.toLowerCase(), candidate]));
 
   // Defence in depth: even told to copy handles verbatim, a model can drift.
@@ -402,7 +567,15 @@ export async function discoverCompetitors(
       followers: candidate.followers,
       postsSampled: candidate.posts.length,
       medianViews: candidate.medianViews,
-      lane: choice.lane,
+      // A lane we can stand behind: their captions' measured lane when it is
+      // one of the winning lanes, then the winning lane whose search found
+      // them, and only then the model's own label.
+      lane:
+        (candidate.laneEvidence && seeds.some((seed) => seed.lane === candidate.laneEvidence?.lane)
+          ? candidate.laneEvidence.lane
+          : null) ??
+        candidate.foundForLane ??
+        choice.lane,
       whyComparable: choice.whyComparable,
       // Trust the measured follower count over the model's own labelling.
       tier: tierOf(owner.followers, candidate.followers),
@@ -430,7 +603,9 @@ export async function discoverCompetitors(
     platform,
     niche: niche.niche,
     audience: niche.audience,
-    searchQueries: niche.searchQueries,
+    searchQueries: queries,
+    seededFrom: seeds,
+    queryPlan: plan,
     candidatesFound: candidates.length,
     candidatesScreened: inBand.length,
     selected,

@@ -273,10 +273,36 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
             <CardDescription>{discovery.niche}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
+            {/* T25 — which winning lanes the search was seeded from, so it is
+                clear these accounts were chosen for what already works here,
+                not for looking like the bio. */}
+            {discovery.seededFrom?.length ? (
+              <p className="text-xs text-muted-foreground">
+                Seeded from the lanes you win in:{" "}
+                {discovery.seededFrom.map((seed, index) => (
+                  <span key={seed.lane}>
+                    {index ? ", " : ""}
+                    <span className="font-medium text-foreground">{seed.lane}</span> (
+                    {seed.multiple}× {seed.metric})
+                  </span>
+                ))}
+                .
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Found from the bio and captions — no lane was beating the account median yet.
+              </p>
+            )}
             <div className="flex flex-wrap gap-1.5">
-              {discovery.searchQueries.map((query) => (
-                <Badge key={query} variant="outline" className="font-normal">
-                  {query}
+              {(discovery.queryPlan?.length
+                ? discovery.queryPlan
+                : discovery.searchQueries.map((query) => ({ query, lane: null }))
+              ).map((entry) => (
+                <Badge key={entry.query} variant="outline" className="gap-1 font-normal">
+                  {entry.query}
+                  {entry.lane ? (
+                    <span className="text-muted-foreground">· {entry.lane}</span>
+                  ) : null}
                 </Badge>
               ))}
             </div>

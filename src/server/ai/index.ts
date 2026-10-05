@@ -441,6 +441,12 @@ export async function runAnalysis(
           discovery: {
             niche: discovery.niche,
             searchQueries: discovery.searchQueries,
+            seededFrom: discovery.seededFrom.map((seed) => ({
+              lane: seed.lane,
+              multiple: seed.multiple,
+              metric: seed.metric,
+            })),
+            queryPlan: discovery.queryPlan,
             candidatesFound: discovery.candidatesFound,
             selected: discovery.selected.map((entry) => ({
               handle: entry.handle,

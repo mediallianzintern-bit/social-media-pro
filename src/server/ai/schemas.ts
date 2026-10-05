@@ -539,8 +539,25 @@ export const ideaSetSchema = z.object({
 export const NICHE_SCHEMA: Record<string, unknown> = {
   type: "object",
   additionalProperties: false,
-  required: ["niche", "audience", "contentLanes", "searchQueries"],
+  required: ["niche", "audience", "contentLanes", "laneQueries", "searchQueries"],
   properties: {
+    laneQueries: {
+      type: "array",
+      description:
+        "T25: exactly one search phrase for each WINNING LANE given, in the order given, naming the lane exactly. Empty when no winning lanes are given.",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["lane", "query"],
+        properties: {
+          lane: { type: "string", description: "The winning lane's name, copied exactly." },
+          query: {
+            type: "string",
+            description: "A short search phrase for creators strong in this lane.",
+          },
+        },
+      },
+    },
     niche: { type: "string", description: "The account's niche in one sentence." },
     audience: { type: "string", description: "Who follows this account and why." },
     contentLanes: {
@@ -596,6 +613,7 @@ export const nicheSchema = z.object({
   niche: z.string(),
   audience: z.string(),
   contentLanes: z.array(z.string()),
+  laneQueries: z.array(z.object({ lane: z.string(), query: z.string() })).default([]),
   searchQueries: z.array(z.string()),
 });
 

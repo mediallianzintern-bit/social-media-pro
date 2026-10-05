@@ -326,6 +326,13 @@ export interface DiscoveredAccount {
 export interface DiscoverySummary {
   niche: string;
   searchQueries: string[];
+  /**
+   * T25 — the winning lanes the search was seeded from, with the figure that
+   * made each a winner. Absent or empty means discovery read the bio instead.
+   */
+  seededFrom?: Array<{ lane: string; multiple: number; metric: string }>;
+  /** Each search run, and the winning lane it was written for (null = niche-wide). */
+  queryPlan?: Array<{ query: string; lane: string | null }>;
   candidatesFound: number;
   selected: DiscoveredAccount[];
   note: string;

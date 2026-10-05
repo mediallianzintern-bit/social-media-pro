@@ -32,7 +32,11 @@ const STOP = new Set(
     "watch swipe tap click download guide free video story stories page profile " +
     "day here's heres lesson lessons takeaway learn business owners small " +
     "want need know thing things way ways thats that's youre you're its it's " +
-    "wasnt didnt doesnt isnt couldnt wouldnt"
+    "wasnt didnt doesnt isnt couldnt wouldnt " +
+    // Adverbs and fillers that appear in every subject: they describe how a
+    // caption is said, not what it is about.
+    "already instantly actually really literally basically simply directly finally " +
+    "honestly totally completely definitely probably maybe much many lot lots"
   ).split(" "),
 );
 
@@ -96,8 +100,18 @@ export interface LaneFit {
 
 /** Distinctive words of a text. */
 export function significantWords(text: string): string[] {
-  return (text.toLowerCase().match(/[a-z][a-z'’-]{2,}/g) ?? [])
-    .map((w) => w.replace(/['’]s$/, ""))
+  // Curly apostrophes folded to straight ones BEFORE the stop-list check.
+  // Captions use "you’re", "don’t", "it’s"; the stop list holds the straight
+  // spellings, so every curly contraction used to pass as a meaningful word.
+  // Found during T25: competitors were being matched to lanes on "you’re",
+  // "already" and "instantly".
+  return (
+    text
+      .toLowerCase()
+      .replace(/[‘’]/g, "'")
+      .match(/[a-z][a-z'-]{2,}/g) ?? []
+  )
+    .map((w) => w.replace(/'s$/, "").replace(/'+$/, ""))
     .filter((w) => w.length >= 3 && !STOP.has(w));
 }
 
