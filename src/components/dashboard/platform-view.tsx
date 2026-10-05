@@ -259,7 +259,12 @@ export function PlatformView({ data, range }: { data: PlatformData; range: Resol
 
       {/* ---- Top content ---- */}
       <SectionHeading title={hasViews ? "Top content by views" : "Top content by interactions"} />
-      <ContentTiles posts={ranked.slice(0, 4)} color={color} metric={metric} />
+      <ContentTiles
+        posts={ranked.slice(0, 4)}
+        color={color}
+        metric={metric}
+        platform={data.platform}
+      />
 
       {/* ---- Best performer + distribution ---- */}
       {best ? (
@@ -412,7 +417,7 @@ export function PlatformView({ data, range }: { data: PlatformData; range: Resol
       <SectionHeading title="All posts in this window" />
       <Card>
         <CardContent className="pt-6">
-          <PostsTable posts={posts} showViews={hasViews} />
+          <PostsTable posts={posts} showViews={hasViews} platform={data.platform} />
         </CardContent>
       </Card>
     </>

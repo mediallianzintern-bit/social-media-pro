@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { compactNumber, shortDate } from "@/lib/format";
-import { engagementsOf, type PostRecord, viewsOf } from "@/lib/analytics-types";
+import { PostInsightButton } from "@/components/dashboard/post-insight-dialog";
+import { engagementsOf, type PlatformId, type PostRecord, viewsOf } from "@/lib/analytics-types";
 
 /**
  * Top content as a poster wall — the real cover frame where there is one.
@@ -62,10 +63,12 @@ export function ContentTiles({
   posts,
   color,
   metric,
+  platform,
 }: {
   posts: PostRecord[];
   color: string;
   metric: "views" | "engagements";
+  platform: PlatformId;
 }) {
   if (!posts.length) {
     return (
@@ -119,6 +122,9 @@ export function ContentTiles({
                 {shortDate(post.publishedAt)}
               </span>
             </div>
+            {/* Above the stretched link's overlay, or the card-wide anchor
+                would swallow the click and open Instagram instead. */}
+            <PostInsightButton post={post} platform={platform} className="relative z-10 w-full" />
           </CardContent>
         </Card>
       ))}

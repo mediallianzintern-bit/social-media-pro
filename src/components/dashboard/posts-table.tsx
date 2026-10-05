@@ -10,7 +10,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { compactNumber, fullNumber, shortDate } from "@/lib/format";
-import { engagementsOf, type PostRecord } from "@/lib/analytics-types";
+import { PostInsightButton } from "@/components/dashboard/post-insight-dialog";
+import { engagementsOf, type PlatformId, type PostRecord } from "@/lib/analytics-types";
 
 /**
  * The total of the columns THIS TABLE shows.
@@ -46,7 +47,15 @@ function watchSeconds(ms: number | undefined): string | null {
  * because "not measured" and "measured as zero" are different facts and a 0
  * would quietly assert the second.
  */
-export function PostsTable({ posts, showViews }: { posts: PostRecord[]; showViews: boolean }) {
+export function PostsTable({
+  posts,
+  showViews,
+  platform,
+}: {
+  posts: PostRecord[];
+  showViews: boolean;
+  platform: PlatformId;
+}) {
   if (!posts.length) {
     return (
       <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
@@ -74,6 +83,7 @@ export function PostsTable({ posts, showViews }: { posts: PostRecord[]; showView
             {hasInsights ? <TableHead className="text-right">Shares</TableHead> : null}
             {hasWatch ? <TableHead className="text-right">Avg watch</TableHead> : null}
             <TableHead className="text-right">Total</TableHead>
+            <TableHead className="w-px" />
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -163,6 +173,9 @@ export function PostsTable({ posts, showViews }: { posts: PostRecord[]; showView
               ) : null}
               <TableCell className="text-right font-medium tabular-nums">
                 {fullNumber(rowTotal(post))}
+              </TableCell>
+              <TableCell className="py-2 pl-2">
+                <PostInsightButton post={post} platform={platform} label="Insight" />
               </TableCell>
             </TableRow>
           ))}
