@@ -21,6 +21,21 @@ interface IgPost {
   videoViewCount?: number;
   timestamp?: string;
   isPinned?: boolean;
+  displayUrl?: string;
+  images?: string[];
+}
+
+/**
+ * The post's cover frame, as a link on Instagram's CDN.
+ *
+ * Read tolerantly: the profile scraper returns `displayUrl`, and some posts
+ * carry only the `images` array. The link is signed and expires within days,
+ * so it is only ever a source to copy from, never something to store — see
+ * server/thumbnails.ts.
+ */
+function coverOf(post: IgPost): string | undefined {
+  const url = post.displayUrl?.trim() || post.images?.[0]?.trim();
+  return url?.startsWith("http") ? url : undefined;
 }
 
 interface IgProfile {
@@ -65,6 +80,7 @@ export function toPostRecords(raw: IgPost[], limit: number): PostRecord[] {
       // Instagram does not expose share or save counts publicly.
       shares: 0,
       pinned: post.isPinned === true,
+      ...(coverOf(post) ? { thumbnailUrl: coverOf(post)! } : {}),
     }))
     .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
     .slice(0, limit);

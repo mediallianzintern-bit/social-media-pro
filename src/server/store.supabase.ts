@@ -55,12 +55,58 @@ interface PostRow {
   profile_visits: number | null;
   insights_at: string | null;
   content_lane: string | null;
+  thumbnail_url: string | null;
 }
 
-const POST_COLUMNS =
-  "post_id,url,caption,format,published_at,views,likes,comments,shares,pinned," +
+/** Columns that exist in the very first migration and can always be selected. */
+const POST_COLUMNS_BASE =
+  "post_id,url,caption,format,published_at,views,likes,comments,shares,pinned";
+
+/** Those plus the owner-only Graph columns and the lane (migrations 0002-0005). */
+const POST_COLUMNS_LANE =
+  `${POST_COLUMNS_BASE},` +
   "reach,saved,graph_views,avg_watch_ms,total_watch_ms,follows,profile_visits,insights_at," +
   "content_lane";
+
+/** Everything, including the mirrored cover frame (migration 0016). */
+const POST_COLUMNS = `${POST_COLUMNS_LANE},thumbnail_url`;
+
+/** Postgres "undefined_column" — raised when a migration has not been applied. */
+const UNDEFINED_COLUMN = "42703";
+
+/**
+ * What to select, widest first.
+ *
+ * Postgres fails a whole query over one unknown column, so deploying ahead of
+ * a migration once took the dashboard blank while the public metrics sat there
+ * intact. Retrying down this list costs only the columns the database does not
+ * have yet: a pending 0016 loses the cover frames, not the lanes with it.
+ */
+const POST_COLUMN_SETS = [POST_COLUMNS, POST_COLUMNS_LANE, POST_COLUMNS_BASE];
+
+/**
+ * Runs a post query, stepping down the column sets while the database says a
+ * column does not exist. Says which migration to apply, once per fallback.
+ */
+async function selectPosts(
+  run: (
+    columns: string,
+  ) => PromiseLike<{ data: unknown; error: { code?: string; message: string } | null }>,
+): Promise<PostRow[]> {
+  for (const [index, columns] of POST_COLUMN_SETS.entries()) {
+    const { data, error } = await run(columns);
+    if (!error) return (data ?? []) as PostRow[];
+    const last = index === POST_COLUMN_SETS.length - 1;
+    if (last || error.code !== UNDEFINED_COLUMN) {
+      throw new Error(`post_metrics read failed: ${error.message}`);
+    }
+    console.warn(
+      `[store] post_metrics is missing a column (${error.message}). ` +
+        `Retrying with fewer — apply the pending migration in supabase/migrations.`,
+    );
+  }
+  return [];
+}
 
 /** Rebuilds the optional MediaInsight from its flattened columns. */
 function insightOf(row: PostRow): MediaInsight | undefined {
@@ -196,6 +242,60 @@ export async function savePosts(handle: string, posts: PostRecord[]): Promise<nu
   return posts.length;
 }
 
+/**
+ * Which of these posts already have a mirrored cover frame.
+ *
+ * Asked before any downloading so a sync re-reading the same sixty posts
+ * fetches nothing: a post's cover does not change after it is published.
+ *
+ * Returns every id as "already done" when the column is missing, so a sync
+ * running ahead of migration 0016 skips mirroring instead of failing.
+ */
+export async function postsWithThumbnails(
+  platform: PlatformId,
+  postIds: string[],
+): Promise<Set<string>> {
+  if (!postIds.length) return new Set();
+  const { data, error } = await db()
+    .from("post_metrics")
+    .select("post_id")
+    .eq("platform", platform)
+    .in("post_id", postIds)
+    .not("thumbnail_url", "is", null);
+  if (error) {
+    if (schemaNotReady(error)) {
+      console.warn(
+        `[store] post_metrics.thumbnail_url is missing (${error.message}). ` +
+          `Skipping thumbnails — apply supabase/migrations/0016_post_thumbnails.sql.`,
+      );
+      return new Set(postIds);
+    }
+    throw new Error(`thumbnail lookup failed: ${error.message}`);
+  }
+  return new Set(((data ?? []) as { post_id: string }[]).map((row) => row.post_id));
+}
+
+/**
+ * Points one post at its mirrored cover frame.
+ *
+ * A targeted update rather than part of the savePosts upsert on purpose:
+ * PostgREST fills absent keys with null across a batch, so folding this into
+ * that call would blank the covers of every post whose scrape happened not to
+ * carry one. See the note above the upsert.
+ */
+export async function saveThumbnailUrl(
+  platform: PlatformId,
+  postId: string,
+  thumbnailUrl: string,
+): Promise<void> {
+  const { error } = await db()
+    .from("post_metrics")
+    .update({ thumbnail_url: thumbnailUrl })
+    .eq("platform", platform)
+    .eq("post_id", postId);
+  if (error) throw new Error(`thumbnail update failed: ${error.message}`);
+}
+
 /** Appends one account-level insights capture. Append-only, like snapshots. */
 export async function saveInsights(
   platform: PlatformId,
@@ -306,13 +406,6 @@ export async function trendSourceSnapshots(platform: PlatformId): Promise<Accoun
   return all.filter((snapshot) => isTrendSource(platform, snapshot.handle));
 }
 
-/** Columns that exist in the very first migration and can always be selected. */
-const POST_COLUMNS_BASE =
-  "post_id,url,caption,format,published_at,views,likes,comments,shares,pinned";
-
-/** Postgres "undefined_column" — raised when a migration has not been applied. */
-const UNDEFINED_COLUMN = "42703";
-
 /**
  * True when an error means "this migration has not been applied yet" rather
  * than a real failure: a missing column or table, as Postgres or PostgREST's
@@ -337,32 +430,21 @@ export async function readPosts(
   handle: string,
   limit = 60,
 ): Promise<PostRecord[]> {
-  const query = (columns: string) =>
+  // A pending migration should cost the newest columns, not the dashboard:
+  // selecting a column that does not exist fails the whole query, and the page
+  // went blank twice over a one-line ALTER TABLE while the public metrics sat
+  // there intact.
+  const rows = await selectPosts((columns) =>
     db()
       .from("post_metrics")
       .select(columns)
       .eq("platform", platform)
       .eq("handle", handle)
       .order("published_at", { ascending: false })
-      .limit(limit);
+      .limit(limit),
+  );
 
-  let { data, error } = await query(POST_COLUMNS);
-
-  // A pending migration should cost the owner-only columns, not the dashboard.
-  // Selecting a column that does not exist fails the whole query, so the page
-  // went blank twice over a one-line ALTER TABLE — the public metrics were
-  // sitting there intact the entire time. Retry without the newer columns and
-  // say so in the log rather than taking everything down with them.
-  if (error?.code === UNDEFINED_COLUMN) {
-    console.warn(
-      `[store] post_metrics is missing a column (${error.message}). ` +
-        `Serving public metrics only — apply the pending migration in supabase/migrations.`,
-    );
-    ({ data, error } = await query(POST_COLUMNS_BASE));
-  }
-  if (error) throw new Error(`post_metrics read failed: ${error.message}`);
-
-  return ((data ?? []) as PostRow[]).map((row) => {
+  return rows.map((row) => {
     const insight = insightOf(row);
     return {
       platform,
@@ -377,6 +459,7 @@ export async function readPosts(
       shares: row.shares,
       pinned: row.pinned === true,
       ...(insight ? { insight } : {}),
+      ...(row.thumbnail_url ? { thumbnailUrl: row.thumbnail_url } : {}),
       ...(row.content_lane ? { contentLane: row.content_lane } : {}),
     };
   });
@@ -701,14 +784,14 @@ export async function findPostByLink(
   match: "postId" | "urlContains",
   value: string,
 ): Promise<PostRecord | null> {
-  const query = db().from("post_metrics").select(POST_COLUMNS).eq("platform", platform);
-  const { data, error } =
-    match === "postId"
-      ? await query.eq("post_id", value).maybeSingle()
-      : await query.ilike("url", `%${value}%`).limit(1).maybeSingle();
+  const rows = await selectPosts((columns) => {
+    const query = db().from("post_metrics").select(columns).eq("platform", platform);
+    return match === "postId"
+      ? query.eq("post_id", value).limit(1)
+      : query.ilike("url", `%${value}%`).limit(1);
+  });
 
-  if (error) throw new Error(`post_metrics lookup failed: ${error.message}`);
-  const row = data as PostRow | null;
+  const row = rows[0] ?? null;
   if (!row) return null;
 
   const insight = insightOf(row);

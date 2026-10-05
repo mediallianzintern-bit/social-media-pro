@@ -10,6 +10,7 @@ import { fetchLinkedIn, normalizeLinkedInPosts, normalizeLinkedInProfile } from 
 import { captureOutcomes } from "./outcomes";
 import { refitCurrentNiche } from "./predict";
 import { refreshSources } from "./sources";
+import { mirrorThumbnails } from "./thumbnails";
 import { hasInstagramGraph } from "./graph/client";
 import { fetchInstagramInsights, fetchMediaInsights, shortcodeOf } from "./graph/instagram";
 import {
@@ -128,7 +129,23 @@ export async function syncInstagram(trigger: "manual" | "schedule"): Promise<Syn
         : posts;
 
     postsIngested += await savePosts(snapshot.handle, enriched);
-    if (role === "owner") ownerFollowers = snapshot.followers;
+
+    // Keep the cover frames of the owner's own posts, which is whose poster
+    // wall the dashboard shows. Competitors are read as numbers and captions,
+    // so copying their artwork would be storage spent on nothing. Free, and
+    // never allowed to fail a sync that already has the figures.
+    if (role === "owner") {
+      const mirrored = await mirrorThumbnails("instagram", enriched).catch((error: unknown) => {
+        console.warn("[sync:instagram] thumbnails skipped:", error);
+        return { stored: 0, failed: 0 };
+      });
+      if (mirrored.stored || mirrored.failed) {
+        console.info(
+          `[sync:instagram] thumbnails stored ${mirrored.stored}, failed ${mirrored.failed}`,
+        );
+      }
+      ownerFollowers = snapshot.followers;
+    }
   }
 
   await saveSnapshots("instagram", dbRunId, snapshots);

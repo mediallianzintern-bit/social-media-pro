@@ -47,6 +47,15 @@ export interface PostRecord {
    * metrics below skip them — the posts table still shows them, marked.
    */
   pinned: boolean;
+  /**
+   * The post's cover frame.
+   *
+   * Straight off the platform's CDN while a scrape is in hand, and a permanent
+   * link to our own copy once it has been mirrored — see server/thumbnails.ts.
+   * Absent for posts scraped before mirroring existed, and for any post whose
+   * cover could not be fetched, so every reader needs a fallback.
+   */
+  thumbnailUrl?: string;
   /** Present only for the owner's own posts, and only once Graph is configured. */
   insight?: MediaInsight;
   /**

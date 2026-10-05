@@ -33,6 +33,10 @@ export const finishRun: typeof supabase.finishRun = (...args) => store().finishR
 export const saveSnapshots: typeof supabase.saveSnapshots = (...args) =>
   store().saveSnapshots(...args);
 export const savePosts: typeof supabase.savePosts = (...args) => store().savePosts(...args);
+export const postsWithThumbnails: typeof supabase.postsWithThumbnails = (...args) =>
+  store().postsWithThumbnails(...args);
+export const saveThumbnailUrl: typeof supabase.saveThumbnailUrl = (...args) =>
+  store().saveThumbnailUrl(...args);
 export const latestSnapshot: typeof supabase.latestSnapshot = (...args) =>
   store().latestSnapshot(...args);
 export const growthSeries: typeof supabase.growthSeries = (...args) =>

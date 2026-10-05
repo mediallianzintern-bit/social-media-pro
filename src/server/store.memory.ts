@@ -589,3 +589,18 @@ export async function readReactionIdeas(
 ): Promise<Array<{ id: string; status: string; reaction: ReactionFields }>> {
   return [];
 }
+
+/**
+ * Mirroring needs a bucket, and the ephemeral store has none. It also needs
+ * nothing: without Supabase the posts in memory still carry the fresh CDN
+ * link from the scrape that just ran, which works for as long as this process
+ * lives — which is exactly as long as anything else here lasts.
+ */
+export async function postsWithThumbnails(
+  _platform: PlatformId,
+  postIds: string[],
+): Promise<Set<string>> {
+  return new Set(postIds);
+}
+
+export async function saveThumbnailUrl(): Promise<void> {}

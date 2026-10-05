@@ -1,4 +1,5 @@
 import { ExternalLink } from "lucide-react";
+import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,11 +7,57 @@ import { compactNumber, shortDate } from "@/lib/format";
 import { engagementsOf, type PostRecord, viewsOf } from "@/lib/analytics-types";
 
 /**
- * Top content as a poster wall. These are text-led marketing posts, so the
- * opening line is the artwork — the thumbnail URLs Instagram returns are
- * short-lived signed CDN links that expire, and a wall of broken images is
- * worse than no images.
+ * Top content as a poster wall — the real cover frame where there is one.
+ *
+ * Instagram's own thumbnail links expire within days, so what is shown here is
+ * our stored copy of the cover (see server/thumbnails.ts). A post keeps the
+ * text poster until a sync has mirrored its cover, and falls back to it if the
+ * image fails to load, so the wall is never broken images.
  */
+/** The first sentence of the caption — what the post leads with. */
+const openingLine = (caption: string) => caption.split(/[.!?\n]/)[0]?.trim() || "(no caption)";
+
+/**
+ * The cover frame, with the opening line over it.
+ *
+ * The line stays even when there is artwork: these are text-led marketing
+ * posts, and on a four-across wall the hook is what makes a tile scannable.
+ */
+function Poster({ post, color }: { post: PostRecord; color: string }) {
+  const [broken, setBroken] = useState(false);
+  const line = openingLine(post.caption);
+
+  if (!post.thumbnailUrl || broken) {
+    return (
+      <div
+        className="flex aspect-[4/5] items-center justify-center p-5 text-center"
+        style={{ backgroundColor: `color-mix(in oklab, ${color} 12%, var(--card))` }}
+      >
+        <p className="line-clamp-6 text-balance text-sm font-bold leading-snug tracking-tight text-foreground">
+          {line}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative aspect-[4/5] overflow-hidden bg-muted">
+      <img
+        src={post.thumbnailUrl}
+        alt={line}
+        loading="lazy"
+        className="size-full object-cover"
+        onError={() => setBroken(true)}
+      />
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/55 to-transparent p-3 pt-10">
+        <p className="line-clamp-3 text-balance text-xs font-semibold leading-snug text-white drop-shadow">
+          {line}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function ContentTiles({
   posts,
   color,
@@ -37,14 +84,7 @@ export function ContentTiles({
           key={post.postId}
           className="overflow-hidden transition-colors hover:border-foreground/20"
         >
-          <div
-            className="flex aspect-[4/5] items-center justify-center p-5 text-center"
-            style={{ backgroundColor: `color-mix(in oklab, ${color} 12%, var(--card))` }}
-          >
-            <p className="line-clamp-6 text-balance text-sm font-bold leading-snug tracking-tight text-foreground">
-              {post.caption.split(/[.!?\n]/)[0]?.trim() || "(no caption)"}
-            </p>
-          </div>
+          <Poster post={post} color={color} />
           <CardContent className="space-y-2 p-3">
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-semibold tabular-nums">
