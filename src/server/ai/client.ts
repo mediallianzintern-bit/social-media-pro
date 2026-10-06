@@ -20,6 +20,16 @@ const API = "https://api.openai.com/v1/chat/completions";
 // OPENAI_MODEL still overrides this. If it is set, use a snapshot from
 // 2024-08-06 or later: strict `json_schema` output is required by every call
 // here and the older gpt-4o snapshots do not support it.
+//
+// PRODUCTION RUNS gpt-4o-mini, set through OPENAI_MODEL on Vercel (Oct 2026).
+// gpt-4o could not run the strategist on this org's tier: its limit is 30,000
+// tokens per minute, and OpenAI counts a request as its input PLUS the largest
+// output it could produce (16,384, since no cap is sent). Measured offline
+// against the real brief, the Instagram "refresh ideas" request is well over
+// that on input alone — the last LinkedIn run was rejected outright as
+// "Requested 49842". gpt-4o-mini's per-minute limit is far higher on the same
+// tier. Removing OPENAI_MODEL from Vercel puts production back on this
+// default, and the strategist back over the limit.
 const DEFAULT_MODEL = "gpt-4o";
 
 /**
@@ -133,10 +143,13 @@ function retryDelayMs(message: string, retryAfter: string | null, attempt: numbe
 /**
  * One completion, retrying only when the account is rate-limited.
  *
- * This became necessary when the whole system was pinned to gpt-4o: the org's
- * ceiling is 30,000 tokens per minute and the strategist call alone asks for
- * ~26,000, so an analyst call in the same minute pushes it over and the run
- * lost its ideas to a 429 after the expensive part had already succeeded.
+ * This became necessary when the whole system was pinned to gpt-4o, whose
+ * ceiling on this org is 30,000 tokens per minute: calls in the same minute
+ * pushed each other over, and a run lost its ideas to a 429 after the
+ * expensive part had already succeeded. (The strategist was later measured
+ * well over that ceiling on its own — a request too large ever to fit, which
+ * is not retried below; see DEFAULT_MODEL for why production moved to
+ * gpt-4o-mini.)
  * Nothing else is retried — a 400 is a bad request and a 500 twice is still
  * broken, and silently repeating either would only spend money slower.
  */

@@ -6,10 +6,11 @@ it, unedited. Do not "tidy" it: it is the reference the condensed prompt is
 checked against.
 
 HOW THE DASHBOARD USES IT
-The model never receives this whole file. The strategist that writes "Next reel
-to make" already sends about 26,000 tokens of measured data per request, against
-an organisation ceiling of 30,000 tokens per minute on gpt-4o. Sent in full, this
-document would push a single generation over that ceiling and it would fail.
+The model never receives this whole file. Every script generation already sends
+a large brief of measured data, and per-minute token limits have blocked
+generation on this account before (see DEFAULT_MODEL in src/server/ai/client.ts).
+Sending this whole document on every call would make that worse for no extra
+rule.
 
 So src/server/ai/voice.ts carries a condensed version — every rule, in fewer
 words — and that is what every Instagram script prompt receives (about 1,300

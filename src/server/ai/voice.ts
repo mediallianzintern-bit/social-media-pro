@@ -1,12 +1,13 @@
 // Pritesh Sir's voice — what every Instagram script prompt is written in.
 //
 // The source of truth is docs/pritesh-voice.md, the operating system the team
-// wrote. This file is the CONDENSED version the model receives, and it is
-// condensed for a hard reason, not for taste: the strategist call already sends
-// about 26,000 tokens of measured data against an org ceiling of 30,000 tokens
-// per minute on gpt-4o. The full document is roughly 5,000 tokens. Sent whole,
-// every "Next reel to make" generation would exceed the ceiling in a single
-// request — not slow down, fail.
+// wrote. This file is the CONDENSED version the model receives. It is
+// condensed because every token here is sent on EVERY script generation,
+// alongside a brief of measured data that is already the largest part of the
+// request (tens of thousands of tokens), and per-minute token limits are what
+// has blocked generation on this account before — see DEFAULT_MODEL in
+// client.ts. The full document roughly triples this block's size for no
+// additional rule.
 //
 // So every rule is kept and the words are cut. The banned-phrase lists survive
 // intact because they are cheap and are exactly what a model drifts back to;
