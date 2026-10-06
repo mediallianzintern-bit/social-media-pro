@@ -93,33 +93,64 @@ export function hookTest(idea: ContentIdea, scores: HookScore[]): HookTest {
     };
   });
 
-  // The best measured variant wins. With nothing measured, A stands — the
-  // idea's own hook, which is what would have been filmed before this existed.
-  let best = variants[0]!;
-  for (const variant of variants) {
-    if ((variant.multiple ?? 0) > (best.multiple ?? 0)) best = variant;
-  }
-  best.recommended = true;
+  // The strongest MEASURED variant, and only if it is actually strong.
+  //
+  // Recommending the best of three bad options is worse than recommending
+  // nothing: on a real idea all three openings were questions and near-
+  // questions, the best ran 0.32x this account's median, and the panel said
+  // "B opens the way this account does best" — advice to film the weakest
+  // kind of opening this account has. Below 1.0x nothing is recommended, and
+  // the warning says which openings DO work here instead.
+  const measured = variants.filter((variant) => variant.multiple != null);
+  const best = measured.reduce<HookVariant | null>(
+    (winner, variant) => (!winner || variant.multiple! > winner.multiple! ? variant : winner),
+    null,
+  );
+  const strongest = best && best.multiple! >= 1 ? best : null;
+  if (strongest) strongest.recommended = true;
+
+  const shapes = new Set(variants.map((variant) => variant.type));
+  const sameShape = variants.length > 1 && shapes.size === 1;
+  const partlySame = variants.length > 2 && shapes.size < variants.length;
 
   // HOOK_PRESENT, not HOOK_LABEL: the labels are chips and mix noun phrases
   // with verb phrases, so lower-casing one into a sentence gives "posts that
   // plain statement run 0.98x". These read correctly after "posts that".
-  const sameShape =
-    variants.length > 1 && new Set(variants.map((variant) => variant.type)).size === 1;
-
-  // Nothing to say about which opening wins when they are all the same
-  // opening. "A does best, at 0.79x your median" is true and useless; the
-  // warning below is the thing worth reading.
   const reason =
-    !sameShape && variants.length > 1 && best.multiple != null
-      ? `${best.label} opens the way this account does best: posts that ${HOOK_PRESENT[best.type]} run ${best.multiple}× your median across ${best.posts} posts.`
+    strongest && !sameShape
+      ? `${strongest.label} opens the way this account does best: posts that ${HOOK_PRESENT[strongest.type]} run ${strongest.multiple}× your median across ${strongest.posts} posts.`
       : null;
 
-  const warning = sameShape
-    ? "All of these open the same way, so this is a choice of wording rather than a test of approach."
-    : variants.length < 2
-      ? "Only one hook was written for this idea — generate again to get alternatives to test."
-      : null;
+  // What this account actually rewards, for when none of the three do. Only
+  // openings it has not already tried here, strongest first, and only ones
+  // above the median — naming a second losing option would not help.
+  const alternatives = scores
+    .filter((score) => score.median >= 1 && !shapes.has(score.hook))
+    .slice(0, 3)
+    .map((score) => `${HOOK_PRESENT[score.hook]} (${score.median}×)`);
 
-  return { variants, reason, warning };
+  const warnings: string[] = [];
+  if (sameShape) {
+    warnings.push(
+      "All of these open the same way, so this is a choice of wording rather than a test of approach.",
+    );
+  } else if (partlySame) {
+    warnings.push(
+      "Two of these open the same way, so there are really only two approaches being tested here.",
+    );
+  }
+  if (variants.length < 2) {
+    warnings.push(
+      "Only one hook was written for this idea — generate again to get alternatives to test.",
+    );
+  } else if (best && !strongest) {
+    warnings.push(
+      `None of these openings does well on this account — the best of them runs ${best.multiple}× your median. ` +
+        (alternatives.length
+          ? `What works here: ${alternatives.join(", ")}. Rewrite one of these to open that way.`
+          : "Consider rewriting one to open differently."),
+    );
+  }
+
+  return { variants, reason, warning: warnings.length ? warnings.join(" ") : null };
 }

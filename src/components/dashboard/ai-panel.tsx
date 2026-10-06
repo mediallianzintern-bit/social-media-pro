@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { dateTime } from "@/lib/format";
+import { explainCost, formatCost } from "@/lib/ai-cost";
 import {
   analysisQueryOptions,
   dashboardQueryOptions,
@@ -217,6 +218,12 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
         {analysis?.generatedAt && !analysis.error ? (
           <span className="text-xs text-muted-foreground/70">
             {dateTime(analysis.generatedAt)} · {analysis.model}
+            {/* What the last generation actually cost, from OpenAI's own
+                usage figures rather than an estimate. The title carries the
+                arithmetic so the number can be checked. */}
+            {analysis.cost ? (
+              <span title={explainCost(analysis.cost)}> · {formatCost(analysis.cost)}</span>
+            ) : null}
           </span>
         ) : null}
         <span aria-hidden className="h-px min-w-8 flex-1 bg-border" />

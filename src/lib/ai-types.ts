@@ -5,6 +5,7 @@
 // copy, and is constrained to reference figures it was given rather than
 // producing its own.
 import type { ReactionFields } from "@/lib/reaction";
+import type { GenerationCost } from "@/lib/ai-cost";
 import type { PlatformId } from "@/lib/analytics-types";
 import type { Prediction } from "@/lib/prediction";
 
@@ -370,6 +371,14 @@ export interface AiAnalysis {
   /** Real questions people ask in the niche. Absent when no feed is configured. */
   audienceQuestions?: FeedRead | null;
   ideas: ContentIdea[];
+  /**
+   * What the strategist call that wrote these ideas actually cost.
+   *
+   * Reported by OpenAI with the reply and carried through rather than
+   * estimated. Absent on analyses generated before this was recorded, and on
+   * any reply that came back without a usage block.
+   */
+  cost?: GenerationCost | undefined;
   /** Ideas the strategist wrote but the loop discarded because they used a blocked pattern. */
   dropped?: string[];
   /** Present when this run discovered the competitor set. */

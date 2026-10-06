@@ -10,6 +10,7 @@
 // wrong number in a client dashboard is worse than no number.
 import { completeJson } from "./client";
 import { voiceFor } from "./voice";
+import { costOf, type GenerationCost } from "@/lib/ai-cost";
 import { laneShapesBlock } from "@/lib/script-families";
 import { coveredCampaignsBlock } from "@/lib/covered-campaigns";
 import { saveSuggestedIdeas } from "../store";
@@ -1160,7 +1161,11 @@ export function finalizeIdeas(
       shots: written ? [] : raw.shots,
       ...(written ? {} : raw.production ? { production: raw.production } : {}),
       ...(written && raw.post ? { post: raw.post } : {}),
-      caption: written ? "" : raw.caption,
+      // The hashtags are listed separately and rendered as their own block, so
+      // a caption ending in the same five tags shows them twice — which is
+      // what the model returns unless stopped. Trailing tags only: a hashtag
+      // used mid-sentence is part of the writing.
+      caption: written ? "" : raw.caption.replace(/(\s*#[\p{L}\p{N}_]+)+\s*$/u, "").trim(),
       // Instagram: exactly five, per the voice. Enforced here because a model
       // asked for five still returns eight; fewer is left alone rather than
       // padded with tags nobody chose.
@@ -1201,7 +1206,13 @@ export async function generateIdeas(
   sources: SourceItem[] = [],
   /** Restrict every idea to this one lane — the per-lane buttons. */
   onlyLane?: string | undefined,
-): Promise<{ ideas: ContentIdea[]; model: string; dropped: string[] }> {
+): Promise<{
+  ideas: ContentIdea[];
+  model: string;
+  dropped: string[];
+  /** What this call cost, from OpenAI's own usage figures. */
+  cost?: GenerationCost | undefined;
+}> {
   const request = buildIdeaRequest(platform, owner, rivals, reads, count, sources, onlyLane);
 
   const result = await completeJson<unknown>({
@@ -1220,6 +1231,10 @@ export async function generateIdeas(
     schema: request.schema,
     timeoutMs: 420_000,
   });
+
+  // Reported by OpenAI with the reply. Absent only when it sends no usage
+  // block, in which case the panel shows no cost rather than an estimate.
+  const cost = result.usage ? costOf(result.usage, result.model) : undefined;
 
   const { ideas, dropped } = finalizeIdeas(result.data, {
     sources,
@@ -1240,9 +1255,9 @@ export async function generateIdeas(
   // next time, unlike the ideas themselves if this call fails outright.
   try {
     const saved = await saveSuggestedIdeas(platform, ideas);
-    return { ideas: saved, model: result.model, dropped };
+    return { ideas: saved, model: result.model, dropped, cost };
   } catch (error) {
     console.error(`[ai:${platform}] could not persist suggested ideas:`, error);
-    return { ideas, model: result.model, dropped };
+    return { ideas, model: result.model, dropped, cost };
   }
 }

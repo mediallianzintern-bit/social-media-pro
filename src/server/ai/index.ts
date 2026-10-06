@@ -411,6 +411,7 @@ export async function runAnalysis(
   // the only agent that consumes other agents' output.
   let ideas: AiAnalysis["ideas"] = [];
   let dropped: string[] = [];
+  let cost: AiAnalysis["cost"];
   try {
     const result = await generateIdeas(
       platform,
@@ -422,6 +423,7 @@ export async function runAnalysis(
     );
     ideas = result.ideas;
     dropped = result.dropped;
+    cost = result.cost;
     model = model || result.model;
 
     // Layer 4: one prediction per suggestion, written the moment the suggestion
@@ -447,6 +449,9 @@ export async function runAnalysis(
     platform,
     generatedAt: new Date().toISOString(),
     model,
+    // The strategist call only. The read agents above cost too, but this is
+    // the one a person triggers and the one the panel is asked about.
+    ...(cost ? { cost } : {}),
     analyst,
     competitors,
     reflection,
@@ -590,6 +595,7 @@ export async function generateMore(
       ideas: [],
     }),
     ideas: options.fresh ? ideas : [...ideas, ...(cached?.ideas ?? [])],
+    ...(result.cost ? { cost: result.cost } : {}),
     // A refresh is a new set, so it carries its own timestamp; adding one idea
     // to an existing set does not make the set new.
     ...(options.fresh ? { generatedAt: new Date().toISOString(), model: result.model } : {}),
