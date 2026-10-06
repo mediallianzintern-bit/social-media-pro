@@ -508,10 +508,17 @@ export interface MoreResult {
  *
  * With `sourceId`, that story is the ONLY source offered — the schema's enum
  * holds one id — so the idea is guaranteed to be about the topic clicked.
+ *
+ * With `fresh`, it writes a new set of three and REPLACES the "Next reel to
+ * make" list instead of adding to it — the refresh on that section. Still one
+ * model call: the same strategist call Regenerate ends with, minus the three
+ * read agents Regenerate runs first. Nothing is lost by replacing: every idea
+ * ever suggested stays in suggested_ideas, the Workspace queue and the
+ * don't-repeat list, so the fresh set will not hand back the old one.
  */
 export async function generateMore(
   platform: PlatformId,
-  options: { sourceId?: string } = {},
+  options: { sourceId?: string; fresh?: boolean } = {},
 ): Promise<MoreResult> {
   if (!hasOpenAi()) {
     return { analysis: null, idea: null, reason: "OPENAI_API_KEY is not set." };
@@ -552,7 +559,7 @@ export async function generateMore(
       competitive: cached?.competitors ?? null,
       reflection: cached?.reflection ?? null,
     },
-    1,
+    options.fresh ? 3 : 1,
     sources,
   );
 
@@ -575,7 +582,10 @@ export async function generateMore(
       competitors: null,
       ideas: [],
     }),
-    ideas: [...ideas, ...(cached?.ideas ?? [])],
+    ideas: options.fresh ? ideas : [...ideas, ...(cached?.ideas ?? [])],
+    // A refresh is a new set, so it carries its own timestamp; adding one idea
+    // to an existing set does not make the set new.
+    ...(options.fresh ? { generatedAt: new Date().toISOString(), model: result.model } : {}),
   };
   if (idea) {
     await saveAnalysis(platform, analysis).catch((error: unknown) =>

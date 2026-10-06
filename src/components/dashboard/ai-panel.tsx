@@ -5,6 +5,7 @@ import {
   Flame,
   HelpCircle,
   ListChecks,
+  Loader2,
   RefreshCw,
   Search,
   Sparkles,
@@ -21,7 +22,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { dateTime } from "@/lib/format";
-import { analysisQueryOptions, generateAnalysis } from "@/lib/analytics.functions";
+import {
+  analysisQueryOptions,
+  generateAnalysis,
+  refreshIdeas,
+  topicInboxQueryOptions,
+} from "@/lib/analytics.functions";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import type { CompetitorAnalysis, FeedRead, GapTone, TeamTakeaway } from "@/lib/ai-types";
 import type { PlatformId } from "@/lib/analytics-types";
@@ -590,6 +596,7 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
         <>
           <SectionHeading
             title={platform === "instagram" ? "Next reel to make" : "Next post to write"}
+            action={<RefreshIdeasButton platform={platform} />}
             note={
               // Only claim "a real story" when these ideas actually carry a
               // fetched source. Ideas written before sources existed would
@@ -616,5 +623,64 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
         </>
       ) : null}
     </>
+  );
+}
+
+/**
+ * A fresh set of three for "Next reel to make", replacing the current list.
+ *
+ * One model call — the strategist, on the analysis already cached, with the
+ * latest stories. That makes it cheaper than Regenerate at the top of the panel,
+ * which re-runs the three read agents first; use this when the ideas are stale
+ * but the analysis is not. It says so before the click, because it spends.
+ *
+ * A refresh that produces nothing leaves the current ideas in place and says
+ * why. Replacing a working list with an empty one would be the worst outcome
+ * of pressing a refresh button.
+ */
+function RefreshIdeasButton({ platform }: { platform: PlatformId }) {
+  const queryClient = useQueryClient();
+  const refresh = useMutation({
+    mutationFn: () => refreshIdeas({ data: { platform } }),
+    onSuccess: (result) => {
+      if (result.analysis) {
+        queryClient.setQueryData(analysisQueryOptions(platform).queryKey, result.analysis);
+      }
+      void queryClient.invalidateQueries({ queryKey: topicInboxQueryOptions(platform).queryKey });
+    },
+  });
+
+  const failed = refresh.data && !refresh.data.idea;
+  const message = refresh.isError
+    ? refresh.error instanceof Error
+      ? refresh.error.message
+      : String(refresh.error)
+    : failed
+      ? `No new ideas — your current ones are kept. ${refresh.data?.reason ?? ""}`
+      : null;
+
+  return (
+    <div className="flex items-center gap-2">
+      {message ? (
+        <span className="max-w-xs truncate text-xs text-destructive" title={message}>
+          {message}
+        </span>
+      ) : null}
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-auto gap-1.5 px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+        onClick={() => refresh.mutate()}
+        disabled={refresh.isPending}
+        title="Writes three new ideas from the latest stories — one AI call, which spends credit. Your current ideas stay in the Workspace."
+      >
+        {refresh.isPending ? (
+          <Loader2 className="size-3 animate-spin" aria-hidden />
+        ) : (
+          <RefreshCw className="size-3" aria-hidden />
+        )}
+        {refresh.isPending ? "Writing new ideas…" : "Refresh ideas"}
+      </Button>
+    </div>
   );
 }

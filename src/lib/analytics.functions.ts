@@ -357,6 +357,20 @@ export const generateOneIdea = createServerFn({ method: "POST" })
     return generateMore(data.platform, data.sourceId ? { sourceId: data.sourceId } : {});
   });
 
+/**
+ * A fresh set of three for "Next reel to make", replacing the current list.
+ *
+ * One model call, explicit button only — the strategist on the cached reads,
+ * with the latest stories. Cheaper than Regenerate, which re-runs the three
+ * read agents first. Never fired automatically.
+ */
+export const refreshIdeas = createServerFn({ method: "POST" })
+  .validator((input: unknown) => z.object({ platform: platformSchema }).parse(input))
+  .handler(async ({ data }) => {
+    const { generateMore } = await import("@/server/ai/index");
+    return generateMore(data.platform, { fresh: true });
+  });
+
 // ---------------------------------------------------------------------------
 // What is working on Instagram right now, in this account's niche
 // ---------------------------------------------------------------------------

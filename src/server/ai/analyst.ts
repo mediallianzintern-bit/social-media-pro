@@ -9,6 +9,7 @@
 // will happily produce plausible engagement rates that are simply wrong, and a
 // wrong number in a client dashboard is worse than no number.
 import { completeJson } from "./client";
+import { voiceFor } from "./voice";
 import { saveSuggestedIdeas } from "../store";
 import {
   COMPETITOR_SCHEMA,
@@ -542,7 +543,9 @@ Give 6-10 shots. Front-load: the first shot must work with the sound off, becaus
 decide in the first second.
 
 production must be fillable by the editor without a follow-up question:
-- durationSeconds: realistic for the shot list, typically 25-60 for a reel.
+- durationSeconds: realistic for the shot list — 30-45 for a simple point, 45-60 for a concept
+  plus an example, 60-90 only when it truly needs explaining — and never longer than the
+  account's measured watch time can support.
 - coverText: 3-6 words for the cover frame.
 - musicDirection: genre, energy and where it should drop, not a track name.
 - subtitleStyle: how captions should look and behave.
@@ -598,6 +601,9 @@ export function buildIdeaRequest(
   const topPerformers = owner.topPosts.slice(0, 4);
 
   const written = platform === "linkedin";
+  // Pritesh Sir's voice — Instagram first; LinkedIn keeps its existing prompt
+  // until its module is wired (voiceFor returns "" there). See voice.ts.
+  const voice = voiceFor(platform);
   const blocked = owner.pastSuggestions?.blocked ?? [];
   const blockedLanes = new Set(
     blocked.filter((entry) => entry.kind === "lane").map((entry) => entry.value),
@@ -615,7 +621,7 @@ export function buildIdeaRequest(
 creator, based on their own measured performance.
 
 ${groundRules(Boolean(owner.owned))}
-
+${voice ? `\n${voice}\n` : ""}
 Additional requirements:
 - EVERY IDEA MUST HAVE A CONCRETE SUBJECT. Name the specific brand, campaign, product, tool,
   person or event the reel covers, in the title and again in the angle. A reader who sees only
@@ -625,9 +631,14 @@ Additional requirements:
   The account's own top posts are all specific — Dove, Audi, Netflix, KitKat, Old Spice — which
   is the pattern to keep.
 ${sourceRules(sources.length > 0)}
-- Match the account's existing voice. Study the captions in the DATA block: sentence length,
+${
+  voice
+    ? `- The VOICE block above is how every script must sound. Use the captions in the DATA block
+  only for this account's rhythm and length — never as permission to break a VOICE rule.`
+    : `- Match the account's existing voice. Study the captions in the DATA block: sentence length,
   paragraph rhythm, how they open and close. Write as that person, not as a marketer describing
-  them.
+  them.`
+}
 ${
   written
     ? `- Choose the format — text_post, article or document — for the story. A text post is the
@@ -1113,13 +1124,27 @@ export function finalizeIdeas(
       sourceSignal: raw.sourceSignal,
       source,
       hook: raw.hook,
+      // T63's alternatives. Copied explicitly because this object is built
+      // field by field: for a while the schema asked the model for them and
+      // this step silently dropped them, so every idea arrived with one hook.
+      // Trimmed, de-blanked and capped at two — the A/B is three hooks total.
+      ...(() => {
+        const altHooks = raw.altHooks
+          .map((hook) => hook.trim())
+          .filter(Boolean)
+          .slice(0, 2);
+        return altHooks.length ? { altHooks } : {};
+      })(),
       // A written format has no shot list and no production brief; the post
       // IS the deliverable.
       shots: written ? [] : raw.shots,
       ...(written ? {} : raw.production ? { production: raw.production } : {}),
       ...(written && raw.post ? { post: raw.post } : {}),
       caption: written ? "" : raw.caption,
-      hashtags: raw.hashtags,
+      // Instagram: exactly five, per the voice. Enforced here because a model
+      // asked for five still returns eight; fewer is left alone rather than
+      // padded with tags nobody chose.
+      hashtags: written ? raw.hashtags : raw.hashtags.slice(0, 5),
     };
 
     // The loop's blocks, enforced here rather than trusted to the prompt: a

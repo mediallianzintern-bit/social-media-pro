@@ -13,6 +13,7 @@
 import { z } from "zod";
 
 import { completeJson, hasOpenAi } from "./client";
+import { PRITESH_VOICE } from "./voice";
 import { OWNER_ACCOUNTS } from "../apify/accounts";
 import { recordPredictions, currentNiche } from "../predict";
 import {
@@ -189,16 +190,24 @@ export function buildReactionRequest(context: ReactionContext): { system: string
       ? `about ${context.expertTarget.seconds} seconds (${context.expertTarget.basis})`
       : `${EXPERT_SECONDS_FLOOR}–${EXPERT_SECONDS_CEILING} seconds (${context.expertTarget.basis})`;
 
-  const system = `You write short-form video scripts for a professional's Instagram account.
+  // The core voice only, not the general reel module: this format fixes its
+  // own beats, its own timing target and a word-for-word CTA, and the reel
+  // module's "30-90 seconds, hook-context-explanation" guidance would compete
+  // with those. How Pritesh sounds is the same; the shape is the format's.
+  const system = `You write the expert's reaction scripts for Pritesh Sir's Instagram account.
+
+${PRITESH_VOICE}
 
 REACTION-HOOK FORMAT. You are writing the expert's response to a borrowed clip. The DATA block
-contains the clip's transcript and the claim it makes.
+contains the clip's transcript and the claim it makes. The beats, timing and CTA rules below are
+fixed by this format and take precedence over any general guidance.
 - Choose the cut-in point: the earliest moment the viewer has heard the claim. Give the source
   segment's in and out timestamps (sourceIn, sourceOut) against the source clip.
 - The expert's FIRST sentence is the hook. It must contradict, concede-then-reframe, or raise
   the stakes on the claim. Never open with a greeting or with the expert's name.
 - Respond to the CLAIM, never mock the person who made it. Where the source is partly right,
-  say so first; it builds credibility.
+  say so first; it builds credibility. Correct it the way he explains anything — calmly, simply,
+  with what people are getting wrong and what he actually thinks — not as a takedown.
 - Follow the beats, in order: ${REACTION_BEATS.join(" → ")}. One entry per beat.
   ${REACTION_BEATS.map((beat) => `${beat}: ${BEAT_LABEL[beat]}`).join("; ")}.
 - The redirect lands the topic in the account's OWNED LANE named in the DATA block.
@@ -210,7 +219,8 @@ contains the clip's transcript and the claim it makes.
 - Shot 1 is the source clip itself, with the credit overlay. Every later shot is the expert on
   the account's branded set, same framing each time, word-by-word burned-in captions.
 - Do not write any URL, link, handle or credit text yourself. The source and its credit are
-  attached to the script by the system after you answer.`;
+  attached to the script by the system after you answer.
+- Exactly 5 hashtags.`;
 
   const transcript = (source.transcript ?? "").trim();
   const user = `DATA
@@ -478,7 +488,9 @@ export function assembleReaction(
       ],
     },
     caption: raw.caption,
-    hashtags: raw.hashtags,
+    // Five, per the voice — capped in code because a model asked for five
+    // still returns more.
+    hashtags: raw.hashtags.slice(0, 5),
     reaction,
   };
 }

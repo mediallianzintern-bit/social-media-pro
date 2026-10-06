@@ -53,6 +53,7 @@ import { FORMAT_LABEL, type AiAnalysis, type ContentIdea } from "@/lib/ai-types"
 import type { PlatformId } from "@/lib/analytics-types";
 import { hookScores } from "@/lib/double-down";
 import { hookTest } from "@/lib/hook-variants";
+import { voiceFlags } from "@/lib/voice-check";
 import { computeInsights } from "@/lib/insights";
 import { usePlatform } from "@/lib/use-dashboard";
 
@@ -444,6 +445,8 @@ export function AiIdeaCards({
                   accent={accent}
                   onChoose={(hook) => patchIdea(open.id, { chosenHook: hook ?? undefined })}
                 />
+
+                {platform === "instagram" ? <VoiceFlags idea={open} /> : null}
 
                 {open.production ? (
                   <section>
@@ -998,6 +1001,34 @@ function HookChoice({
       {test.reason ? <p className="mt-2 text-xs text-muted-foreground">{test.reason}</p> : null}
       {test.warning ? <p className="mt-1 text-xs text-muted-foreground">{test.warning}</p> : null}
       {reason ? <p className="mt-1 text-xs text-destructive">{reason}</p> : null}
+    </section>
+  );
+}
+
+/**
+ * Phrases in this script that Pritesh Sir's voice rules out.
+ *
+ * The prompt asks the model not to write them; this checks that it listened.
+ * Shown before filming because each one is a thirty-second edit now and a
+ * public "that doesn't sound like him" later. Nothing renders when the script
+ * is clean — a green "all good" badge on every idea would be noise.
+ *
+ * Instagram only: that is where the voice is wired so far, and holding a
+ * LinkedIn script to rules it was never given would flag it unfairly.
+ */
+function VoiceFlags({ idea }: { idea: ContentIdea }) {
+  const flags = useMemo(() => voiceFlags(idea), [idea]);
+  if (!flags.length) return null;
+  return (
+    <section className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+      <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+        Doesn&rsquo;t sound like Pritesh Sir yet — fix before filming
+      </p>
+      <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
+        {flags.map((flag) => (
+          <li key={flag}>{flag}</li>
+        ))}
+      </ul>
     </section>
   );
 }
