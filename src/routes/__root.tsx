@@ -11,6 +11,7 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
+import { NO_FLASH_SCRIPT } from "../lib/theme";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 
 function NotFoundComponent() {
@@ -81,6 +82,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
+      // Declares that both themes are supported, so the browser paints its own
+      // furniture — scrollbars, form controls — to match rather than assuming
+      // light. The inline script then narrows it to the one actually in use.
+      { name: "color-scheme", content: "light dark" },
       { title: "Dr. Pritesh Patel — Social Command Center" },
       {
         name: "description",
@@ -117,6 +122,11 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        {/* Before the first paint, not after hydration: the theme has to be on
+            <html> by the time the browser paints, or the page renders light and
+            then flips. That flash is the whole problem a dark mode has to
+            avoid, and nothing React does can be early enough. */}
+        <script dangerouslySetInnerHTML={{ __html: NO_FLASH_SCRIPT }} />
       </head>
       <body>
         {children}
