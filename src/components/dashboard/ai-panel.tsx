@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -24,7 +25,9 @@ import { cn } from "@/lib/utils";
 import { dateTime } from "@/lib/format";
 import {
   analysisQueryOptions,
+  dashboardQueryOptions,
   generateAnalysis,
+  generateOneIdea,
   refreshIdeas,
   topicInboxQueryOptions,
 } from "@/lib/analytics.functions";
@@ -614,6 +617,7 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
               discarded for using a pattern the loop has blocked: {analysis.dropped.join("; ")}
             </p>
           ) : null}
+          <LaneButtons platform={platform} />
           <AiIdeaCards
             ideas={analysis.ideas}
             platform={platform}
@@ -681,6 +685,74 @@ function RefreshIdeasButton({ platform }: { platform: PlatformId }) {
         )}
         {refresh.isPending ? "Writing new ideas…" : "Refresh ideas"}
       </Button>
+    </div>
+  );
+}
+
+/**
+ * One button per content lane — "one more in this lane".
+ *
+ * The SOP's commands are "one more ai" and "one more marketing", but this
+ * account's lanes are neither of those: they are derived from its own posts
+ * and currently number four. Hardcoding two buttons would leave a new lane
+ * unreachable the day it is derived, so the row is built from the taxonomy
+ * and grows and shrinks with it.
+ *
+ * Each click is ONE model call that spends, so each says so before the click.
+ * Lanes are ordered as the lane table orders them — strongest first — so the
+ * leftmost button is the lane the data most supports writing into.
+ */
+function LaneButtons({ platform }: { platform: PlatformId }) {
+  const queryClient = useQueryClient();
+  const { data } = useQuery(dashboardQueryOptions);
+  const [pending, setPending] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const lanes = (
+    data?.platforms.find((entry) => entry.platform === platform)?.learning?.lanes ?? []
+  )
+    .filter((lane) => lane.lane && lane.lane !== "other" && !lane.directional)
+    .map((lane) => lane.lane);
+
+  const one = useMutation({
+    mutationFn: (lane: string) => generateOneIdea({ data: { platform, lane } }),
+    onSuccess: (result) => {
+      if (result.analysis) {
+        queryClient.setQueryData(analysisQueryOptions(platform).queryKey, result.analysis);
+      }
+      void queryClient.invalidateQueries({ queryKey: topicInboxQueryOptions(platform).queryKey });
+      setMessage(result.idea ? null : (result.reason ?? "No idea was written."));
+    },
+    onError: (error) => setMessage(error instanceof Error ? error.message : String(error)),
+    onSettled: () => setPending(null),
+  });
+
+  if (lanes.length < 2) return null;
+
+  return (
+    <div className="-mt-1 mb-3 space-y-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-xs text-muted-foreground">One more in:</span>
+        {lanes.map((lane) => (
+          <Button
+            key={lane}
+            size="sm"
+            variant="outline"
+            className="h-auto px-2 py-1 text-xs font-normal first-letter:uppercase"
+            disabled={one.isPending}
+            onClick={() => {
+              setMessage(null);
+              setPending(lane);
+              one.mutate(lane);
+            }}
+            title={`Writes one more idea in ${lane}, in that lane's script shape. One AI call, which spends credit.`}
+          >
+            {pending === lane ? <Loader2 className="mr-1 size-3 animate-spin" aria-hidden /> : null}
+            {lane}
+          </Button>
+        ))}
+      </div>
+      {message ? <p className="text-xs text-destructive">{message}</p> : null}
     </div>
   );
 }

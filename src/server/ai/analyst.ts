@@ -10,6 +10,8 @@
 // wrong number in a client dashboard is worse than no number.
 import { completeJson } from "./client";
 import { voiceFor } from "./voice";
+import { laneShapesBlock } from "@/lib/script-families";
+import { coveredCampaignsBlock } from "@/lib/covered-campaigns";
 import { saveSuggestedIdeas } from "../store";
 import {
   COMPETITOR_SCHEMA,
@@ -584,6 +586,8 @@ export function buildIdeaRequest(
   reads: IdeaReads = {},
   count = 3,
   sources: SourceItem[] = [],
+  /** Restrict every idea to this one lane — the per-lane buttons. */
+  onlyLane?: string | undefined,
 ): IdeaRequest {
   const {
     analyst = null,
@@ -604,6 +608,16 @@ export function buildIdeaRequest(
   // Pritesh Sir's voice — Instagram first; LinkedIn keeps its existing prompt
   // until its module is wired (voiceFor returns "" there). See voice.ts.
   const voice = voiceFor(platform);
+  // Each lane's own shape and ending, and the campaigns covered before this
+  // dashboard existed. Instagram only, alongside the voice.
+  // From the lane NAME: the performance rows carry no definition, and these
+  // names are descriptive enough to place every one of them. scriptFamily
+  // reads the name first anyway, so passing a definition would not change
+  // these answers.
+  const laneShapes = voice
+    ? laneShapesBlock((owner.lanes ?? []).map((lane) => ({ name: lane.lane, definition: "" })))
+    : "";
+  const covered = voice ? coveredCampaignsBlock() : "";
   const blocked = owner.pastSuggestions?.blocked ?? [];
   const blockedLanes = new Set(
     blocked.filter((entry) => entry.kind === "lane").map((entry) => entry.value),
@@ -611,9 +625,15 @@ export function buildIdeaRequest(
   // The lanes an idea may target: the account's own, minus any the loop has
   // blocked. This list becomes an enum in the schema, so a blocked lane is not
   // discouraged — it is unavailable.
-  const allowedLanes = (owner.lanes ?? [])
+  let allowedLanes = (owner.lanes ?? [])
     .map((lane) => lane.lane)
     .filter((lane) => !blockedLanes.has(lane.trim().toLowerCase()));
+
+  // "One more in this lane" — the lane becomes the only value the schema will
+  // accept, so the idea is guaranteed to land there rather than merely asked
+  // to. Ignored when the loop has blocked that lane: a block is a measured
+  // result and a button should not quietly override it.
+  if (onlyLane && allowedLanes.includes(onlyLane)) allowedLanes = [onlyLane];
 
   const system = `You are a content strategist writing production-ready ${
     written ? "LinkedIn posts" : `${platform} scripts`
@@ -621,7 +641,7 @@ export function buildIdeaRequest(
 creator, based on their own measured performance.
 
 ${groundRules(Boolean(owner.owned))}
-${voice ? `\n${voice}\n` : ""}
+${voice ? `\n${voice}\n` : ""}${laneShapes ? `\n${laneShapes}\n` : ""}${covered ? `\n${covered}\n` : ""}
 Additional requirements:
 - EVERY IDEA MUST HAVE A CONCRETE SUBJECT. Name the specific brand, campaign, product, tool,
   person or event the reel covers, in the title and again in the angle. A reader who sees only
@@ -1179,8 +1199,10 @@ export async function generateIdeas(
    * was available — the ideas are then marked unverified rather than withheld.
    */
   sources: SourceItem[] = [],
+  /** Restrict every idea to this one lane — the per-lane buttons. */
+  onlyLane?: string | undefined,
 ): Promise<{ ideas: ContentIdea[]; model: string; dropped: string[] }> {
-  const request = buildIdeaRequest(platform, owner, rivals, reads, count, sources);
+  const request = buildIdeaRequest(platform, owner, rivals, reads, count, sources, onlyLane);
 
   const result = await completeJson<unknown>({
     system: request.system,

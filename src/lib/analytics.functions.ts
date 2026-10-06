@@ -350,11 +350,21 @@ export const deriveLanes = createServerFn({ method: "POST" })
  */
 export const generateOneIdea = createServerFn({ method: "POST" })
   .validator((input: unknown) =>
-    z.object({ platform: platformSchema, sourceId: z.string().uuid().optional() }).parse(input),
+    z
+      .object({
+        platform: platformSchema,
+        sourceId: z.string().uuid().optional(),
+        /** Confine the idea to one content lane — the per-lane buttons. */
+        lane: z.string().min(1).max(120).optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data }) => {
     const { generateMore } = await import("@/server/ai/index");
-    return generateMore(data.platform, data.sourceId ? { sourceId: data.sourceId } : {});
+    return generateMore(data.platform, {
+      ...(data.sourceId ? { sourceId: data.sourceId } : {}),
+      ...(data.lane ? { lane: data.lane } : {}),
+    });
   });
 
 /**

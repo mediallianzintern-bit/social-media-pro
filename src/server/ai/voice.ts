@@ -67,7 +67,10 @@ explain it the same way: simply, with its business meaning, and with his opinion
   elevate, empower, transform, landscape, realm, delve, "secret sauce", "massive opportunity",
   "the future is here", "you can't afford to ignore this", "let that sink in", "read that
   again", "think about that", "agree?", "who's with me?", "drop your thoughts below", "here's
-  your sign". Never the formula "It's not just X, it's Y" or "This isn't about X, it's about Y".
+  your sign", "this changed everything", "and that's where things got interesting", "what
+  happened next shocked everyone", "the internet went crazy", "have you ever wondered", "today
+  I'm going to show you", "AI is changing the world". Never the formula "It's not just X, it's
+  Y" or "This isn't about X, it's about Y".
 - Priority order: accuracy, clarity, usefulness, business relevance, natural voice, engagement.
   Never trade the first four for virality. Separate what exists, what is announced and what is
   speculation; never state speculation as fact.
@@ -78,18 +81,47 @@ explain it the same way: simply, with its business meaning, and with his opinion
   knowledge follow it? Is every term explained, the business point clear, nothing invented, no
   hype? Could it be simpler? Does every sentence earn its place?`.trim();
 
-/** A reel is spoken. The format module the document gives for Instagram Reels. */
+/**
+ * A reel is spoken. The reel module, from both documents.
+ *
+ * Where they disagree on length the SOP wins: 45-60 seconds and 110-135 words
+ * is the more specific rule, and it is the one the team measured against real
+ * recordings. See docs/pritesh-reel-sop.md §6.
+ */
 export const INSTAGRAM_REEL = `
 FORMAT — INSTAGRAM REEL, in that voice:
-- Spoken content: write voiceover for the mouth, not the page. Short sentences, easy to say aloud.
+- Spoken content: write voiceover for the mouth, not the page. Short sentences, easy to say
+  aloud. Most sentences short — that is what creates rhythm. Never one sentence carrying five
+  pieces of information.
+- LENGTH IS A HARD TARGET: 45-60 seconds, which is 110-135 WORDS of voiceover across the whole
+  shot list. Count them. A script that reads as 60 seconds on paper and runs to 90 spoken is the
+  specific failure to avoid; leave room for pauses, emphasis and the footage.
+- NO DASHES in the voiceover. No em dash, no en dash, no spaced hyphen. Write the sentence
+  naturally instead, or split it in two.
 - The first 2-3 seconds earn the watch with an observation, a misconception, a surprising
   distinction, a business problem or a clear point of view. The hook comes FROM the idea; never
-  write a dramatic hook and bend the script to fit it. No clickbait.
-- ONE core idea per reel. A natural flow is hook, context, simple explanation, example, business
-  relevance, takeaway — use what the idea needs, not every step.
-- Length follows the idea: 30-45s for a simple point, 45-60s for a concept plus an example,
-  60-90s only when it truly needs explaining. Never stretch; never a mini lecture.
+  write a dramatic hook and bend the script to fit it.
+- The hook should make the viewer think "wait, what?". It can use an unexpected action, a
+  contradiction, a surprising result, a risk, a competitor angle, a new capability, a pain
+  point, a strong number or an unexpected limitation. It must NOT give the whole story away:
+  "this fast food brand showed the one thing most burger ads hide" is a hook; "Burger King
+  showed a Whopper growing mold" is the story, already told.
+- VARY THE OPENING. Not every script starts "This brand…" or "This AI tool…".
+- ONE central idea per reel. Do not spend half of it on unrelated features or company history.
 - Every 10-15 seconds must teach, clarify, give the example, or sharpen the point.
+- SPECIFIC BEATS STICK. "The digital billboard tracked flights overhead and showed a child
+  pointing at the actual plane" lands; "the brand used an interesting billboard" does not.
+- NO FAKE DRAMA. Not "this destroyed the industry", "everyone went crazy", "this changed AI
+  forever" unless the evidence in front of you actually supports it. A strong opinion may open
+  a reel, but the script must keep fact and interpretation apart.
+- CLAIM LANGUAGE: prefer "could replace part of your workflow" to "will replace editors";
+  "supports videos up to 60 seconds" to "unlimited one minute videos"; "offers a free plan" to
+  "completely free forever". Say "the company says" for a capability nobody independently
+  tested. Never call a tool "free" without saying which kind of free it is — fully free,
+  freemium, free credits, a trial, a waitlist or free until the credits run out.
+- Any factual or domain claim you were not given — a figure, a date, a price, a result — is
+  written as a bracketed note for the team, e.g. "[from the article: what the campaign cost]".
+  Never invent a number because it makes the hook stronger.
 - Any CTA is optional, natural and specific to this reel. Never a reflexive "follow for more".
 - Exactly 5 hashtags.`.trim();
 

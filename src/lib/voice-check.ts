@@ -41,6 +41,15 @@ const BANNED_PHRASES = [
   "drop your thoughts below",
   "i'm all ears",
   "here's your sign",
+  // The SOP's own list of AI-sounding formulas (§13) and generic hooks (§10).
+  "this changed everything",
+  "and that's where things got interesting",
+  "what happened next shocked everyone",
+  "the internet went crazy",
+  "have you ever wondered",
+  "today i am going to show you",
+  "today i'm going to show you",
+  "ai is changing the world",
 ];
 
 /**
@@ -85,8 +94,30 @@ const BANNED_SHAPES: Array<{ label: string; pattern: RegExp }> = [
   },
 ];
 
+/**
+ * The SOP's spoken length, in words (§6). A range, not a target: the document
+ * says natural pacing matters more than the arithmetic, so the flag fires only
+ * outside it and says what it means in seconds rather than quoting a number.
+ */
+const MIN_WORDS = 110;
+const MAX_WORDS = 135;
+
 /** "Agree?" only counts as the influencer tic when it stands alone as a question. */
 const AGREE = /(^|[\s.!])agree\?/i;
+
+/** Only the words actually SPOKEN — what §6's word count and §12's dash rule govern. */
+function voiceoverText(idea: ContentIdea): string {
+  const spoken = (idea.shots ?? []).map((shot) => shot.voiceover ?? "").filter(Boolean);
+  // Before a shot list exists there is only the hook, which is the first line
+  // of the voiceover. Counting that alone against 110-135 words would flag
+  // every idea as far too short, so the count is skipped instead.
+  return spoken.join(" ");
+}
+
+const words = (text: string) => text.trim().split(/\s+/).filter(Boolean).length;
+
+/** Dashes used as punctuation. A hyphen inside a word ("short-form") is not one. */
+const PUNCTUATION_DASH = /[—–]|\s-{1,2}\s/;
 
 /** Everything in an idea that will be spoken aloud or read on screen. */
 function spokenText(idea: ContentIdea): string {
@@ -128,5 +159,22 @@ export function voiceFlags(idea: ContentIdea): string[] {
   for (const { label, pattern } of BANNED_SHAPES) {
     if (pattern.test(text)) flags.push(label);
   }
+
+  // §12 — no dashes in the voice over. Checked on the spoken words only: a
+  // dash in a caption is fine, and "0:00–0:04" in a shot's mark is a range.
+  const voiceover = voiceoverText(idea).replace(/[‘’]/g, "'");
+  if (voiceover && PUNCTUATION_DASH.test(voiceover)) {
+    flags.push("uses a dash in the voice over — write the sentence out instead");
+  }
+
+  // §6 — 110-135 words is 45-60 seconds spoken. Only once a shot list exists,
+  // and only for a filmed format: a LinkedIn post has no spoken length.
+  if (voiceover && !idea.post) {
+    const count = words(voiceover);
+    if (count < MIN_WORDS) flags.push(`only ${count} words of voice over — under about 45 seconds`);
+    else if (count > MAX_WORDS)
+      flags.push(`${count} words of voice over — likely to run past 60 seconds`);
+  }
+
   return flags;
 }

@@ -509,6 +509,12 @@ export interface MoreResult {
  * With `sourceId`, that story is the ONLY source offered — the schema's enum
  * holds one id — so the idea is guaranteed to be about the topic clicked.
  *
+ * With `lane`, the idea is confined to that content lane — the per-lane
+ * buttons, which are the SOP's "one more ai" / "one more marketing" commands
+ * generalised to whatever lanes this account actually has. The lane becomes
+ * the only value the schema accepts, so the idea lands there by construction
+ * rather than by request.
+ *
  * With `fresh`, it writes a new set of three and REPLACES the "Next reel to
  * make" list instead of adding to it — the refresh on that section. Still one
  * model call: the same strategist call Regenerate ends with, minus the three
@@ -518,7 +524,7 @@ export interface MoreResult {
  */
 export async function generateMore(
   platform: PlatformId,
-  options: { sourceId?: string; fresh?: boolean } = {},
+  options: { sourceId?: string; fresh?: boolean; lane?: string } = {},
 ): Promise<MoreResult> {
   if (!hasOpenAi()) {
     return { analysis: null, idea: null, reason: "OPENAI_API_KEY is not set." };
@@ -561,6 +567,7 @@ export async function generateMore(
     },
     options.fresh ? 3 : 1,
     sources,
+    options.lane,
   );
 
   const niche = await currentNiche(platform).catch(() => platform);
