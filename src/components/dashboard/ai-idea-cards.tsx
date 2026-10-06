@@ -74,7 +74,15 @@ function toPlainText(idea: ContentIdea): string {
     "",
     `ANGLE:    ${idea.angle}`,
     `WHY NOW:  ${idea.whyNow}`,
-    `HOOK:     ${idea.hook}`,
+    // The hook the team PICKED, where they picked one. This used to always
+    // print the model's first hook, so choosing B in the A/B and then copying
+    // the brief handed the editor A — the exact mismatch the choice exists to
+    // prevent. Named as a variant so nobody wonders why it differs from the
+    // first line of shot 1.
+    `HOOK:     ${idea.chosenHook?.trim() || idea.hook}`,
+    ...(idea.chosenHook?.trim() && idea.chosenHook.trim() !== idea.hook
+      ? [`          (chosen over: "${idea.hook}" — open shot 1 with the line above)`]
+      : []),
     "",
   ];
 
