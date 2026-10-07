@@ -34,6 +34,7 @@ import { Separator } from "@/components/ui/separator";
 import { BrandMark } from "@/components/brand";
 import { RangePicker } from "@/components/dashboard/range-picker";
 import { SyncButton } from "@/components/dashboard/sync-button";
+import { ThemeToggle } from "@/components/dashboard/theme-toggle";
 
 const NAV = [
   { to: "/", label: "Overview", icon: LayoutDashboard, group: "Analytics" },
@@ -135,6 +136,7 @@ export function AppShell({
               <div className="truncate px-2 pb-1 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
                 Signed in as <span className="font-medium text-foreground">{userEmail}</span>
               </div>
+              <ThemeToggle />
               <SidebarMenuButton onClick={() => void signOut()} tooltip="Sign out">
                 <LogOut aria-hidden />
                 <span>Sign out</span>
