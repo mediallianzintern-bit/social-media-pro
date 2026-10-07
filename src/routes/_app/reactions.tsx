@@ -1,14 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  ExternalLink,
-  Loader2,
-  RefreshCw,
-  Sparkles,
-  Trash2,
-} from "lucide-react";
+import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 
@@ -21,8 +13,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   deleteReactionClip,
-  prepareReactionFn,
-  reactableQueryOptions,
   reactionSourceFile,
   reactionsQueryOptions,
   transcribeReactionClip,
@@ -43,8 +33,6 @@ import {
 } from "@/lib/reaction";
 import { REACTION_MIN_SAMPLE, type ReactionGroup } from "@/lib/reaction-learning";
 import { useDashboard } from "@/lib/use-dashboard";
-import { useRefreshTracked } from "@/lib/use-refresh-tracked";
-import { cn } from "@/lib/utils";
 
 /**
  * "React to this" on a rising post opens this page with the clip filled in —
@@ -99,9 +87,10 @@ function ReactionsPage() {
 
       <SettingsCard settings={data?.settings ?? null} />
 
-      <FoundClips />
-
-      <SectionHeading title="Or add a clip yourself" note="paste the link and what the clip says" />
+      <SectionHeading
+        title="Add a clip to react to"
+        note="Tick a post in Rising on Instagram and press “React to this”, or paste a link here"
+      />
       <NewClipCard />
 
       <SectionHeading
@@ -125,200 +114,6 @@ function ReactionsPage() {
 
       {data?.learning ? <LearningCard learning={data.learning} /> : null}
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// E.5 v2 — clips the system found
-// ---------------------------------------------------------------------------
-
-/**
- * Reels from tracked creators that beat their own median and make a claim the
- * expert can answer. Listing them costs nothing — they come from the sync.
- * "Prepare reaction" is the one paid step, and it does everything: stores the
- * clip from its real permalink, fetches the transcript, writes the script.
- */
-function FoundClips() {
-  const { data, isLoading } = useQuery(reactableQueryOptions(PLATFORM));
-  const refresh = useRefreshTracked(PLATFORM, [reactableQueryOptions(PLATFORM).queryKey]);
-
-  return (
-    <>
-      <SectionHeading
-        title="Clips worth reacting to"
-        note="Found in the reels of the creators you track — free to list, about 3¢ to prepare"
-        action={
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-auto gap-1.5 px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => refresh.mutate()}
-            disabled={refresh.isPending}
-            title="Scrapes the latest reels from every tracked Instagram account on Apify, which spends credit"
-          >
-            {refresh.isPending ? (
-              <Loader2 className="size-3 animate-spin" aria-hidden />
-            ) : (
-              <RefreshCw className="size-3" aria-hidden />
-            )}
-            {refresh.isPending ? "Fetching new reels…" : "Refresh"}
-          </Button>
-        }
-      />
-      {refresh.message ? (
-        <p
-          className={cn(
-            "rounded-md border px-3 py-2 text-xs",
-            refresh.failed ? "border-destructive/30 text-destructive" : "text-muted-foreground",
-          )}
-        >
-          {refresh.message}
-        </p>
-      ) : null}
-      <FoundClipsList data={data} isLoading={isLoading} />
-    </>
-  );
-}
-
-function FoundClipsList({
-  data,
-  isLoading,
-}: {
-  data: Awaited<ReturnType<ReturnType<typeof reactableQueryOptions>["queryFn"]>> | undefined;
-  isLoading: boolean;
-}) {
-  if (isLoading) {
-    return (
-      <Card>
-        <CardContent className="flex items-center gap-2 p-5 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin" aria-hidden />
-          Reading the tracked creators&rsquo; reels…
-        </CardContent>
-      </Card>
-    );
-  }
-  if (!data?.length) {
-    return (
-      <Card>
-        <CardContent className="p-5 text-sm text-muted-foreground">
-          No reel from a tracked creator is both breaking out and making a claim worth answering
-          right now. Refresh to fetch newer reels from those accounts, or add a clip yourself below.
-        </CardContent>
-      </Card>
-    );
-  }
-  return (
-    <div className="space-y-3">
-      {data.map((clip) => (
-        <FoundClipRow key={clip.postId} clip={clip} />
-      ))}
-    </div>
-  );
-}
-
-function FoundClipRow({
-  clip,
-}: {
-  clip: Awaited<ReturnType<ReturnType<typeof reactableQueryOptions>["queryFn"]>>[number];
-}) {
-  const queryClient = useQueryClient();
-  const prepare = useMutation({
-    mutationFn: () =>
-      prepareReactionFn({
-        data: {
-          platform: PLATFORM,
-          url: clip.url,
-          handle: clip.handle,
-          views: clip.views,
-          hook: clip.hook,
-        },
-      }),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["reactions", PLATFORM] }),
-        queryClient.invalidateQueries({ queryKey: ["reactable", PLATFORM] }),
-        queryClient.invalidateQueries({ queryKey: ["analysis", PLATFORM] }),
-        queryClient.invalidateQueries({ queryKey: ["workspace"] }),
-      ]);
-    },
-  });
-
-  return (
-    <Card>
-      <CardContent className="space-y-2 p-5">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary" className="font-semibold tabular-nums">
-            {clip.vsCreatorMedian}×
-          </Badge>
-          <a
-            href={clip.url}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="inline-flex items-center gap-1 text-sm font-medium hover:underline"
-          >
-            @{clip.handle}
-            <ExternalLink className="size-3 text-muted-foreground" aria-hidden />
-          </a>
-          <span className="text-xs text-muted-foreground">
-            {clip.ageDays === 0 ? "today" : `${clip.ageDays}d ago`} ·{" "}
-            {clip.views.toLocaleString("en-US")} public views
-          </span>
-        </div>
-        <p className="text-sm leading-snug">{clip.hook}</p>
-        <p className="text-xs text-muted-foreground">{clip.reason}</p>
-        <div className="flex flex-wrap items-center gap-2 pt-1">
-          <Button
-            size="sm"
-            className="gap-1.5"
-            onClick={() => prepare.mutate()}
-            disabled={prepare.isPending || prepare.isSuccess}
-            title="Stores the clip, fetches its transcript and writes the script — about 3¢"
-          >
-            {prepare.isPending ? (
-              <Loader2 className="size-3.5 animate-spin" aria-hidden />
-            ) : (
-              <Sparkles className="size-3.5" aria-hidden />
-            )}
-            {prepare.isPending ? "Preparing — about a minute…" : "Prepare reaction"}
-          </Button>
-          <Link
-            to="/reactions"
-            search={{
-              url: clip.url,
-              handle: clip.handle,
-              views: clip.views,
-              found: "trend_listener",
-            }}
-            className="text-xs text-muted-foreground hover:text-foreground hover:underline"
-          >
-            Fill the form instead
-          </Link>
-        </div>
-        {prepare.data ? (
-          <ul className="space-y-1 pt-1 text-xs">
-            {prepare.data.steps.map((entry) => (
-              <li
-                key={entry.step}
-                className={
-                  entry.ok
-                    ? "text-emerald-700 dark:text-emerald-400"
-                    : "text-amber-700 dark:text-amber-400"
-                }
-              >
-                {entry.ok ? "✓" : "!"} {entry.step}: {entry.note}
-              </li>
-            ))}
-            {prepare.data.idea ? (
-              <li className="text-muted-foreground">
-                Open it from the Instagram ideas or the Workspace — the source clip, credit and CTA
-                are on the script.
-              </li>
-            ) : null}
-          </ul>
-        ) : null}
-        {prepare.error ? <p className="text-xs text-destructive">{String(prepare.error)}</p> : null}
-      </CardContent>
-    </Card>
   );
 }
 

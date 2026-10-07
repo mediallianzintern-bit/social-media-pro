@@ -16,11 +16,12 @@ import { VoteButtons } from "@/components/dashboard/vote-buttons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { instagramTrendsQueryOptions } from "@/lib/analytics.functions";
+import { instagramTrendsQueryOptions, topicFeedbackQueryOptions } from "@/lib/analytics.functions";
 import { useRefreshTracked } from "@/lib/use-refresh-tracked";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import { cn } from "@/lib/utils";
 import type { PlatformId } from "@/lib/analytics-types";
+import { voteKey } from "@/lib/preferences";
 
 /**
  * "Rising on <platform>" — what is outperforming in this account's own niche.
@@ -40,6 +41,16 @@ import type { PlatformId } from "@/lib/analytics-types";
  */
 export function InstagramTrends({ platform }: { platform: PlatformId }) {
   const { data, isLoading } = useQuery(instagramTrendsQueryOptions(platform));
+  // A rising post may only be reacted to once it has been TICKED. The tick is
+  // the team saying "this is one worth answering"; "React to this" then carries
+  // the clip into the Reaction hooks screen. Read the same feedback the tick
+  // writes, so the gate reflects the live vote.
+  const { data: feedback } = useQuery(topicFeedbackQueryOptions(platform));
+  const likedTrend = (postId: string) =>
+    feedback?.votes.some(
+      (vote) =>
+        voteKey(vote.kind, vote.itemId) === voteKey("trend", postId) && vote.verdict === "like",
+    ) ?? false;
   const refresh = useRefreshTracked(platform, [
     instagramTrendsQueryOptions(platform).queryKey,
     ["topic-inbox", platform],
@@ -152,24 +163,36 @@ export function InstagramTrends({ platform }: { platform: PlatformId }) {
                   <p className="mt-1 text-xs text-muted-foreground">{trend.reason}</p>
 
                   {trend.url && platform === "instagram" ? (
-                    // Addendum E.5 — a rising post is a candidate to react to.
-                    // The link, handle and views are handed over from the post
-                    // itself, so the source the script will credit is the one
-                    // that actually broke out — never a retyped link.
-                    <Link
-                      to="/reactions"
-                      search={{
-                        url: trend.url,
-                        handle: trend.handle,
-                        // Only a true view count is passed as "views".
-                        ...(data?.metric === "views" ? { views: trend.value } : {}),
-                        found: "trend_listener",
-                      }}
-                      className="mr-3 mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
-                    >
-                      <Clapperboard className="size-3" aria-hidden />
-                      React to this
-                    </Link>
+                    // Addendum E.5 — a rising post is a candidate to react to,
+                    // but only once it has been TICKED. The link, handle and
+                    // views are handed over from the post itself, so the source
+                    // the script will credit is the one that actually broke out
+                    // — never a retyped link. Until the tick is set, the control
+                    // is shown disabled so the step is visible but not usable.
+                    likedTrend(trend.postId) ? (
+                      <Link
+                        to="/reactions"
+                        search={{
+                          url: trend.url,
+                          handle: trend.handle,
+                          // Only a true view count is passed as "views".
+                          ...(data?.metric === "views" ? { views: trend.value } : {}),
+                          found: "trend_listener",
+                        }}
+                        className="mr-3 mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
+                      >
+                        <Clapperboard className="size-3" aria-hidden />
+                        React to this
+                      </Link>
+                    ) : (
+                      <span
+                        className="mr-3 mt-1.5 inline-flex cursor-not-allowed items-center gap-1.5 text-xs font-medium text-muted-foreground/50"
+                        title="Tick this post (the ✓) to react to it"
+                      >
+                        <Clapperboard className="size-3" aria-hidden />
+                        React to this
+                      </span>
+                    )
                   ) : null}
                   {trend.url ? (
                     <a
