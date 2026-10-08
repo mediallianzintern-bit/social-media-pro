@@ -1,6 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, Sparkles, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ExternalLink,
+  FileText,
+  Loader2,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 
@@ -8,6 +16,13 @@ import { SectionHeading } from "@/components/dashboard/section-heading";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,17 +36,21 @@ import {
   writeReactionScript,
 } from "@/lib/analytics.functions";
 import {
+  BEAT_LABEL,
   approvalBlockers,
   defaultCredit,
   normalizeSourceUrl,
   RIGHTS_LABEL,
   SOURCE_PLATFORM_LABEL,
   SOURCE_TYPE_LABEL,
+  type ReactionFields,
   type ReactionSource,
   type RightsStatus,
   type SourceType,
 } from "@/lib/reaction";
 import { REACTION_MIN_SAMPLE, type ReactionGroup } from "@/lib/reaction-learning";
+import { STATUS_LABEL, type IdeaStatus } from "@/lib/roles";
+import { cn } from "@/lib/utils";
 import { useDashboard } from "@/lib/use-dashboard";
 
 /**
@@ -100,7 +119,13 @@ function ReactionsPage() {
       {data?.sources.length ? (
         <div className="space-y-3">
           {data.sources.map((source) => (
-            <ClipCard key={source.id} source={source} />
+            <ClipCard
+              key={source.id}
+              source={source}
+              // Newest first from the store, so the first match is this clip's
+              // latest script. Undefined until one has been written.
+              script={data.scripts?.find((entry) => entry.reaction.sourceId === source.id)}
+            />
           ))}
         </div>
       ) : (
@@ -436,11 +461,19 @@ function NewClipCard() {
 // The library
 // ---------------------------------------------------------------------------
 
-function ClipCard({ source }: { source: ReactionSource }) {
+function ClipCard({
+  source,
+  script,
+}: {
+  source: ReactionSource;
+  /** The script already written from this clip, when there is one. */
+  script?: ReactionScript | undefined;
+}) {
   const queryClient = useQueryClient();
   const [credit, setCredit] = useState(source.creditText ?? "");
   const [rights, setRights] = useState<RightsStatus>(source.rightsStatus);
   const [message, setMessage] = useState<string | null>(null);
+  const [showScript, setShowScript] = useState(false);
   const blockers = approvalBlockers({ ...source, creditText: credit, rightsStatus: rights });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["reactions", PLATFORM] });
@@ -612,19 +645,33 @@ function ClipCard({ source }: { source: ReactionSource }) {
         )}
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Once a script exists, reading it is the likely next action and
+              writing another one costs an AI call — so View leads and Write
+              steps back to an outline button that says it would rewrite. */}
+          {script ? (
+            <Button size="sm" className="gap-1.5" onClick={() => setShowScript(true)}>
+              <FileText className="size-3.5" aria-hidden />
+              View script
+            </Button>
+          ) : null}
           <Button
             size="sm"
+            variant={script ? "outline" : "default"}
             className="gap-1.5"
             onClick={() => write.mutate()}
             disabled={write.isPending || (!source.transcript && !source.extractedClaim)}
-            title="Uses one AI call"
+            title={
+              script
+                ? "Writes a new script, replacing nothing — uses one AI call"
+                : "Uses one AI call"
+            }
           >
             {write.isPending ? (
               <Loader2 className="size-3.5 animate-spin" aria-hidden />
             ) : (
               <Sparkles className="size-3.5" aria-hidden />
             )}
-            {write.isPending ? "Writing…" : "Write reaction script"}
+            {write.isPending ? "Writing…" : script ? "Write another" : "Write reaction script"}
           </Button>
           {isInstagram ? (
             <Button
@@ -673,7 +720,119 @@ function ClipCard({ source }: { source: ReactionSource }) {
           {message ? <span className="text-xs text-muted-foreground">{message}</span> : null}
         </div>
       </CardContent>
+      {script ? (
+        <ScriptDialog script={script} open={showScript} onOpenChange={setShowScript} />
+      ) : null}
     </Card>
+  );
+}
+
+/** One script written from a clip, as the reactions query returns it. */
+type ReactionScript = { id: string; status: string; reaction: ReactionFields };
+
+/**
+ * The script already written from this clip.
+ *
+ * Shown from the clip itself, not only in the Instagram ideas, because the
+ * person setting credit and rights on this card is the person who needs to
+ * read what was written from it. The beats ARE the format, so they are listed
+ * in order and any the script left empty is named rather than silently absent.
+ */
+function ScriptDialog({
+  script,
+  open,
+  onOpenChange,
+}: {
+  script: ReactionScript;
+  open: boolean;
+  onOpenChange: (next: boolean) => void;
+}) {
+  const reaction = script.reaction;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogDescription className="text-xs">
+            Reaction script · {STATUS_LABEL[script.status as IdeaStatus] ?? script.status}
+            {reaction.expertSeconds ? ` · about ${reaction.expertSeconds}s of expert` : ""}
+          </DialogDescription>
+          <DialogTitle className="text-left text-base leading-snug">
+            {reaction.claim || "The claim being answered"}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Shot 1 — the borrowed clip
+          </p>
+          <p className="rounded-lg border bg-muted/40 p-3 text-sm">
+            Borrow <span className="font-semibold tabular-nums">{reaction.sourceIn}</span>–
+            <span className="font-semibold tabular-nums">{reaction.sourceOut}</span> of the original
+            {reaction.sourceCreatorHandle ? ` from @${reaction.sourceCreatorHandle}` : ""}.
+            {reaction.creditOverlayText ? (
+              <>
+                {" "}
+                On-screen credit: <span className="font-medium">{reaction.creditOverlayText}</span>
+              </>
+            ) : null}
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            The expert&rsquo;s answer, beat by beat
+          </p>
+          <ol className="divide-y rounded-lg border">
+            {reaction.beats.map((entry) => (
+              <li key={entry.beat} className="grid grid-cols-[9rem_1fr] gap-3 px-3 py-2.5">
+                <span className="text-xs font-semibold text-muted-foreground">
+                  {BEAT_LABEL[entry.beat]}
+                </span>
+                <span className="text-sm leading-relaxed">{entry.line}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        {reaction.missingBeats.length ? (
+          <p className="flex items-start gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+            The script left these beats empty — fill them before filming:{" "}
+            {reaction.missingBeats.map((beat) => BEAT_LABEL[beat]).join(", ")}.
+          </p>
+        ) : null}
+
+        {reaction.verifyItems.length ? (
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Facts to confirm before filming
+            </p>
+            <ul className="list-disc space-y-1 rounded-lg border bg-muted/30 p-3 pl-7 text-xs">
+              {reaction.verifyItems.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+            <p
+              className={cn(
+                "flex items-center gap-1.5 text-xs",
+                reaction.verifiedAt
+                  ? "text-emerald-700 dark:text-emerald-400"
+                  : "text-amber-700 dark:text-amber-400",
+              )}
+            >
+              {reaction.verifiedAt ? (
+                <CheckCircle2 className="size-3.5" aria-hidden />
+              ) : (
+                <AlertTriangle className="size-3.5" aria-hidden />
+              )}
+              {reaction.verifiedAt
+                ? "The client has confirmed these."
+                : "Not confirmed yet — this script cannot go into production until they are."}
+            </p>
+          </div>
+        ) : null}
+      </DialogContent>
+    </Dialog>
   );
 }
 

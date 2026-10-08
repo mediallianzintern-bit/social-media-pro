@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronDown,
   Clapperboard,
@@ -8,7 +8,7 @@ import {
   Loader2,
   RefreshCw,
 } from "lucide-react";
-import { Link } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { SectionHeading } from "@/components/dashboard/section-heading";
@@ -16,7 +16,11 @@ import { VoteButtons } from "@/components/dashboard/vote-buttons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { instagramTrendsQueryOptions, topicFeedbackQueryOptions } from "@/lib/analytics.functions";
+import {
+  instagramTrendsQueryOptions,
+  saveReactionClip,
+  topicFeedbackQueryOptions,
+} from "@/lib/analytics.functions";
 import { useRefreshTracked } from "@/lib/use-refresh-tracked";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import { cn } from "@/lib/utils";
@@ -163,36 +167,13 @@ export function InstagramTrends({ platform }: { platform: PlatformId }) {
                   <p className="mt-1 text-xs text-muted-foreground">{trend.reason}</p>
 
                   {trend.url && platform === "instagram" ? (
-                    // Addendum E.5 — a rising post is a candidate to react to,
-                    // but only once it has been TICKED. The link, handle and
-                    // views are handed over from the post itself, so the source
-                    // the script will credit is the one that actually broke out
-                    // — never a retyped link. Until the tick is set, the control
-                    // is shown disabled so the step is visible but not usable.
-                    likedTrend(trend.postId) ? (
-                      <Link
-                        to="/reactions"
-                        search={{
-                          url: trend.url,
-                          handle: trend.handle,
-                          // Only a true view count is passed as "views".
-                          ...(data?.metric === "views" ? { views: trend.value } : {}),
-                          found: "trend_listener",
-                        }}
-                        className="mr-3 mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
-                      >
-                        <Clapperboard className="size-3" aria-hidden />
-                        React to this
-                      </Link>
-                    ) : (
-                      <span
-                        className="mr-3 mt-1.5 inline-flex cursor-not-allowed items-center gap-1.5 text-xs font-medium text-muted-foreground/50"
-                        title="Tick this post (the ✓) to react to it"
-                      >
-                        <Clapperboard className="size-3" aria-hidden />
-                        React to this
-                      </span>
-                    )
+                    <ReactToThisButton
+                      url={trend.url}
+                      handle={trend.handle}
+                      // Only a true view count is passed as "views".
+                      views={data?.metric === "views" ? trend.value : null}
+                      liked={likedTrend(trend.postId)}
+                    />
                   ) : null}
                   {trend.url ? (
                     <a
@@ -249,6 +230,93 @@ export function InstagramTrends({ platform }: { platform: PlatformId }) {
           ) : null}
         </CardContent>
       </Card>
+    </>
+  );
+}
+
+/**
+ * Addendum E.5 — takes a rising post into the Reaction hooks screen.
+ *
+ * Gated on the tick: the ✓ is the team saying this one is worth answering, so
+ * until it is set the control is visible but not usable.
+ *
+ * Pressing it STORES the clip and then opens Reaction hooks, where it appears
+ * under Source clips. It used to only pre-fill the form there, which left the
+ * screen reading "0 stored" until someone also pressed Save clip — the step was
+ * invisible and the clip looked lost. One database write; no scrape, no AI, no
+ * spend. The link, handle and views come from the post itself, so the source
+ * the script credits is the one that actually broke out, never a retyped link.
+ *
+ * Re-pressing is safe: the server normalises the URL and updates the existing
+ * row rather than adding a second copy.
+ */
+function ReactToThisButton({
+  url,
+  handle,
+  views,
+  liked,
+}: {
+  url: string;
+  handle: string;
+  views: number | null;
+  liked: boolean;
+}) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [failure, setFailure] = useState<string | null>(null);
+
+  const add = useMutation({
+    mutationFn: () =>
+      saveReactionClip({
+        data: {
+          platform: "instagram",
+          sourceUrl: url,
+          sourceCreatorHandle: handle,
+          // The team sets the real clip type on the card; "other" is the
+          // honest default rather than a guess that changes the rights rule.
+          sourceType: "other",
+          ...(views != null ? { sourcePublicViews: views } : {}),
+          foundBy: "trend_listener",
+        },
+      }),
+    onSuccess: async (result) => {
+      if ("reason" in result) {
+        setFailure(result.reason);
+        return;
+      }
+      setFailure(null);
+      await queryClient.invalidateQueries({ queryKey: ["reactions", "instagram"] });
+      await navigate({ to: "/reactions" });
+    },
+    onError: (error) => setFailure(error instanceof Error ? error.message : String(error)),
+  });
+
+  return (
+    <>
+      <button
+        type="button"
+        disabled={!liked || add.isPending}
+        onClick={() => add.mutate()}
+        className={cn(
+          "mr-3 mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium",
+          liked
+            ? "text-muted-foreground hover:text-foreground hover:underline"
+            : "cursor-not-allowed text-muted-foreground/50",
+        )}
+        title={
+          liked
+            ? "Stores this clip and opens it in Reaction hooks"
+            : "Tick this post (the ✓) to react to it"
+        }
+      >
+        {add.isPending ? (
+          <Loader2 className="size-3 animate-spin" aria-hidden />
+        ) : (
+          <Clapperboard className="size-3" aria-hidden />
+        )}
+        {add.isPending ? "Adding…" : "React to this"}
+      </button>
+      {failure ? <span className="mr-3 text-xs text-destructive">{failure}</span> : null}
     </>
   );
 }

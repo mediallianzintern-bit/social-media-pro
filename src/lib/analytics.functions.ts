@@ -564,14 +564,20 @@ const rightsSchema = z.enum(["native_remix", "credited_clip", "needs_review"]);
 export const getReactions = createServerFn({ method: "GET" })
   .validator((input: unknown) => platformSchema.parse(input))
   .handler(async ({ data }) => {
-    const [{ readReactionSources, readReactionSettings }, { loadReactionLearning }] =
-      await Promise.all([import("@/server/store"), import("@/server/reactions")]);
-    const [sources, settings, learning] = await Promise.all([
+    const [
+      { readReactionSources, readReactionSettings, readReactionIdeas },
+      { loadReactionLearning },
+    ] = await Promise.all([import("@/server/store"), import("@/server/reactions")]);
+    const [sources, settings, learning, scripts] = await Promise.all([
       readReactionSources(data).catch(() => []),
       readReactionSettings().catch(() => null),
       loadReactionLearning(data).catch(() => null),
+      // Which clips already have a script written, so the card can offer to
+      // show it rather than only offering to write another one. Newest first,
+      // so the first match for a source is its latest script.
+      readReactionIdeas(data).catch(() => []),
     ]);
-    return { sources, settings, learning };
+    return { sources, settings, learning, scripts };
   });
 
 export const reactionsQueryOptions = (platform: PlatformId) => ({
