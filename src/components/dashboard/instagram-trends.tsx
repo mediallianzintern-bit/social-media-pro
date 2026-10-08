@@ -170,6 +170,7 @@ export function InstagramTrends({ platform }: { platform: PlatformId }) {
                     <ReactToThisButton
                       url={trend.url}
                       handle={trend.handle}
+                      hook={trend.hook}
                       // Only a true view count is passed as "views".
                       views={data?.metric === "views" ? trend.value : null}
                       liked={likedTrend(trend.postId)}
@@ -253,11 +254,14 @@ export function InstagramTrends({ platform }: { platform: PlatformId }) {
 function ReactToThisButton({
   url,
   handle,
+  hook,
   views,
   liked,
 }: {
   url: string;
   handle: string;
+  /** The post's opening line — the claim the expert will answer. */
+  hook: string;
   views: number | null;
   liked: boolean;
 }) {
@@ -275,6 +279,11 @@ function ReactToThisButton({
           // The team sets the real clip type on the card; "other" is the
           // honest default rather than a guess that changes the rights rule.
           sourceType: "other",
+          // The rising post's opening line IS the claim being answered, so it
+          // is stored as one. Without it the clip arrives with no transcript
+          // and no claim, and "Write reaction script" sits greyed out with
+          // nothing on the card explaining why.
+          ...(hook.trim() ? { extractedClaim: hook.trim().slice(0, 1000) } : {}),
           ...(views != null ? { sourcePublicViews: views } : {}),
           foundBy: "trend_listener",
         },

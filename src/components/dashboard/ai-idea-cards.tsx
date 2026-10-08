@@ -5,6 +5,7 @@ import {
   Clapperboard,
   Copy,
   ExternalLink,
+  FileText,
   Gauge,
   Loader2,
   Newspaper,
@@ -387,8 +388,16 @@ export function AiIdeaCards({
               {idea.prediction ? <ExpectationNote prediction={idea.prediction} /> : null}
 
               <span className="mt-3 flex items-center justify-between gap-2 text-xs">
-                <span className="font-semibold" style={{ color: accent }}>
-                  Open script
+                {/* Styled as a button but rendered as a span on purpose: the
+                    whole card is already a <button>, and nesting one inside
+                    another is invalid HTML. The card's own click opens the
+                    drawer, so this is the affordance, not a second control. */}
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-semibold transition-colors group-hover:border-foreground/25 group-hover:bg-muted"
+                  style={{ color: accent }}
+                >
+                  <FileText className="size-3.5" aria-hidden />
+                  View script
                 </span>
                 <ArrowRight
                   className="size-3.5 transition-transform group-hover:translate-x-0.5"

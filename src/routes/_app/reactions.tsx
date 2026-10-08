@@ -596,9 +596,18 @@ function ClipCard({
             <span className="text-muted-foreground">Claim: </span>
             {source.extractedClaim}
           </p>
-        ) : (
+        ) : source.transcript ? (
           <p className="text-xs text-muted-foreground">
             The claim will be extracted from the transcript when the script is written.
+          </p>
+        ) : (
+          // Without a transcript or a claim there is nothing for the script to
+          // answer, so "Write reaction script" is disabled. Saying which of the
+          // two to supply is the difference between a dead button and a step.
+          <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+            Nothing to answer yet. Press &ldquo;Get transcript&rdquo;, or type the clip&rsquo;s key
+            claim above and save — a script needs one of the two.
           </p>
         )}
 
@@ -661,9 +670,11 @@ function ClipCard({
             onClick={() => write.mutate()}
             disabled={write.isPending || (!source.transcript && !source.extractedClaim)}
             title={
-              script
-                ? "Writes a new script, replacing nothing — uses one AI call"
-                : "Uses one AI call"
+              !source.transcript && !source.extractedClaim
+                ? "Get the transcript first, or type the clip's key claim"
+                : script
+                  ? "Writes a new script, replacing nothing — uses one AI call"
+                  : "Uses one AI call"
             }
           >
             {write.isPending ? (
