@@ -1,7 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ExternalLink, Flame, Loader2, Newspaper, RefreshCw, Sparkles } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ExternalLink,
+  FileText,
+  Flame,
+  Loader2,
+  Newspaper,
+  RefreshCw,
+  Sparkles,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { IdeaScriptDialog } from "@/components/dashboard/idea-script-dialog";
 import { SectionHeading } from "@/components/dashboard/section-heading";
 import { Badge } from "@/components/ui/badge";
 import { TasteSummary } from "@/components/dashboard/taste-summary";
@@ -19,6 +30,7 @@ import { PLATFORM_META } from "@/lib/platform-meta";
 import { ageDays, TRENDING_COVERAGE } from "@/lib/sources";
 import { cn } from "@/lib/utils";
 import type { PlatformId } from "@/lib/analytics-types";
+import type { ContentIdea } from "@/lib/ai-types";
 
 /** Rows shown before "show more" — enough to choose from without a wall of headlines. */
 const PAGE = 8;
@@ -42,6 +54,11 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
   const [lane, setLane] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [writtenFor, setWrittenFor] = useState<string | null>(null);
+  // The whole section can be folded away, because this list runs to hundreds
+  // of rows and sits above everything else on the page. Open by default — the
+  // point is to let someone shorten it, not to hide it from them.
+  const [collapsed, setCollapsed] = useState(false);
+  const [viewing, setViewing] = useState<ContentIdea | null>(null);
 
   const refresh = useMutation({
     mutationFn: () => refreshTopics({ data: { platform, force: true } }),
@@ -59,6 +76,21 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
       void queryClient.invalidateQueries({ queryKey: topicInboxQueryOptions(platform).queryKey });
     },
   });
+
+  // Stories that already have a script, by the story's id. Read from the
+  // cached analysis rather than asking the server again: finalizeIdeas()
+  // attaches the real source row to the idea, so idea.source.sourceId is the
+  // same id this list is keyed on. A story written before the current cached
+  // batch simply has no entry, and shows "Already an idea" without a button.
+  const { data: analysis } = useQuery(analysisQueryOptions(platform));
+  const ideaForSource = useMemo(() => {
+    const map = new Map<string, ContentIdea>();
+    for (const idea of analysis?.ideas ?? []) {
+      const sourceId = idea.source?.sourceId;
+      if (sourceId && !map.has(sourceId)) map.set(sourceId, idea);
+    }
+    return map;
+  }, [analysis]);
 
   const items = useMemo(() => data?.items ?? [], [data]);
   const lanes = useMemo(
@@ -78,214 +110,267 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
       <SectionHeading
         title="Topics in the news"
         note="Fetched from a live news search for your lanes — nothing here is generated"
+        action={
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-auto gap-1.5 px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => setCollapsed((value) => !value)}
+            aria-expanded={!collapsed}
+          >
+            <ChevronDown
+              className={cn("size-3.5 transition-transform", collapsed && "-rotate-90")}
+              aria-hidden
+            />
+            {collapsed ? `Show${items.length ? ` ${items.length} stories` : ""}` : "Collapse"}
+          </Button>
+        }
       />
       {/* What the team's votes have taught — directly under the heading of the
           first list those votes reorder, so the cause sits beside the effect. */}
-      <TasteSummary platform={platform} />
-      <Card>
-        <CardContent className="space-y-4 p-5">
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="text-sm text-muted-foreground">
-              {isLoading
-                ? "Loading stories…"
-                : items.length
-                  ? `${items.length} stories from the last two weeks${trending ? `, ${trending} carried by more than one outlet` : ""}.`
-                  : "No stories stored yet."}
-              {data?.lastFetchedAt ? ` Last fetched ${dateTime(data.lastFetchedAt)}.` : ""}
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="ml-auto gap-1.5"
-              disabled={refresh.isPending}
-              onClick={() => refresh.mutate()}
-            >
-              <RefreshCw
-                className={cn("size-3.5", refresh.isPending && "animate-spin")}
-                aria-hidden
-              />
-              {refresh.isPending ? "Fetching…" : "Refresh topics"}
-            </Button>
-          </div>
-
-          {refresh.data && !refresh.data.ran && refresh.data.reason ? (
-            <p className="text-xs text-muted-foreground">{refresh.data.reason}</p>
-          ) : null}
-          {refresh.data?.reason && refresh.data.ran ? (
-            <p className="text-xs text-destructive">{refresh.data.reason}</p>
-          ) : null}
-          {refresh.data?.failures.length ? (
-            <p className="text-xs text-destructive">
-              Some searches failed: {refresh.data.failures.join("; ")}
-            </p>
-          ) : null}
-
-          {lanes.length > 1 ? (
-            <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filter by lane">
-              {[null, ...lanes].map((value) => (
-                <button
-                  key={value ?? "all"}
-                  type="button"
-                  role="tab"
-                  aria-selected={lane === value}
-                  onClick={() => {
-                    setLane(value);
-                    setExpanded(false);
-                  }}
-                  className={cn(
-                    "rounded-full border px-2.5 py-0.5 text-xs transition-colors",
-                    lane === value
-                      ? "border-foreground/30 bg-foreground text-background"
-                      : "text-muted-foreground hover:bg-muted",
-                  )}
+      {collapsed ? null : (
+        <>
+          <TasteSummary platform={platform} />
+          <Card>
+            <CardContent className="space-y-4 p-5">
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-sm text-muted-foreground">
+                  {isLoading
+                    ? "Loading stories…"
+                    : items.length
+                      ? `${items.length} stories from the last two weeks${trending ? `, ${trending} carried by more than one outlet` : ""}.`
+                      : "No stories stored yet."}
+                  {data?.lastFetchedAt ? ` Last fetched ${dateTime(data.lastFetchedAt)}.` : ""}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ml-auto gap-1.5"
+                  disabled={refresh.isPending}
+                  onClick={() => refresh.mutate()}
                 >
-                  {value ?? "All lanes"}
-                </button>
-              ))}
-            </div>
-          ) : null}
+                  <RefreshCw
+                    className={cn("size-3.5", refresh.isPending && "animate-spin")}
+                    aria-hidden
+                  />
+                  {refresh.isPending ? "Fetching…" : "Refresh topics"}
+                </Button>
+              </div>
 
-          {visible.length ? (
-            <ul className="divide-y">
-              {visible.map((item) => {
-                const age = ageDays(item.publishedAt);
-                const pending = write.isPending && write.variables === item.id;
-                const justWritten = writtenFor === item.id;
-                return (
-                  <li
-                    key={item.id}
-                    className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:gap-4"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <a
-                        href={item.url}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        className="group inline-flex items-start gap-1.5 text-sm font-medium leading-snug hover:underline"
-                      >
-                        <Newspaper
-                          className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
-                          aria-hidden
-                        />
-                        <span>{item.title}</span>
-                        <ExternalLink
-                          className="mt-0.5 size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
-                          aria-hidden
-                        />
-                      </a>
-                      <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 pl-5 text-xs text-muted-foreground">
-                        {item.publisher ? (
-                          <span className="font-medium">{item.publisher}</span>
-                        ) : null}
-                        {age != null ? <span>{age === 0 ? "today" : `${age}d ago`}</span> : null}
-                        {item.lane ? <span>· {item.lane}</span> : null}
-                        {item.preference?.reason ? (
-                          <span className="italic">· {item.preference.reason}</span>
-                        ) : null}
-                        {item.coverage >= TRENDING_COVERAGE ? (
-                          <Badge variant="secondary" className="gap-1 font-normal">
-                            <Flame className="size-3" style={{ color: meta.color }} aria-hidden />
-                            {item.coverage} outlets
-                          </Badge>
-                        ) : null}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2 pl-5 sm:pl-0">
-                      <VoteButtons
-                        platform={platform}
-                        kind="source"
-                        itemId={item.id}
-                        text={item.title}
-                        lane={item.lane}
-                      />
-                      {item.used || justWritten ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400">
-                          <Check className="size-3.5" aria-hidden />
-                          {justWritten ? `Written — first under "Next ${noun}"` : "Already an idea"}
-                        </span>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-1.5"
-                          disabled={write.isPending}
-                          onClick={() => write.mutate(item.id)}
-                          title="Uses one AI call"
-                        >
-                          {pending ? (
-                            <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                          ) : (
-                            <Sparkles className="size-3.5" aria-hidden />
-                          )}
-                          {pending ? "Writing…" : "Write script"}
-                        </Button>
+              {refresh.data && !refresh.data.ran && refresh.data.reason ? (
+                <p className="text-xs text-muted-foreground">{refresh.data.reason}</p>
+              ) : null}
+              {refresh.data?.reason && refresh.data.ran ? (
+                <p className="text-xs text-destructive">{refresh.data.reason}</p>
+              ) : null}
+              {refresh.data?.failures.length ? (
+                <p className="text-xs text-destructive">
+                  Some searches failed: {refresh.data.failures.join("; ")}
+                </p>
+              ) : null}
+
+              {lanes.length > 1 ? (
+                <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filter by lane">
+                  {[null, ...lanes].map((value) => (
+                    <button
+                      key={value ?? "all"}
+                      type="button"
+                      role="tab"
+                      aria-selected={lane === value}
+                      onClick={() => {
+                        setLane(value);
+                        setExpanded(false);
+                      }}
+                      className={cn(
+                        "rounded-full border px-2.5 py-0.5 text-xs transition-colors",
+                        lane === value
+                          ? "border-foreground/30 bg-foreground text-background"
+                          : "text-muted-foreground hover:bg-muted",
                       )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : !isLoading ? (
-            <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-              {data && !data.storable
-                ? "Stories can't be stored until database migration 0010 has been applied. Run it in Supabase, then refresh."
-                : "Press Refresh topics to fetch this fortnight's stories for your lanes. It's free — a public news search."}
-            </p>
-          ) : null}
+                    >
+                      {value ?? "All lanes"}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
 
-          {filtered.length > PAGE ? (
-            <Button variant="ghost" size="sm" onClick={() => setExpanded((value) => !value)}>
-              {expanded ? "Show fewer" : `Show all ${filtered.length}`}
-            </Button>
-          ) : null}
+              {visible.length ? (
+                <ul className="divide-y">
+                  {visible.map((item) => {
+                    const age = ageDays(item.publishedAt);
+                    const pending = write.isPending && write.variables === item.id;
+                    const justWritten = writtenFor === item.id;
+                    const writtenIdea = ideaForSource.get(item.id) ?? null;
+                    return (
+                      <li
+                        key={item.id}
+                        className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:gap-4"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            className="group inline-flex items-start gap-1.5 text-sm font-medium leading-snug hover:underline"
+                          >
+                            <Newspaper
+                              className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
+                              aria-hidden
+                            />
+                            <span>{item.title}</span>
+                            <ExternalLink
+                              className="mt-0.5 size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                              aria-hidden
+                            />
+                          </a>
+                          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 pl-5 text-xs text-muted-foreground">
+                            {item.publisher ? (
+                              <span className="font-medium">{item.publisher}</span>
+                            ) : null}
+                            {age != null ? (
+                              <span>{age === 0 ? "today" : `${age}d ago`}</span>
+                            ) : null}
+                            {item.lane ? <span>· {item.lane}</span> : null}
+                            {item.preference?.reason ? (
+                              <span className="italic">· {item.preference.reason}</span>
+                            ) : null}
+                            {item.coverage >= TRENDING_COVERAGE ? (
+                              <Badge variant="secondary" className="gap-1 font-normal">
+                                <Flame
+                                  className="size-3"
+                                  style={{ color: meta.color }}
+                                  aria-hidden
+                                />
+                                {item.coverage} outlets
+                              </Badge>
+                            ) : null}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2 pl-5 sm:pl-0">
+                          <VoteButtons
+                            platform={platform}
+                            kind="source"
+                            itemId={item.id}
+                            text={item.title}
+                            lane={item.lane}
+                          />
+                          {item.used || justWritten ? (
+                            // The confirmation is kept exactly as it was, and the
+                            // script it refers to is now one click away — both
+                            // after writing just now and for a story written
+                            // earlier, which is the same thing to the reader.
+                            <span className="inline-flex items-center gap-2">
+                              <span className="inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400">
+                                <Check className="size-3.5" aria-hidden />
+                                {justWritten
+                                  ? `Written — first under "Next ${noun}"`
+                                  : "Already an idea"}
+                              </span>
+                              {writtenIdea ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="gap-1.5"
+                                  onClick={() => setViewing(writtenIdea)}
+                                >
+                                  <FileText className="size-3.5" aria-hidden />
+                                  View script
+                                </Button>
+                              ) : null}
+                            </span>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5"
+                              disabled={write.isPending}
+                              onClick={() => write.mutate(item.id)}
+                              title="Uses one AI call"
+                            >
+                              {pending ? (
+                                <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                              ) : (
+                                <Sparkles className="size-3.5" aria-hidden />
+                              )}
+                              {pending ? "Writing…" : "Write script"}
+                            </Button>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : !isLoading ? (
+                <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                  {data && !data.storable
+                    ? "Stories can't be stored until database migration 0010 has been applied. Run it in Supabase, then refresh."
+                    : "Press Refresh topics to fetch this fortnight's stories for your lanes. It's free — a public news search."}
+                </p>
+              ) : null}
 
-          {data?.hidden?.length ? (
-            <details className="rounded-md border px-3 py-2 text-xs">
-              <summary className="cursor-pointer text-muted-foreground">
-                {data.hidden.length} stor{data.hidden.length === 1 ? "y" : "ies"} hidden by your
-                votes
-              </summary>
-              <ul className="mt-2 space-y-1.5">
-                {data.hidden.map((item) => (
-                  <li key={item.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                    <span className="text-muted-foreground">— {item.reason}</span>
-                    <VoteButtons
-                      platform={platform}
-                      kind="source"
-                      itemId={item.id}
-                      text={item.title}
-                      lane={item.lane}
-                    />
-                  </li>
-                ))}
-              </ul>
-            </details>
-          ) : null}
+              {filtered.length > PAGE ? (
+                <Button variant="ghost" size="sm" onClick={() => setExpanded((value) => !value)}>
+                  {expanded ? "Show fewer" : `Show all ${filtered.length}`}
+                </Button>
+              ) : null}
 
-          {write.data && !write.data.idea ? (
-            <p className="text-xs text-destructive">{write.data.reason}</p>
-          ) : null}
-          {write.error ? (
-            <p className="text-xs text-destructive">
-              {write.error instanceof Error
-                ? write.error.message
-                : "Couldn't write a script for that story."}
-            </p>
-          ) : null}
+              {data?.hidden?.length ? (
+                <details className="rounded-md border px-3 py-2 text-xs">
+                  <summary className="cursor-pointer text-muted-foreground">
+                    {data.hidden.length} stor{data.hidden.length === 1 ? "y" : "ies"} hidden by your
+                    votes
+                  </summary>
+                  <ul className="mt-2 space-y-1.5">
+                    {data.hidden.map((item) => (
+                      <li key={item.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                        <span className="text-muted-foreground">— {item.reason}</span>
+                        <VoteButtons
+                          platform={platform}
+                          kind="source"
+                          itemId={item.id}
+                          text={item.title}
+                          lane={item.lane}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
 
-          {/* "Refreshing is free" was true when a refresh could only search the
+              {write.data && !write.data.idea ? (
+                <p className="text-xs text-destructive">{write.data.reason}</p>
+              ) : null}
+              {write.error ? (
+                <p className="text-xs text-destructive">
+                  {write.error instanceof Error
+                    ? write.error.message
+                    : "Couldn't write a script for that story."}
+                </p>
+              ) : null}
+
+              {/* "Refreshing is free" was true when a refresh could only search the
               news feed. It can now also derive this account's lanes when it has
               none, which is model work — so the claim is qualified rather than
               quietly made false. */}
-          <p className="text-[11px] text-muted-foreground">
-            &ldquo;Write script&rdquo; uses one AI call and builds a {noun} on that story in this
-            account&rsquo;s proven structure. Refreshing is free — the news search costs nothing.
-            The first refresh on an account with no content lanes yet also derives them, which is
-            two AI calls, once.
-          </p>
-        </CardContent>
-      </Card>
+              <p className="text-[11px] text-muted-foreground">
+                &ldquo;Write script&rdquo; uses one AI call and builds a {noun} on that story in
+                this account&rsquo;s proven structure. Refreshing is free — the news search costs
+                nothing. The first refresh on an account with no content lanes yet also derives
+                them, which is two AI calls, once.
+              </p>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {viewing ? (
+        <IdeaScriptDialog
+          idea={viewing}
+          open={viewing !== null}
+          onOpenChange={(next) => !next && setViewing(null)}
+        />
+      ) : null}
     </>
   );
 }
