@@ -14,6 +14,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 
+import { CollapsibleAnalysisCard } from "@/components/dashboard/collapsible-analysis-card";
 import { AiIdeaCards } from "@/components/dashboard/ai-idea-cards";
 import { CollapseToggle } from "@/components/dashboard/collapse-toggle";
 import { SectionHeading } from "@/components/dashboard/section-heading";
@@ -293,7 +294,7 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
           ) : null}
 
           {discovery ? (
-            <Card>
+            <CollapsibleAnalysisCard title="How these competitors were found">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Search className="size-4" style={{ color: meta.color }} aria-hidden />
@@ -370,11 +371,11 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
                   </p>
                 ) : null}
               </CardContent>
-            </Card>
+            </CollapsibleAnalysisCard>
           ) : null}
 
           {analyst ? (
-            <Card>
+            <CollapsibleAnalysisCard title="Your own performance">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Activity className="size-4" style={{ color: meta.color }} aria-hidden />
@@ -451,11 +452,11 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
                   </div>
                 ) : null}
               </CardContent>
-            </Card>
+            </CollapsibleAnalysisCard>
           ) : null}
 
           {reflection ? (
-            <Card>
+            <CollapsibleAnalysisCard title="What past suggestions taught us">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <RefreshCw className="size-4" style={{ color: meta.color }} aria-hidden />
@@ -489,7 +490,7 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
                   </ul>
                 ) : null}
               </CardContent>
-            </Card>
+            </CollapsibleAnalysisCard>
           ) : null}
 
           {competitors ? (
@@ -584,6 +585,7 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
                         </ul>
                       </section>
                     ) : null}
+                    <div className="flex justify-end pt-4"><CollapseToggle placement="bottom" collapsed={readCollapsed} onToggle={() => setReadCollapsed(true)} showLabel="Show" /></div>
                   </CardContent>
                 )}
               </Card>
@@ -609,6 +611,7 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
               color={meta.color}
             />
           ) : null}
+          <div className="flex justify-end pb-4"><CollapseToggle placement="bottom" collapsed={aiCollapsed} onToggle={() => setAiCollapsed(true)} showLabel="Show AI analysis" /></div>
         </>
       )}
 

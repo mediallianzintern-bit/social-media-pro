@@ -15,6 +15,7 @@ import { CollapseToggle } from "@/components/dashboard/collapse-toggle";
 import { IdeaScriptDialog } from "@/components/dashboard/idea-script-dialog";
 import { SectionHeading } from "@/components/dashboard/section-heading";
 import { Badge } from "@/components/ui/badge";
+import { TopicVoteActivity } from "@/components/dashboard/topic-vote-activity";
 import { TasteSummary } from "@/components/dashboard/taste-summary";
 import { VoteButtons } from "@/components/dashboard/vote-buttons";
 import { Button } from "@/components/ui/button";
@@ -123,6 +124,7 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
       {collapsed ? null : (
         <>
           <TasteSummary platform={platform} />
+          <TopicVoteActivity platform={platform} />
           <Card>
             <CardContent className="space-y-4 p-5">
               <div className="flex flex-wrap items-center gap-3">
@@ -351,6 +353,7 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                 nothing. The first refresh on an account with no content lanes yet also derives
                 them, which is two AI calls, once.
               </p>
+              <div className="flex justify-end pt-4"><CollapseToggle placement="bottom" collapsed={collapsed} onToggle={() => setCollapsed(true)} showLabel={`Show${items.length ? ` ${items.length} stories` : ""}`} /></div>
             </CardContent>
           </Card>
         </>

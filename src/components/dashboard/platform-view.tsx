@@ -433,6 +433,7 @@ export function PlatformView({ data, range }: { data: PlatformData; range: Resol
         <Card>
           <CardContent className="pt-6">
             <PostsTable posts={posts} showViews={hasViews} platform={data.platform} />
+            <div className="flex justify-end pt-4"><CollapseToggle placement="bottom" collapsed={postsCollapsed} onToggle={() => setPostsCollapsed(true)} showLabel={`Show ${posts.length} post${posts.length === 1 ? "" : "s"}`} /></div>
           </CardContent>
         </Card>
       )}

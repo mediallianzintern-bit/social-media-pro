@@ -504,10 +504,11 @@ export const getTopicFeedback = createServerFn({ method: "GET" })
       import("@/server/store"),
       import("@/lib/preferences"),
     ]);
-    const votes = await readTopicVotes(data).catch(() => []);
+    const votes = await readTopicVotes(data);
     return {
       votes: votes.map((vote) => ({ kind: vote.kind, itemId: vote.itemId, verdict: vote.verdict })),
       summary: learnedSummary(buildPreferenceModel(votes)),
+      activity: votes.map(({ actor: _actor, ...vote }) => vote),
     };
   });
 
