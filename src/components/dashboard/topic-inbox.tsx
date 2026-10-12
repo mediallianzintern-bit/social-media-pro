@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
-  ChevronDown,
   ExternalLink,
   FileText,
   Flame,
@@ -12,6 +11,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { CollapseToggle } from "@/components/dashboard/collapse-toggle";
 import { IdeaScriptDialog } from "@/components/dashboard/idea-script-dialog";
 import { SectionHeading } from "@/components/dashboard/section-heading";
 import { Badge } from "@/components/ui/badge";
@@ -111,19 +111,11 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
         title="Topics in the news"
         note="Fetched from a live news search for your lanes — nothing here is generated"
         action={
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-auto gap-1.5 px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => setCollapsed((value) => !value)}
-            aria-expanded={!collapsed}
-          >
-            <ChevronDown
-              className={cn("size-3.5 transition-transform", collapsed && "-rotate-90")}
-              aria-hidden
-            />
-            {collapsed ? `Show${items.length ? ` ${items.length} stories` : ""}` : "Collapse"}
-          </Button>
+          <CollapseToggle
+            collapsed={collapsed}
+            onToggle={() => setCollapsed((value) => !value)}
+            showLabel={`Show${items.length ? ` ${items.length} stories` : ""}`}
+          />
         }
       />
       {/* What the team's votes have taught — directly under the heading of the

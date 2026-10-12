@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { AiIdeaCards } from "@/components/dashboard/ai-idea-cards";
+import { CollapseToggle } from "@/components/dashboard/collapse-toggle";
 import { SectionHeading } from "@/components/dashboard/section-heading";
 import { InstagramTrends } from "@/components/dashboard/instagram-trends";
 import { TopicInbox } from "@/components/dashboard/topic-inbox";
@@ -184,6 +185,11 @@ function normalizeCompetitors(raw: CompetitorAnalysis | null): CompetitorAnalysi
  * current one.
  */
 export function AiPanel({ platform }: { platform: PlatformId }) {
+  // Both open by default. The AI section is the longest part of the page, so
+  // it can be folded whole; the competitive read is folded on its own because
+  // it is the densest card inside it.
+  const [aiCollapsed, setAiCollapsed] = useState(false);
+  const [readCollapsed, setReadCollapsed] = useState(false);
   const queryClient = useQueryClient();
   const meta = PLATFORM_META[platform];
   const { data: analysis, isLoading } = useQuery(analysisQueryOptions(platform));
@@ -250,260 +256,147 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
           <Sparkles className={cn("size-3.5", isPending && "animate-pulse")} aria-hidden />
           {isPending ? "Analysing…" : analysis ? "Regenerate" : "Generate"}
         </Button>
+        <CollapseToggle
+          collapsed={aiCollapsed}
+          onToggle={() => setAiCollapsed((value) => !value)}
+          showLabel="Show AI analysis"
+        />
       </div>
 
-      {error ? (
-        <Card className="border-destructive/40">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <AlertTriangle className="size-4 text-destructive" aria-hidden />
-              Analysis failed
-            </CardTitle>
-            <CardDescription className="whitespace-pre-wrap">{error}</CardDescription>
-          </CardHeader>
-        </Card>
-      ) : null}
+      {aiCollapsed ? null : (
+        <>
+          {error ? (
+            <Card className="border-destructive/40">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <AlertTriangle className="size-4 text-destructive" aria-hidden />
+                  Analysis failed
+                </CardTitle>
+                <CardDescription className="whitespace-pre-wrap">{error}</CardDescription>
+              </CardHeader>
+            </Card>
+          ) : null}
 
-      {!analysis && !isPending ? (
-        <Card className="border-dashed">
-          <CardContent className="p-8 text-center">
-            <Sparkles className="mx-auto size-5 text-muted-foreground" aria-hidden />
-            <p className="mt-2 text-sm font-medium">No analysis generated yet</p>
-            <p className="mx-auto mt-1 max-w-lg text-xs leading-relaxed text-muted-foreground">
-              Press Generate. With no competitors tracked yet, it will first search Instagram for
-              accounts in the same niche, scrape them, and pick the most comparable &mdash; then
-              write the competitive read and content ideas from that. Every figure it cites comes
-              from scraped data; it is not allowed to compute or invent metrics.
-            </p>
-          </CardContent>
-        </Card>
-      ) : null}
+          {!analysis && !isPending ? (
+            <Card className="border-dashed">
+              <CardContent className="p-8 text-center">
+                <Sparkles className="mx-auto size-5 text-muted-foreground" aria-hidden />
+                <p className="mt-2 text-sm font-medium">No analysis generated yet</p>
+                <p className="mx-auto mt-1 max-w-lg text-xs leading-relaxed text-muted-foreground">
+                  Press Generate. With no competitors tracked yet, it will first search Instagram
+                  for accounts in the same niche, scrape them, and pick the most comparable &mdash;
+                  then write the competitive read and content ideas from that. Every figure it cites
+                  comes from scraped data; it is not allowed to compute or invent metrics.
+                </p>
+              </CardContent>
+            </Card>
+          ) : null}
 
-      {discovery ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Search className="size-4" style={{ color: meta.color }} aria-hidden />
-              How these competitors were found
-            </CardTitle>
-            <CardDescription>{discovery.niche}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm">
-            {/* T25 — which winning lanes the search was seeded from, so it is
+          {discovery ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Search className="size-4" style={{ color: meta.color }} aria-hidden />
+                  How these competitors were found
+                </CardTitle>
+                <CardDescription>{discovery.niche}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 text-sm">
+                {/* T25 — which winning lanes the search was seeded from, so it is
                 clear these accounts were chosen for what already works here,
                 not for looking like the bio. */}
-            {discovery.seededFrom?.length ? (
-              <p className="text-xs text-muted-foreground">
-                Seeded from the lanes you win in:{" "}
-                {discovery.seededFrom.map((seed, index) => (
-                  <span key={seed.lane}>
-                    {index ? ", " : ""}
-                    <span className="font-medium text-foreground">{seed.lane}</span> (
-                    {seed.multiple}× {seed.metric})
-                  </span>
-                ))}
-                .
-              </p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Found from the bio and captions — no lane was beating the account median yet.
-              </p>
-            )}
-            <div className="flex flex-wrap gap-1.5">
-              {(discovery.queryPlan?.length
-                ? discovery.queryPlan
-                : discovery.searchQueries.map((query) => ({ query, lane: null }))
-              ).map((entry) => (
-                <Badge key={entry.query} variant="outline" className="gap-1 font-normal">
-                  {entry.query}
-                  {entry.lane ? (
-                    <span className="text-muted-foreground">· {entry.lane}</span>
-                  ) : null}
-                </Badge>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {discovery.candidatesFound} accounts returned by search · {discovery.selected.length}{" "}
-              selected as comparable
-            </p>
-            {discovery.selected.length ? (
-              <ul className="divide-y">
-                {discovery.selected.map((account) => (
-                  <li key={account.handle} className="py-2.5 first:pt-0 last:pb-0">
-                    <div className="flex flex-wrap items-baseline gap-2">
-                      <a
-                        href={`https://www.instagram.com/${account.handle}/`}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        className="text-sm font-medium underline underline-offset-4"
-                      >
-                        @{account.handle}
-                      </a>
-                      <span className="text-xs text-muted-foreground">{account.lane}</span>
-                      <span className="ml-auto text-xs tabular-nums text-muted-foreground">
-                        {account.followers.toLocaleString("en-US")} followers
+                {discovery.seededFrom?.length ? (
+                  <p className="text-xs text-muted-foreground">
+                    Seeded from the lanes you win in:{" "}
+                    {discovery.seededFrom.map((seed, index) => (
+                      <span key={seed.lane}>
+                        {index ? ", " : ""}
+                        <span className="font-medium text-foreground">{seed.lane}</span> (
+                        {seed.multiple}× {seed.metric})
                       </span>
-                    </div>
-                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                      {account.whyComparable}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            {discovery.note ? (
-              <p className="border-l-2 border-border pl-3 text-xs leading-relaxed text-muted-foreground">
-                {discovery.note}
-              </p>
-            ) : null}
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {analyst ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Activity className="size-4" style={{ color: meta.color }} aria-hidden />
-              Your own performance
-            </CardTitle>
-            <CardDescription>
-              Read from this account&apos;s measured figures alone — saves, shares and watch time
-              are real here. No comparison to anyone else.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <p className="text-sm leading-relaxed">{analyst.headline}</p>
-
-            <TeamTakeaways items={analyst.teamTakeaways} color={meta.color} />
-
-            <div className="grid gap-5 md:grid-cols-2">
-              <section>
-                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Working
-                </h3>
-                <ul className="space-y-1.5">
-                  {analyst.strengths.map((item) => (
-                    <li key={item} className="flex gap-2 text-sm leading-relaxed">
-                      <TrendingUp
-                        className="mt-0.5 size-3.5 shrink-0"
-                        style={{ color: meta.color }}
-                        aria-hidden
-                      />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-              <section>
-                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Not working
-                </h3>
-                <ul className="space-y-1.5">
-                  {analyst.weaknesses.map((item) => (
-                    <li key={item} className="flex gap-2 text-sm leading-relaxed">
-                      <AlertTriangle
-                        className="mt-0.5 size-3.5 shrink-0 text-amber-600"
-                        aria-hidden
-                      />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            </div>
-            {analyst.laneNotes.length ? (
-              <div>
-                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Lane by lane
-                </h3>
-                <ul className="space-y-2">
-                  {analyst.laneNotes.map((note) => (
-                    <li key={note.lane} className="text-sm">
-                      <span className="flex flex-wrap items-baseline gap-2">
-                        <span className="font-medium capitalize">{note.lane}</span>
-                        <Badge
-                          variant="secondary"
-                          className={cn("font-medium", TONE_CLASS[note.tone])}
-                        >
-                          {note.verdict}
-                        </Badge>
-                      </span>
-                      <span className="mt-0.5 block leading-relaxed text-muted-foreground">
-                        {note.reasoning}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {reflection ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <RefreshCw className="size-4" style={{ color: meta.color }} aria-hidden />
-              What past suggestions taught us
-            </CardTitle>
-            <CardDescription>
-              Drawn only from suggestions that were actually filmed and measured. Qualitative by
-              design — how confident to be is a separate, statistical question.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm leading-relaxed">{reflection.overall}</p>
-            {reflection.lessons?.length ? (
-              <ul className="space-y-3">
-                {(reflection.lessons ?? []).map((lesson) => (
-                  <li key={lesson.lane} className="rounded-lg border bg-muted/40 p-3">
-                    <span className="flex flex-wrap items-baseline gap-2">
-                      <span className="text-sm font-medium capitalize">{lesson.lane}</span>
-                      {!lesson.confirmed ? (
-                        <Badge variant="secondary" className="bg-muted font-normal">
-                          one or two posts — a hint
-                        </Badge>
+                    ))}
+                    .
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Found from the bio and captions — no lane was beating the account median yet.
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-1.5">
+                  {(discovery.queryPlan?.length
+                    ? discovery.queryPlan
+                    : discovery.searchQueries.map((query) => ({ query, lane: null }))
+                  ).map((entry) => (
+                    <Badge key={entry.query} variant="outline" className="gap-1 font-normal">
+                      {entry.query}
+                      {entry.lane ? (
+                        <span className="text-muted-foreground">· {entry.lane}</span>
                       ) : null}
-                    </span>
-                    <span className="mt-1 block text-sm leading-relaxed">{lesson.lesson}</span>
-                    <span className="mt-1 block text-xs text-muted-foreground">
-                      {lesson.evidence}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </CardContent>
-        </Card>
-      ) : null}
+                    </Badge>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {discovery.candidatesFound} accounts returned by search ·{" "}
+                  {discovery.selected.length} selected as comparable
+                </p>
+                {discovery.selected.length ? (
+                  <ul className="divide-y">
+                    {discovery.selected.map((account) => (
+                      <li key={account.handle} className="py-2.5 first:pt-0 last:pb-0">
+                        <div className="flex flex-wrap items-baseline gap-2">
+                          <a
+                            href={`https://www.instagram.com/${account.handle}/`}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            className="text-sm font-medium underline underline-offset-4"
+                          >
+                            @{account.handle}
+                          </a>
+                          <span className="text-xs text-muted-foreground">{account.lane}</span>
+                          <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                            {account.followers.toLocaleString("en-US")} followers
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                          {account.whyComparable}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {discovery.note ? (
+                  <p className="border-l-2 border-border pl-3 text-xs leading-relaxed text-muted-foreground">
+                    {discovery.note}
+                  </p>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
 
-      {competitors ? (
-        <>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Target className="size-4" style={{ color: meta.color }} aria-hidden />
-                Competitive read
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <p className="text-sm leading-relaxed">{competitors.headline}</p>
+          {analyst ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Activity className="size-4" style={{ color: meta.color }} aria-hidden />
+                  Your own performance
+                </CardTitle>
+                <CardDescription>
+                  Read from this account&apos;s measured figures alone — saves, shares and watch
+                  time are real here. No comparison to anyone else.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <p className="text-sm leading-relaxed">{analyst.headline}</p>
 
-              <TeamTakeaways items={competitors.teamTakeaways} color={meta.color} />
+                <TeamTakeaways items={analyst.teamTakeaways} color={meta.color} />
 
-              <div className="grid gap-5 md:grid-cols-2">
-                {/* An empty list under a heading reads as a broken panel rather
-                    than as "nothing here" — which is exactly what a cached
-                    analysis written before this field existed produces. */}
-                {competitors.contestedLanes.length ? (
+                <div className="grid gap-5 md:grid-cols-2">
                   <section>
                     <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Contested lanes
+                      Working
                     </h3>
                     <ul className="space-y-1.5">
-                      {competitors.contestedLanes.map((item: string) => (
+                      {analyst.strengths.map((item) => (
                         <li key={item} className="flex gap-2 text-sm leading-relaxed">
                           <TrendingUp
                             className="mt-0.5 size-3.5 shrink-0"
@@ -515,18 +408,15 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
                       ))}
                     </ul>
                   </section>
-                ) : null}
-                {competitors.openLanes.length ? (
                   <section>
                     <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Open lanes
+                      Not working
                     </h3>
                     <ul className="space-y-1.5">
-                      {competitors.openLanes.map((item: string) => (
+                      {analyst.weaknesses.map((item) => (
                         <li key={item} className="flex gap-2 text-sm leading-relaxed">
-                          <Target
-                            className="mt-0.5 size-3.5 shrink-0"
-                            style={{ color: meta.color }}
+                          <AlertTriangle
+                            className="mt-0.5 size-3.5 shrink-0 text-amber-600"
                             aria-hidden
                           />
                           {item}
@@ -534,59 +424,193 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
                       ))}
                     </ul>
                   </section>
+                </div>
+                {analyst.laneNotes.length ? (
+                  <div>
+                    <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Lane by lane
+                    </h3>
+                    <ul className="space-y-2">
+                      {analyst.laneNotes.map((note) => (
+                        <li key={note.lane} className="text-sm">
+                          <span className="flex flex-wrap items-baseline gap-2">
+                            <span className="font-medium capitalize">{note.lane}</span>
+                            <Badge
+                              variant="secondary"
+                              className={cn("font-medium", TONE_CLASS[note.tone])}
+                            >
+                              {note.verdict}
+                            </Badge>
+                          </span>
+                          <span className="mt-0.5 block leading-relaxed text-muted-foreground">
+                            {note.reasoning}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 ) : null}
-              </div>
+              </CardContent>
+            </Card>
+          ) : null}
 
-              {competitors.verdicts.length ? (
-                <section>
-                  <h3 className="mb-2.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Account by account
-                  </h3>
-                  <ul className="divide-y">
-                    {competitors.verdicts.map((verdict) => (
-                      <li key={verdict.handle} className="py-3 first:pt-0 last:pb-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-medium">{verdict.handle}</span>
-                          <span className="text-xs text-muted-foreground">{verdict.lane}</span>
-                          <Badge
-                            variant="secondary"
-                            className={cn("ml-auto font-medium", TONE_CLASS[verdict.tone])}
-                          >
-                            {verdict.gap}
-                          </Badge>
-                        </div>
-                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                          {verdict.reasoning}
-                        </p>
+          {reflection ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <RefreshCw className="size-4" style={{ color: meta.color }} aria-hidden />
+                  What past suggestions taught us
+                </CardTitle>
+                <CardDescription>
+                  Drawn only from suggestions that were actually filmed and measured. Qualitative by
+                  design — how confident to be is a separate, statistical question.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm leading-relaxed">{reflection.overall}</p>
+                {reflection.lessons?.length ? (
+                  <ul className="space-y-3">
+                    {(reflection.lessons ?? []).map((lesson) => (
+                      <li key={lesson.lane} className="rounded-lg border bg-muted/40 p-3">
+                        <span className="flex flex-wrap items-baseline gap-2">
+                          <span className="text-sm font-medium capitalize">{lesson.lane}</span>
+                          {!lesson.confirmed ? (
+                            <Badge variant="secondary" className="bg-muted font-normal">
+                              one or two posts — a hint
+                            </Badge>
+                          ) : null}
+                        </span>
+                        <span className="mt-1 block text-sm leading-relaxed">{lesson.lesson}</span>
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          {lesson.evidence}
+                        </span>
                       </li>
                     ))}
                   </ul>
-                </section>
-              ) : null}
-            </CardContent>
-          </Card>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {competitors ? (
+            <>
+              <Card>
+                <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Target className="size-4" style={{ color: meta.color }} aria-hidden />
+                    Competitive read
+                  </CardTitle>
+                  <CollapseToggle
+                    collapsed={readCollapsed}
+                    onToggle={() => setReadCollapsed((value) => !value)}
+                    showLabel="Show"
+                  />
+                </CardHeader>
+                {readCollapsed ? null : (
+                  <CardContent className="space-y-5">
+                    <p className="text-sm leading-relaxed">{competitors.headline}</p>
+
+                    <TeamTakeaways items={competitors.teamTakeaways} color={meta.color} />
+
+                    <div className="grid gap-5 md:grid-cols-2">
+                      {/* An empty list under a heading reads as a broken panel rather
+                    than as "nothing here" — which is exactly what a cached
+                    analysis written before this field existed produces. */}
+                      {competitors.contestedLanes.length ? (
+                        <section>
+                          <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                            Contested lanes
+                          </h3>
+                          <ul className="space-y-1.5">
+                            {competitors.contestedLanes.map((item: string) => (
+                              <li key={item} className="flex gap-2 text-sm leading-relaxed">
+                                <TrendingUp
+                                  className="mt-0.5 size-3.5 shrink-0"
+                                  style={{ color: meta.color }}
+                                  aria-hidden
+                                />
+                                {item}
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
+                      ) : null}
+                      {competitors.openLanes.length ? (
+                        <section>
+                          <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                            Open lanes
+                          </h3>
+                          <ul className="space-y-1.5">
+                            {competitors.openLanes.map((item: string) => (
+                              <li key={item} className="flex gap-2 text-sm leading-relaxed">
+                                <Target
+                                  className="mt-0.5 size-3.5 shrink-0"
+                                  style={{ color: meta.color }}
+                                  aria-hidden
+                                />
+                                {item}
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
+                      ) : null}
+                    </div>
+
+                    {competitors.verdicts.length ? (
+                      <section>
+                        <h3 className="mb-2.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                          Account by account
+                        </h3>
+                        <ul className="divide-y">
+                          {competitors.verdicts.map((verdict) => (
+                            <li key={verdict.handle} className="py-3 first:pt-0 last:pb-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-sm font-medium">{verdict.handle}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {verdict.lane}
+                                </span>
+                                <Badge
+                                  variant="secondary"
+                                  className={cn("ml-auto font-medium", TONE_CLASS[verdict.tone])}
+                                >
+                                  {verdict.gap}
+                                </Badge>
+                              </div>
+                              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                                {verdict.reasoning}
+                              </p>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    ) : null}
+                  </CardContent>
+                )}
+              </Card>
+            </>
+          ) : null}
+
+          {trends ? (
+            <FeedCard
+              read={trends}
+              title="Rising in this niche"
+              description="Selected from a live search-trend feed, not from the model's memory. A reason to publish something now — never a reason to publish something off-voice."
+              icon={Flame}
+              color={meta.color}
+            />
+          ) : null}
+
+          {questions ? (
+            <FeedCard
+              read={questions}
+              title="What people are asking"
+              description="Real questions pulled from a live feed. Demonstrated demand for an answer — it says nothing about what this account's own audience rewards."
+              icon={HelpCircle}
+              color={meta.color}
+            />
+          ) : null}
         </>
-      ) : null}
-
-      {trends ? (
-        <FeedCard
-          read={trends}
-          title="Rising in this niche"
-          description="Selected from a live search-trend feed, not from the model's memory. A reason to publish something now — never a reason to publish something off-voice."
-          icon={Flame}
-          color={meta.color}
-        />
-      ) : null}
-
-      {questions ? (
-        <FeedCard
-          read={questions}
-          title="What people are asking"
-          description="Real questions pulled from a live feed. Demonstrated demand for an answer — it says nothing about what this account's own audience rewards."
-          icon={HelpCircle}
-          color={meta.color}
-        />
-      ) : null}
+      )}
 
       {/* Real stories first: this is where a topic comes from, so it sits
           directly above the ideas built on it. */}

@@ -1,5 +1,5 @@
 import { AlertTriangle, ExternalLink, Eye, Heart, Info, Send, Users } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { AiPanel } from "@/components/dashboard/ai-panel";
 import { CompetitorTable, type BenchmarkRow } from "@/components/dashboard/competitor-table";
@@ -16,6 +16,7 @@ import { MetricBars, type BarRow } from "@/components/dashboard/metric-bars";
 import { PostPerformanceChart } from "@/components/dashboard/post-performance-chart";
 import { PostsTable } from "@/components/dashboard/posts-table";
 import { TopicCards } from "@/components/dashboard/topic-cards";
+import { CollapseToggle } from "@/components/dashboard/collapse-toggle";
 import { SectionHeading } from "@/components/dashboard/section-heading";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -72,6 +73,10 @@ const LOCKED = {
 } as const;
 
 export function PlatformView({ data, range }: { data: PlatformData; range: ResolvedRange }) {
+  // The post ledger is the longest thing on the page and the least often
+  // read, so it can be folded away. Open by default, like every other
+  // collapsible section here.
+  const [postsCollapsed, setPostsCollapsed] = useState(false);
   const meta = PLATFORM_META[data.platform];
   const color = meta.color;
   const isInstagram = data.platform === "instagram";
@@ -414,12 +419,23 @@ export function PlatformView({ data, range }: { data: PlatformData; range: Resol
       <TopicCards recommendations={recommendations} />
 
       {/* ---- Ledger ---- */}
-      <SectionHeading title="All posts in this window" />
-      <Card>
-        <CardContent className="pt-6">
-          <PostsTable posts={posts} showViews={hasViews} platform={data.platform} />
-        </CardContent>
-      </Card>
+      <SectionHeading
+        title="All posts in this window"
+        action={
+          <CollapseToggle
+            collapsed={postsCollapsed}
+            onToggle={() => setPostsCollapsed((value) => !value)}
+            showLabel={`Show ${posts.length} post${posts.length === 1 ? "" : "s"}`}
+          />
+        }
+      />
+      {postsCollapsed ? null : (
+        <Card>
+          <CardContent className="pt-6">
+            <PostsTable posts={posts} showViews={hasViews} platform={data.platform} />
+          </CardContent>
+        </Card>
+      )}
     </>
   );
 }
