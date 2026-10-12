@@ -264,7 +264,25 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
         />
       </div>
 
-      {aiCollapsed ? null : (
+      {aiCollapsed ? (
+        <Card>
+          <CardContent className="space-y-3 pt-6">
+            <p className="line-clamp-3 text-sm">
+              {analyst?.headline ||
+                competitors?.headline ||
+                "Generate analysis to see performance insights and ideas."}
+            </p>
+            <div className="flex justify-center">
+              <CollapseToggle
+                placement="bottom"
+                collapsed
+                onToggle={() => setAiCollapsed(false)}
+                showLabel="Show AI analysis"
+              />
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
         <>
           {error ? (
             <Card className="border-destructive/40">
@@ -294,7 +312,10 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
           ) : null}
 
           {discovery ? (
-            <CollapsibleAnalysisCard title="How these competitors were found">
+            <CollapsibleAnalysisCard
+              title="How these competitors were found"
+              preview={discovery.niche}
+            >
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Search className="size-4" style={{ color: meta.color }} aria-hidden />
@@ -375,7 +396,7 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
           ) : null}
 
           {analyst ? (
-            <CollapsibleAnalysisCard title="Your own performance">
+            <CollapsibleAnalysisCard title="Your own performance" preview={analyst.headline}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Activity className="size-4" style={{ color: meta.color }} aria-hidden />
@@ -456,7 +477,10 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
           ) : null}
 
           {reflection ? (
-            <CollapsibleAnalysisCard title="What past suggestions taught us">
+            <CollapsibleAnalysisCard
+              title="What past suggestions taught us"
+              preview={reflection.overall}
+            >
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <RefreshCw className="size-4" style={{ color: meta.color }} aria-hidden />
@@ -507,7 +531,19 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
                     showLabel="Show"
                   />
                 </CardHeader>
-                {readCollapsed ? null : (
+                {readCollapsed ? (
+                  <CardContent className="space-y-3">
+                    <p className="line-clamp-3 text-sm">{competitors.headline}</p>
+                    <div className="flex justify-center">
+                      <CollapseToggle
+                        placement="bottom"
+                        collapsed
+                        onToggle={() => setReadCollapsed(false)}
+                        showLabel="Show"
+                      />
+                    </div>
+                  </CardContent>
+                ) : (
                   <CardContent className="space-y-5">
                     <p className="text-sm leading-relaxed">{competitors.headline}</p>
 
@@ -585,7 +621,14 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
                         </ul>
                       </section>
                     ) : null}
-                    <div className="flex justify-end pt-4"><CollapseToggle placement="bottom" collapsed={readCollapsed} onToggle={() => setReadCollapsed(true)} showLabel="Show" /></div>
+                    <div className="flex justify-center pt-2">
+                      <CollapseToggle
+                        placement="bottom"
+                        collapsed={readCollapsed}
+                        onToggle={() => setReadCollapsed(true)}
+                        showLabel="Show"
+                      />
+                    </div>
                   </CardContent>
                 )}
               </Card>
@@ -611,7 +654,14 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
               color={meta.color}
             />
           ) : null}
-          <div className="flex justify-end pb-4"><CollapseToggle placement="bottom" collapsed={aiCollapsed} onToggle={() => setAiCollapsed(true)} showLabel="Show AI analysis" /></div>
+          <div className="flex justify-center pb-2">
+            <CollapseToggle
+              placement="bottom"
+              collapsed={aiCollapsed}
+              onToggle={() => setAiCollapsed(true)}
+              showLabel="Show AI analysis"
+            />
+          </div>
         </>
       )}
 

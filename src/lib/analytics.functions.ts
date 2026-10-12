@@ -733,3 +733,14 @@ export const reactionSourceFile = createServerFn({ method: "POST" })
     const { sourceVideoFile } = await import("@/server/reaction-pipeline");
     return sourceVideoFile(data);
   });
+
+/** Read an existing script without generating or charging for a new one. */
+export const getScriptForSource = createServerFn({ method: "GET" })
+  .middleware([requireStaff])
+  .validator((input: unknown) =>
+    z.object({ platform: platformSchema, sourceId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { readIdeaForSource } = await import("@/server/store");
+    return readIdeaForSource(data.platform, data.sourceId);
+  });

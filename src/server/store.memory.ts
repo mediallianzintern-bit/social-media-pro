@@ -617,3 +617,11 @@ export async function setChosenHook(): Promise<boolean> {
 export async function readChosenHooks(): Promise<Map<string, string>> {
   return new Map();
 }
+
+/** Memory previews have no durable suggestion history. */
+export async function readIdeaForSource(
+  _platform: PlatformId,
+  _sourceId: string,
+): Promise<ContentIdea | null> {
+  return null;
+}

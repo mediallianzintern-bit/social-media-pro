@@ -23,6 +23,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   analysisQueryOptions,
   generateOneIdea,
+  getScriptForSource,
   refreshTopics,
   topicInboxQueryOptions,
 } from "@/lib/analytics.functions";
@@ -78,11 +79,18 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
     },
   });
 
-  // Stories that already have a script, by the story's id. Read from the
-  // cached analysis rather than asking the server again: finalizeIdeas()
-  // attaches the real source row to the idea, so idea.source.sourceId is the
-  // same id this list is keyed on. A story written before the current cached
-  // batch simply has no entry, and shows "Already an idea" without a button.
+  const [scriptMessage, setScriptMessage] = useState<string | null>(null);
+  const openSavedScript = useMutation({
+    mutationFn: (sourceId: string) => getScriptForSource({ data: { platform, sourceId } }),
+    onMutate: () => setScriptMessage(null),
+    onSuccess: (idea) => {
+      if (idea) setViewing(idea);
+      else
+        setScriptMessage("This topic was marked as an idea, but its saved script is unavailable.");
+    },
+    onError: () => setScriptMessage("Could not load the saved script. Please try again."),
+  });
+
   const { data: analysis } = useQuery(analysisQueryOptions(platform));
   const ideaForSource = useMemo(() => {
     const map = new Map<string, ContentIdea>();
@@ -101,7 +109,7 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
     [items],
   );
   const filtered = lane ? items.filter((item) => item.lane === lane) : items;
-  const visible = expanded ? filtered : filtered.slice(0, PAGE);
+  const visible = collapsed ? filtered.slice(0, 3) : expanded ? filtered : filtered.slice(0, PAGE);
   const trending = items.filter((item) => item.coverage >= TRENDING_COVERAGE).length;
 
   const noun = platform === "instagram" ? "reel" : "post";
@@ -121,10 +129,10 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
       />
       {/* What the team's votes have taught — directly under the heading of the
           first list those votes reorder, so the cause sits beside the effect. */}
-      {collapsed ? null : (
+      {
         <>
-          <TasteSummary platform={platform} />
-          <TopicVoteActivity platform={platform} />
+          {!collapsed && <TasteSummary platform={platform} />}
+          {!collapsed && <TopicVoteActivity platform={platform} />}
           <Card>
             <CardContent className="space-y-4 p-5">
               <div className="flex flex-wrap items-center gap-3">
@@ -260,17 +268,25 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                                   ? `Written — first under "Next ${noun}"`
                                   : "Already an idea"}
                               </span>
-                              {writtenIdea ? (
+                              {
                                 <Button
                                   size="sm"
                                   variant="outline"
                                   className="gap-1.5"
-                                  onClick={() => setViewing(writtenIdea)}
+                                  disabled={openSavedScript.isPending}
+                                  onClick={() => {
+                                    setScriptMessage(null);
+                                    if (writtenIdea) setViewing(writtenIdea);
+                                    else openSavedScript.mutate(item.id);
+                                  }}
                                 >
                                   <FileText className="size-3.5" aria-hidden />
-                                  View script
+                                  {openSavedScript.isPending &&
+                                  openSavedScript.variables === item.id
+                                    ? "Loading…"
+                                    : "View script"}
                                 </Button>
-                              ) : null}
+                              }
                             </span>
                           ) : (
                             <Button
@@ -302,13 +318,20 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                 </p>
               ) : null}
 
-              {filtered.length > PAGE ? (
-                <Button variant="ghost" size="sm" onClick={() => setExpanded((value) => !value)}>
+              {!collapsed && filtered.length > PAGE ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setCollapsed(false);
+                    setExpanded((value) => !value);
+                  }}
+                >
                   {expanded ? "Show fewer" : `Show all ${filtered.length}`}
                 </Button>
               ) : null}
 
-              {data?.hidden?.length ? (
+              {!collapsed && data?.hidden?.length ? (
                 <details className="rounded-md border px-3 py-2 text-xs">
                   <summary className="cursor-pointer text-muted-foreground">
                     {data.hidden.length} stor{data.hidden.length === 1 ? "y" : "ies"} hidden by your
@@ -332,6 +355,11 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                 </details>
               ) : null}
 
+              {scriptMessage && (
+                <p role="status" className="text-sm text-muted-foreground">
+                  {scriptMessage}
+                </p>
+              )}
               {write.data && !write.data.idea ? (
                 <p className="text-xs text-destructive">{write.data.reason}</p>
               ) : null}
@@ -353,11 +381,18 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                 nothing. The first refresh on an account with no content lanes yet also derives
                 them, which is two AI calls, once.
               </p>
-              <div className="flex justify-end pt-4"><CollapseToggle placement="bottom" collapsed={collapsed} onToggle={() => setCollapsed(true)} showLabel={`Show${items.length ? ` ${items.length} stories` : ""}`} /></div>
+              <div className="flex justify-center pt-2">
+                <CollapseToggle
+                  placement="bottom"
+                  collapsed={collapsed}
+                  onToggle={() => setCollapsed((value) => !value)}
+                  showLabel={`Show${items.length ? ` ${items.length} stories` : ""}`}
+                />
+              </div>
             </CardContent>
           </Card>
         </>
-      )}
+      }
 
       {viewing ? (
         <IdeaScriptDialog
