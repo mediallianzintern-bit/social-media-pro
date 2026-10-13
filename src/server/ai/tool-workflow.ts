@@ -1,11 +1,23 @@
 import type { PlatformId } from "@/lib/analytics-types";
 import type { ContentIdea } from "@/lib/ai-types";
+import { isAiToolWorkflowLane } from "../../lib/tool-workflow.ts";
+export { isAiToolWorkflowLane } from "../../lib/tool-workflow.ts";
 
-/** Deliberately narrow: frontier AI news and marketing lanes keep their own style. */
-export function isAiToolWorkflowLane(lane: string | null | undefined): boolean {
-  return /^ai tools? workflows?$/.test(
-    (lane ?? "").trim().toLowerCase().replace(/[-_]/g, " ").replace(/\s+/g, " "),
-  );
+/** Explicit regeneration is the only exception to the writer's no-repeat rule. */
+export function workflowRegenerationPrompt(
+  platform: PlatformId,
+  lane: string | undefined,
+  sourceId: string | undefined,
+): string {
+  if (platform !== "instagram" || !isAiToolWorkflowLane(lane) || !sourceId) return "";
+  return `EXPLICIT SCRIPT REGENERATION: the user selected this existing topic again.
+Write exactly one new AI tool workflow reel for sourceId=${JSON.stringify(sourceId)} using the
+current workflow instructions. This is an intentional revision, not a new topic suggestion.
+For this source only, the ALREADY SUGGESTED, ALREADY PUBLISHED, calendar and covered-subject
+no-repeat instructions do not prohibit the rewrite. Do not switch to another story.
+All factual-source limits, voice rules, workflow requirements and measured feedback blocks still
+apply. Do not reuse unsupported claims from an earlier script. Do not say the revised script was
+filmed, published, tested or approved just because the topic appeared before.`;
 }
 
 /** A clicked workflow topic must not drift into the generic AI news lane. */

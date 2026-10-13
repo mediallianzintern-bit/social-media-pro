@@ -10,7 +10,12 @@
 // wrong number in a client dashboard is worse than no number.
 import { completeJson } from "./client";
 import { voiceFor } from "./voice";
-import { isAiToolWorkflowLane, toolWorkflowIssues, toolWorkflowPrompt } from "./tool-workflow";
+import {
+  isAiToolWorkflowLane,
+  toolWorkflowIssues,
+  toolWorkflowPrompt,
+  workflowRegenerationPrompt,
+} from "./tool-workflow";
 import { costOf, type GenerationCost } from "@/lib/ai-cost";
 import { laneShapesBlock } from "@/lib/script-families";
 import { coveredCampaignsBlock } from "@/lib/covered-campaigns";
@@ -590,6 +595,7 @@ export function buildIdeaRequest(
   sources: SourceItem[] = [],
   /** Restrict every idea to this one lane — the per-lane buttons. */
   onlyLane?: string | undefined,
+  regenerate = false,
 ): IdeaRequest {
   const {
     analyst = null,
@@ -650,6 +656,10 @@ export function buildIdeaRequest(
   const workflow = toolWorkflowPrompt(platform, allowedLanes);
   const workflowOnly =
     platform === "instagram" && allowedLanes.length === 1 && isAiToolWorkflowLane(allowedLanes[0]);
+  const regeneration =
+    regenerate && workflowOnly && sources.length === 1
+      ? workflowRegenerationPrompt(platform, onlyLane, sources[0]?.id)
+      : "";
 
   const system = `You are a content strategist writing production-ready ${
     written ? "LinkedIn posts" : `${platform} scripts`
@@ -1094,8 +1104,8 @@ above or to a gap named in the competitive read, and whyNow must say which.${
   }`;
 
   return {
-    system,
-    user,
+    system: regeneration ? `${system}\n\n${regeneration}` : system,
+    user: regeneration ? `${user}\n\n${regeneration}` : user,
     schema: ideasSchemaFor({
       platform,
       sourceIds: sources.map((source) => source.id),
@@ -1234,6 +1244,7 @@ export async function generateIdeas(
   sources: SourceItem[] = [],
   /** Restrict every idea to this one lane — the per-lane buttons. */
   onlyLane?: string | undefined,
+  regenerate = false,
 ): Promise<{
   ideas: ContentIdea[];
   model: string;
@@ -1241,7 +1252,16 @@ export async function generateIdeas(
   /** What this call cost, from OpenAI's own usage figures. */
   cost?: GenerationCost | undefined;
 }> {
-  const request = buildIdeaRequest(platform, owner, rivals, reads, count, sources, onlyLane);
+  const request = buildIdeaRequest(
+    platform,
+    owner,
+    rivals,
+    reads,
+    count,
+    sources,
+    onlyLane,
+    regenerate,
+  );
 
   const result = await completeJson<unknown>({
     system: request.system,

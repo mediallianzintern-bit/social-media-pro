@@ -31,6 +31,7 @@ import { dateTime } from "@/lib/format";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import { ageDays, TRENDING_COVERAGE } from "@/lib/sources";
 import { cn } from "@/lib/utils";
+import { isAiToolWorkflowLane } from "@/lib/tool-workflow";
 import type { PlatformId } from "@/lib/analytics-types";
 import type { ContentIdea } from "@/lib/ai-types";
 
@@ -43,7 +44,7 @@ const PAGE = 8;
  *
  * Nothing in this list is generated. Every row is an article that existed when
  * it was fetched, with its outlet and date, and the headline links to it. The
- * one action that spends anything — "Write script" — is a button per story, so
+ * writing and regenerating are explicit buttons per story, so
  * a model call only ever happens because someone chose that story.
  *
  * Client-side query, like the rest of the AI layer: the inbox is not part of
@@ -69,12 +70,17 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
   });
 
   const write = useMutation({
-    mutationFn: (sourceId: string) => generateOneIdea({ data: { platform, sourceId } }),
-    onSuccess: (result, sourceId) => {
+    mutationFn: (selection: { sourceId: string; regenerate?: boolean }) =>
+      generateOneIdea({ data: { platform, ...selection } }),
+    onMutate: () => setScriptMessage(null),
+    onSuccess: (result, selection) => {
       if (result.analysis) {
         queryClient.setQueryData(analysisQueryOptions(platform).queryKey, result.analysis);
       }
-      if (result.idea) setWrittenFor(sourceId);
+      if (result.idea) {
+        setWrittenFor(selection.sourceId);
+        if (selection.regenerate) setViewing(result.idea);
+      }
       void queryClient.invalidateQueries({ queryKey: topicInboxQueryOptions(platform).queryKey });
     },
   });
@@ -201,7 +207,7 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                 <ul className="divide-y">
                   {visible.map((item) => {
                     const age = ageDays(item.publishedAt);
-                    const pending = write.isPending && write.variables === item.id;
+                    const pending = write.isPending && write.variables?.sourceId === item.id;
                     const justWritten = writtenFor === item.id;
                     return (
                       <li
@@ -248,7 +254,7 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                             ) : null}
                           </p>
                         </div>
-                        <div className="flex shrink-0 items-center gap-2 pl-5 sm:pl-0">
+                        <div className="flex shrink-0 flex-wrap items-center gap-2 pl-5 sm:max-w-[28rem] sm:justify-end sm:pl-0">
                           <VoteButtons
                             platform={platform}
                             kind="source"
@@ -261,7 +267,7 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                             // script it refers to is now one click away — both
                             // after writing just now and for a story written
                             // earlier, which is the same thing to the reader.
-                            <span className="inline-flex items-center gap-2">
+                            <span className="inline-flex flex-wrap items-center gap-2">
                               <span className="inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400">
                                 <Check className="size-3.5" aria-hidden />
                                 {justWritten
@@ -273,7 +279,7 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                                   size="sm"
                                   variant="outline"
                                   className="gap-1.5"
-                                  disabled={openSavedScript.isPending}
+                                  disabled={openSavedScript.isPending || write.isPending}
                                   onClick={() => {
                                     setScriptMessage(null);
                                     openSavedScript.mutate(item.id);
@@ -286,14 +292,32 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                                     : "View script"}
                                 </Button>
                               }
+                              {platform === "instagram" && isAiToolWorkflowLane(item.lane) ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="gap-1.5"
+                                  disabled={write.isPending || openSavedScript.isPending}
+                                  onClick={() =>
+                                    write.mutate({ sourceId: item.id, regenerate: true })
+                                  }
+                                  title="Uses one AI call to write a new version with the current workflow rules"
+                                >
+                                  <RefreshCw
+                                    className={cn("size-3.5", pending && "animate-spin")}
+                                    aria-hidden
+                                  />
+                                  {pending ? "Regenerating…" : "Regenerate script"}
+                                </Button>
+                              ) : null}
                             </span>
                           ) : (
                             <Button
                               variant="outline"
                               size="sm"
                               className="gap-1.5"
-                              disabled={write.isPending}
-                              onClick={() => write.mutate(item.id)}
+                              disabled={write.isPending || openSavedScript.isPending}
+                              onClick={() => write.mutate({ sourceId: item.id })}
                               title="Uses one AI call"
                             >
                               {pending ? (
@@ -375,10 +399,10 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
               none, which is model work — so the claim is qualified rather than
               quietly made false. */}
               <p className="text-[11px] text-muted-foreground">
-                &ldquo;Write script&rdquo; uses one AI call and builds a {noun} on that story in
-                this account&rsquo;s proven structure. Refreshing is free — the news search costs
-                nothing. The first refresh on an account with no content lanes yet also derives
-                them, which is two AI calls, once.
+                Writing or regenerating a script uses one AI call. Regeneration writes a new version
+                using the current rules and keeps the previous version in history. Refreshing is
+                free — the news search costs nothing. The first refresh on an account with no
+                content lanes yet also derives them, which is two AI calls, once.
               </p>
               <div className="flex justify-center pt-2">
                 <CollapseToggle

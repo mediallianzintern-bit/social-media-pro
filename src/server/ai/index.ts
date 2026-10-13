@@ -530,7 +530,7 @@ export interface MoreResult {
  */
 export async function generateMore(
   platform: PlatformId,
-  options: { sourceId?: string; fresh?: boolean; lane?: string } = {},
+  options: { sourceId?: string; fresh?: boolean; lane?: string; regenerate?: boolean } = {},
 ): Promise<MoreResult> {
   if (!hasOpenAi()) {
     return { analysis: null, idea: null, reason: "OPENAI_API_KEY is not set." };
@@ -570,6 +570,13 @@ export async function generateMore(
       )
     : undefined;
   const requestedLane = workflowLane ?? options.lane;
+  if (options.regenerate && (!options.sourceId || !workflowLane || options.fresh)) {
+    return {
+      analysis: cached,
+      idea: null,
+      reason: "Select an AI tool workflow topic to regenerate its script.",
+    };
+  }
   if (
     workflowLane &&
     ownerBrief.pastSuggestions?.blocked.some(
@@ -597,6 +604,7 @@ export async function generateMore(
     options.fresh ? 3 : 1,
     sources,
     requestedLane,
+    options.regenerate,
   );
 
   const niche = await currentNiche(platform).catch(() => platform);
@@ -618,7 +626,17 @@ export async function generateMore(
       competitors: null,
       ideas: [],
     }),
-    ideas: options.fresh ? ideas : [...ideas, ...(cached?.ideas ?? [])],
+    // Keep older versions in durable history, but show only the new version
+    // of this source in the current idea list after a successful rewrite.
+    ideas: options.fresh
+      ? ideas
+      : [
+          ...ideas,
+          ...(cached?.ideas ?? []).filter(
+            (existing) =>
+              !(options.regenerate && idea && existing.source?.sourceId === options.sourceId),
+          ),
+        ],
     ...(result.cost ? { cost: result.cost } : {}),
     // A refresh is a new set, so it carries its own timestamp; adding one idea
     // to an existing set does not make the set new.

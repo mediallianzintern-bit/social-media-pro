@@ -6,9 +6,21 @@ import {
   workflowLaneForSource,
   toolWorkflowPrompt,
   toolWorkflowIssues,
+  workflowRegenerationPrompt,
 } from "../src/server/ai/tool-workflow.ts";
 import { ideasSchemaFor } from "../src/server/ai/schemas.ts";
 import { shapeFor } from "../src/lib/script-families.ts";
+
+test("explicit workflow regeneration permits only the selected topic to repeat", () => {
+  const prompt = workflowRegenerationPrompt("instagram", "AI tool workflows", "source-1");
+  assert.match(prompt, /sourceId="source-1"/);
+  assert.match(prompt, /Write exactly one/);
+  assert.match(prompt, /Do not switch to another story/);
+  assert.match(prompt, /measured feedback blocks still/);
+  assert.equal(workflowRegenerationPrompt("instagram", "Frontier AI developments", "source-1"), "");
+  assert.equal(workflowRegenerationPrompt("linkedin", "AI tool workflows", "source-1"), "");
+  assert.equal(workflowRegenerationPrompt("instagram", "AI tool workflows", undefined), "");
+});
 
 test("workflow aliases match without changing other AI or marketing lanes", () => {
   for (const lane of [

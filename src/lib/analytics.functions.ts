@@ -354,8 +354,12 @@ export const generateOneIdea = createServerFn({ method: "POST" })
       .object({
         platform: platformSchema,
         sourceId: z.string().uuid().optional(),
+        regenerate: z.boolean().optional(),
         /** Confine the idea to one content lane — the per-lane buttons. */
         lane: z.string().min(1).max(120).optional(),
+      })
+      .refine((value) => !value.regenerate || Boolean(value.sourceId), {
+        message: "Choose a topic to regenerate its script.",
       })
       .parse(input),
   )
@@ -363,6 +367,7 @@ export const generateOneIdea = createServerFn({ method: "POST" })
     const { generateMore } = await import("@/server/ai/index");
     return generateMore(data.platform, {
       ...(data.sourceId ? { sourceId: data.sourceId } : {}),
+      ...(data.regenerate ? { regenerate: true } : {}),
       ...(data.lane ? { lane: data.lane } : {}),
     });
   });
