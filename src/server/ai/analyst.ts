@@ -10,6 +10,7 @@
 // wrong number in a client dashboard is worse than no number.
 import { completeJson } from "./client";
 import { voiceFor } from "./voice";
+import { isAiToolWorkflowLane, toolWorkflowPrompt } from "./tool-workflow";
 import { costOf, type GenerationCost } from "@/lib/ai-cost";
 import { laneShapesBlock } from "@/lib/script-families";
 import { coveredCampaignsBlock } from "@/lib/covered-campaigns";
@@ -616,7 +617,11 @@ export function buildIdeaRequest(
   // reads the name first anyway, so passing a definition would not change
   // these answers.
   const laneShapes = voice
-    ? laneShapesBlock((owner.lanes ?? []).map((lane) => ({ name: lane.lane, definition: "" })))
+    ? laneShapesBlock(
+        (owner.lanes ?? [])
+          .filter((lane) => !isAiToolWorkflowLane(lane.lane))
+          .map((lane) => ({ name: lane.lane, definition: "" })),
+      )
     : "";
   const covered = voice ? coveredCampaignsBlock() : "";
   const blocked = owner.pastSuggestions?.blocked ?? [];
@@ -635,6 +640,16 @@ export function buildIdeaRequest(
   // to. Ignored when the loop has blocked that lane: a block is a measured
   // result and a button should not quietly override it.
   if (onlyLane && allowedLanes.includes(onlyLane)) allowedLanes = [onlyLane];
+  // The clicked topic can carry this lane even before taxonomy has caught up.
+  if (
+    platform === "instagram" &&
+    isAiToolWorkflowLane(onlyLane) &&
+    !blockedLanes.has(onlyLane!.trim().toLowerCase())
+  )
+    allowedLanes = [onlyLane!];
+  const workflow = toolWorkflowPrompt(platform, allowedLanes);
+  const workflowOnly =
+    platform === "instagram" && allowedLanes.length === 1 && isAiToolWorkflowLane(allowedLanes[0]);
 
   const system = `You are a content strategist writing production-ready ${
     written ? "LinkedIn posts" : `${platform} scripts`
@@ -642,7 +657,7 @@ export function buildIdeaRequest(
 creator, based on their own measured performance.
 
 ${groundRules(Boolean(owner.owned))}
-${voice ? `\n${voice}\n` : ""}${laneShapes ? `\n${laneShapes}\n` : ""}${covered ? `\n${covered}\n` : ""}
+${voice ? `\n${voice}\n` : ""}${laneShapes ? `\n${laneShapes}\n` : ""}${covered ? `\n${covered}\n` : ""}${workflow ? `\n${workflow}\n` : ""}
 Additional requirements:
 - EVERY IDEA MUST HAVE A CONCRETE SUBJECT. Name the specific brand, campaign, product, tool,
   person or event the reel covers, in the title and again in the angle. A reader who sees only
@@ -666,7 +681,7 @@ ${
   default: most LinkedIn reach goes to plain posts. Use an article only for a story with enough
   substance for 600+ words of real analysis, and a document only when the idea is naturally a
   sequence of steps or frames someone would swipe through and save.`
-    : `- Choose the format (reel or carousel) based on which performs better in the data. Only mention
+    : `- For AI tool workflows use a reel demo as specified above. For other lanes, choose the format (reel or carousel) based on which performs better in the data. Only mention
   the format choice in whyNow if the account actually publishes both and one measurably wins.
   Where every post is one format, saying so is filler — spend the words on something else.`
 }
@@ -1085,6 +1100,7 @@ above or to a gap named in the competitive read, and whyNow must say which.${
       platform,
       sourceIds: sources.map((source) => source.id),
       lanes: allowedLanes,
+      reelOnly: workflowOnly,
     }),
     blocked,
     written,

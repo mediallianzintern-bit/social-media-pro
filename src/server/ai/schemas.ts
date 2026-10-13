@@ -223,6 +223,8 @@ export function ideasSchemaFor(options: {
   sourceIds: string[];
   /** Allowed lanes. Empty means the account has no lane list yet. */
   lanes: string[];
+  /** A dedicated workflow tutorial is a filmed reel, even when it creates a carousel. */
+  reelOnly?: boolean;
 }): Record<string, unknown> {
   const written = options.platform === "linkedin";
   const sourceIds = options.sourceIds.length ? options.sourceIds : ["none"];
@@ -249,7 +251,11 @@ export function ideasSchemaFor(options: {
       id: { type: "string", description: "kebab-case slug" },
       format: {
         type: "string",
-        enum: written ? ["text_post", "article", "document"] : ["reel", "carousel"],
+        enum: written
+          ? ["text_post", "article", "document"]
+          : options.reelOnly
+            ? ["reel"]
+            : ["reel", "carousel"],
       },
       title: {
         type: "string",

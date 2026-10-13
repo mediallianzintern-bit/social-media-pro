@@ -14,6 +14,7 @@ import {
 import { questionFeedActor, trendFeedActor, trendFeedInAnalysis } from "./feeds";
 import { currentNiche, recordPredictions } from "../predict";
 import { hasOpenAi, openAiKeyIsPlaceholder } from "./client";
+import { workflowLaneForSource } from "./tool-workflow";
 import { discoverCompetitors, type DiscoveryResult } from "./discover";
 import { classifyPosts, ensureLanes } from "./lanes";
 import { nicheLanes, suggestionFeedback } from "./feedback";
@@ -561,6 +562,29 @@ export async function generateMore(
     briefsFor(platform),
   ]);
 
+  const workflowLane = options.sourceId
+    ? workflowLaneForSource(
+        platform,
+        sources[0]?.lane,
+        (ownerBrief.lanes ?? []).map((lane) => lane.lane),
+      )
+    : undefined;
+  const requestedLane = workflowLane ?? options.lane;
+  if (
+    workflowLane &&
+    ownerBrief.pastSuggestions?.blocked.some(
+      (entry) =>
+        entry.kind === "lane" &&
+        entry.value.trim().toLowerCase() === workflowLane.trim().toLowerCase(),
+    )
+  ) {
+    return {
+      analysis: cached,
+      idea: null,
+      reason: "This workflow lane is currently blocked by measured feedback.",
+    };
+  }
+
   const result = await generateIdeas(
     platform,
     ownerBrief,
@@ -572,7 +596,7 @@ export async function generateMore(
     },
     options.fresh ? 3 : 1,
     sources,
-    options.lane,
+    requestedLane,
   );
 
   const niche = await currentNiche(platform).catch(() => platform);
