@@ -264,28 +264,43 @@ export function AiIdeaCards({
   platform,
   generatedAt,
   model,
+  initialOpenId,
+  panelOnly = false,
+  onClose,
 }: {
   ideas: ContentIdea[];
   platform: PlatformId;
   /** When this batch was produced — part of the provenance trail. */
   generatedAt?: string;
   model?: string;
+  /** Reuse the identical script drawer from another entry point. */
+  initialOpenId?: string;
+  panelOnly?: boolean;
+  onClose?: () => void;
 }) {
   // Holds the id, not the idea object: the object is a snapshot from `ideas`,
   // and once a mutation below patches that array in the query cache, looking
   // the current idea up by id (rather than keeping the stale snapshot) is what
   // makes the drawer show "filmed" the moment it lands, without a page reload.
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(initialOpenId ?? null);
   const [copied, setCopied] = useState(false);
   const [linking, setLinking] = useState(false);
   const [permalink, setPermalink] = useState("");
   const accent = PLATFORM_META[platform].color;
   const queryClient = useQueryClient();
 
-  const open = ideas.find((idea) => idea.id === openId) ?? null;
+  // Archived scripts are outside the current analysis cache. Keep their
+  // successful edits and any explicitly requested next idea visible here too.
+  const [panelIdeas, setPanelIdeas] = useState<ContentIdea[]>(ideas);
+  const displayedIdeas = panelOnly ? panelIdeas : ideas;
+  const open = displayedIdeas.find((idea) => idea.id === openId) ?? null;
 
   /** Patches one idea's status in the cached analysis, in place. */
   function patchIdea(ideaId: string, patch: Partial<ContentIdea>) {
+    if (panelOnly)
+      setPanelIdeas((current) =>
+        current.map((idea) => (idea.id === ideaId ? { ...idea, ...patch } : idea)),
+      );
     queryClient.setQueryData(
       analysisQueryOptions(platform).queryKey,
       (prev: AiAnalysis | null | undefined) =>
@@ -321,7 +336,10 @@ export function AiIdeaCards({
         queryClient.setQueryData(analysisQueryOptions(platform).queryKey, result.analysis);
       }
       void queryClient.invalidateQueries({ queryKey: topicInboxQueryOptions(platform).queryKey });
-      if (result.idea) setOpenId(result.idea.id);
+      if (result.idea) {
+        if (panelOnly) setPanelIdeas((current) => [result.idea!, ...current]);
+        setOpenId(result.idea.id);
+      }
     },
   });
 
@@ -334,83 +352,94 @@ export function AiIdeaCards({
 
   return (
     <>
-      <div className="grid gap-4 lg:grid-cols-3">
-        {ideas.map((idea, index) => (
-          <button
-            key={idea.id || index}
-            type="button"
-            onClick={() => setOpenId(idea.id)}
-            className="group rounded-xl border bg-card text-left text-card-foreground shadow transition-all hover:-translate-y-0.5 hover:border-foreground/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          >
-            <CardContent className="relative p-5">
-              <span className="absolute right-5 top-5 flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-bold">
-                <Sparkles className="size-2.5" style={{ color: accent }} aria-hidden />
-                {idea.reaction ? "Reaction hook" : (FORMAT_LABEL[idea.format] ?? idea.format)}
-              </span>
-              {/* The reasoning grew from a one-line kicker into a full paragraph
+      {!panelOnly && (
+        <div className="grid gap-4 lg:grid-cols-3">
+          {ideas.map((idea, index) => (
+            <button
+              key={idea.id || index}
+              type="button"
+              onClick={() => setOpenId(idea.id)}
+              className="group rounded-xl border bg-card text-left text-card-foreground shadow transition-all hover:-translate-y-0.5 hover:border-foreground/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <CardContent className="relative p-5">
+                <span className="absolute right-5 top-5 flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-bold">
+                  <Sparkles className="size-2.5" style={{ color: accent }} aria-hidden />
+                  {idea.reaction ? "Reaction hook" : (FORMAT_LABEL[idea.format] ?? idea.format)}
+                </span>
+                {/* The reasoning grew from a one-line kicker into a full paragraph
                   once the model was given reach, saves and the weak-post contrast
                   to cite. Uppercase and unclamped, it swamped the card and buried
                   the title; the whole text still reads properly in the drawer. */}
-              <p className="pr-24 text-[11px] leading-relaxed text-muted-foreground line-clamp-3">
-                {idea.whyNow}
-              </p>
-              <span className="mt-2.5 flex items-center gap-2">
-                <h3 className="text-base font-bold leading-snug tracking-tight">{idea.title}</h3>
-                {idea.status && idea.status !== "suggested" ? (
-                  <span
-                    className={cn(
-                      "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
-                      idea.status === "used"
-                        ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                        : "bg-muted text-muted-foreground",
-                    )}
-                  >
-                    {idea.status === "used" ? "Filmed" : "Dismissed"}
-                  </span>
-                ) : null}
-              </span>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{idea.angle}</p>
-
-              {idea.source ? (
-                <p className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <Newspaper className="size-3 shrink-0" aria-hidden />
-                  {idea.source.verified ? (
-                    <span className="truncate">
-                      {idea.source.publisher ?? "News source"}
-                      {idea.source.publishedAt ? ` · ${dateTime(idea.source.publishedAt)}` : ""}
-                    </span>
-                  ) : (
-                    <span className="text-amber-700 dark:text-amber-400">Unverified source</span>
-                  )}
+                <p className="pr-24 text-[11px] leading-relaxed text-muted-foreground line-clamp-3">
+                  {idea.whyNow}
                 </p>
-              ) : null}
+                <span className="mt-2.5 flex items-center gap-2">
+                  <h3 className="text-base font-bold leading-snug tracking-tight">{idea.title}</h3>
+                  {idea.status && idea.status !== "suggested" ? (
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
+                        idea.status === "used"
+                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                          : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {idea.status === "used" ? "Filmed" : "Dismissed"}
+                    </span>
+                  ) : null}
+                </span>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{idea.angle}</p>
 
-              {idea.prediction ? <ExpectationNote prediction={idea.prediction} /> : null}
+                {idea.source ? (
+                  <p className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <Newspaper className="size-3 shrink-0" aria-hidden />
+                    {idea.source.verified ? (
+                      <span className="truncate">
+                        {idea.source.publisher ?? "News source"}
+                        {idea.source.publishedAt ? ` · ${dateTime(idea.source.publishedAt)}` : ""}
+                      </span>
+                    ) : (
+                      <span className="text-amber-700 dark:text-amber-400">Unverified source</span>
+                    )}
+                  </p>
+                ) : null}
 
-              <span className="mt-3 flex items-center justify-between gap-2 text-xs">
-                {/* Styled as a button but rendered as a span on purpose: the
+                {idea.prediction ? <ExpectationNote prediction={idea.prediction} /> : null}
+
+                <span className="mt-3 flex items-center justify-between gap-2 text-xs">
+                  {/* Styled as a button but rendered as a span on purpose: the
                     whole card is already a <button>, and nesting one inside
                     another is invalid HTML. The card's own click opens the
                     drawer, so this is the affordance, not a second control. */}
-                <span
-                  className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-semibold transition-colors group-hover:border-foreground/25 group-hover:bg-muted"
-                  style={{ color: accent }}
-                >
-                  <FileText className="size-3.5" aria-hidden />
-                  View script
+                  <span
+                    className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-semibold transition-colors group-hover:border-foreground/25 group-hover:bg-muted"
+                    style={{ color: accent }}
+                  >
+                    <FileText className="size-3.5" aria-hidden />
+                    View script
+                  </span>
+                  <ArrowRight
+                    className="size-3.5 transition-transform group-hover:translate-x-0.5"
+                    style={{ color: accent }}
+                    aria-hidden
+                  />
                 </span>
-                <ArrowRight
-                  className="size-3.5 transition-transform group-hover:translate-x-0.5"
-                  style={{ color: accent }}
-                  aria-hidden
-                />
-              </span>
-            </CardContent>
-          </button>
-        ))}
-      </div>
+              </CardContent>
+            </button>
+          ))}
+        </div>
+      )}
 
-      <Sheet open={open !== null} onOpenChange={(next) => !next && setOpenId(null)}>
+      <Sheet
+        open={open !== null}
+        onOpenChange={(next) => {
+          if (!next) {
+            setOpenId(null);
+            setLinking(false);
+            onClose?.();
+          }
+        }}
+      >
         <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
           {open ? (
             <>

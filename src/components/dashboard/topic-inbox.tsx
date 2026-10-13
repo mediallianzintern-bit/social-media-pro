@@ -12,7 +12,7 @@ import {
 import { useMemo, useState } from "react";
 
 import { CollapseToggle } from "@/components/dashboard/collapse-toggle";
-import { IdeaScriptDialog } from "@/components/dashboard/idea-script-dialog";
+import { AiIdeaCards } from "@/components/dashboard/ai-idea-cards";
 import { SectionHeading } from "@/components/dashboard/section-heading";
 import { Badge } from "@/components/ui/badge";
 import { TopicVoteActivity } from "@/components/dashboard/topic-vote-activity";
@@ -83,8 +83,9 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
   const openSavedScript = useMutation({
     mutationFn: (sourceId: string) => getScriptForSource({ data: { platform, sourceId } }),
     onMutate: () => setScriptMessage(null),
-    onSuccess: (idea) => {
-      if (idea) setViewing(idea);
+    onSuccess: (idea, sourceId) => {
+      const saved = idea ?? ideaForSource.get(sourceId);
+      if (saved) setViewing(saved);
       else
         setScriptMessage("This topic was marked as an idea, but its saved script is unavailable.");
     },
@@ -202,7 +203,6 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                     const age = ageDays(item.publishedAt);
                     const pending = write.isPending && write.variables === item.id;
                     const justWritten = writtenFor === item.id;
-                    const writtenIdea = ideaForSource.get(item.id) ?? null;
                     return (
                       <li
                         key={item.id}
@@ -276,8 +276,7 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                                   disabled={openSavedScript.isPending}
                                   onClick={() => {
                                     setScriptMessage(null);
-                                    if (writtenIdea) setViewing(writtenIdea);
-                                    else openSavedScript.mutate(item.id);
+                                    openSavedScript.mutate(item.id);
                                   }}
                                 >
                                   <FileText className="size-3.5" aria-hidden />
@@ -395,10 +394,13 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
       }
 
       {viewing ? (
-        <IdeaScriptDialog
-          idea={viewing}
-          open={viewing !== null}
-          onOpenChange={(next) => !next && setViewing(null)}
+        <AiIdeaCards
+          key={viewing.id}
+          ideas={[viewing]}
+          platform={platform}
+          initialOpenId={viewing.id}
+          panelOnly
+          onClose={() => setViewing(null)}
         />
       ) : null}
     </>

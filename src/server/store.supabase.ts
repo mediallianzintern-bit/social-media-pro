@@ -2371,7 +2371,7 @@ export async function readIdeaForSource(
 ): Promise<ContentIdea | null> {
   const { data, error } = await db()
     .from("suggested_ideas")
-    .select("id,payload,chosen_hook")
+    .select("id,payload,chosen_hook,status,published_shortcode")
     .eq("platform", platform)
     .eq("source_item_id", sourceId)
     .not("payload", "is", null)
@@ -2383,6 +2383,8 @@ export async function readIdeaForSource(
   return {
     ...data.payload,
     id: data.id,
-    ...(data.chosen_hook ? { chosenHook: data.chosen_hook } : {}),
+    status: data.status === "measured" ? "used" : data.status,
+    publishedShortcode: data.published_shortcode ?? undefined,
+    chosenHook: data.chosen_hook ?? undefined,
   } as ContentIdea;
 }
