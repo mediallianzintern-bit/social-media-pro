@@ -1,4 +1,5 @@
 import type { PlatformId } from "@/lib/analytics-types";
+import type { ContentIdea } from "@/lib/ai-types";
 
 /** Deliberately narrow: frontier AI news and marketing lanes keep their own style. */
 export function isAiToolWorkflowLane(lane: string | null | undefined): boolean {
@@ -15,6 +16,43 @@ export function workflowLaneForSource(
 ): string | undefined {
   if (platform !== "instagram" || !isAiToolWorkflowLane(sourceLane)) return undefined;
   return accountLanes.find(isAiToolWorkflowLane) ?? sourceLane!.trim();
+}
+
+/** Structural checks only: passing these does NOT verify a tool's capabilities. */
+export function toolWorkflowIssues(platform: PlatformId, idea: ContentIdea): string[] {
+  if (platform !== "instagram" || !isAiToolWorkflowLane(idea.contentLane)) return [];
+  const issues: string[] = [];
+  if (idea.format !== "reel") issues.push("AI tool workflows need a reel script");
+  const spoken = idea.shots.map((shot) => shot.voiceover).join(" ");
+  const wordCount = spoken.trim().split(/\s+/).filter(Boolean).length;
+  if (wordCount < 110 || wordCount > 135) {
+    issues.push(`the voiceover has ${wordCount} words; it needs 110–135`);
+  }
+  const duration = idea.production?.durationSeconds;
+  if (duration == null || duration < 45 || duration > 60) {
+    issues.push("the production plan needs a 45–60 second duration");
+  }
+  // Count demonstrated instructions, not mentions of actions in an abstract
+  // benefits paragraph. Bracketed actions remain drafts for the team to verify.
+  const steps = idea.shots.filter(
+    (shot) =>
+      /\bscreen[ -]?(?:recording|capture|share)\b/i.test(shot.shotType) &&
+      /(?:^|[.!?:]\s*|\[VERIFY:\s*)(?:(?:first|next|then|now|finally)[,:]?\s+)*(?:open|go to|select|choose|click|tap|upload|enter|type|ask|copy|paste|add|set|pick|generate|download|export|save|review|edit|check|drag)\b/i.test(
+        shot.voiceover,
+      ) &&
+      Boolean(shot.visual.trim()) &&
+      Boolean(shot.onScreenText.trim()),
+  );
+  if (steps.length < 4) {
+    issues.push(
+      "show at least four ordered actions, each in a screen-recording shot with a spoken instruction and step label",
+    );
+  }
+  const ending = idea.shots.at(-1)?.voiceover ?? "";
+  if (!/\bcomment\s+\S+/i.test(ending) || !/\b(?:process|guide)\b/i.test(ending)) {
+    issues.push("end with a comment keyword and an offer to send the process or guide");
+  }
+  return issues;
 }
 
 /** User-supplied past reels establish delivery style, not current product capabilities. */
@@ -58,6 +96,14 @@ Keep the existing 45–60 second / 110–135 spoken-word target, three hook choi
 hashtags and full production handover. All hook options must lead into this same workflow.
 Map each instruction to a screen-recording shot: visible action, matching voiceover and short
 on-screen step label. Include the input/prompt, output reveal and CTA in the shot list.
+Use shotType="Screen recording" for at least four instruction shots, one action per shot.
+Start each instruction's voiceover with an action (optionally First/Next/Then/Now), such as
+"Open..." or "Next, paste...". Before returning, check the actual spoken word count across the
+shots is 110–135 and production.durationSeconds is 45–60. Do not pad with generic benefits.
+An ad-creation headline does NOT mean an entire campaign runs itself. Never turn "builds ads"
+into "runs your campaign", "without lifting a finger", or claims about savings, cost or quality
+unless the source actually supports those claims. "X just launched a tool", generic marketer
+B-roll and "imagine saving time" are a news summary, not a workflow demonstration.
 Only name UI controls, models, integrations, prices, timings and results supported by supplied
 source material or a verified demo. A headline alone is not evidence for a click-by-click tutorial.
 Where details are absent, mark the exact missing action as [VERIFY: ...] for the recording team;

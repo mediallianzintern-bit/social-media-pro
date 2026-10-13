@@ -10,7 +10,7 @@
 // wrong number in a client dashboard is worse than no number.
 import { completeJson } from "./client";
 import { voiceFor } from "./voice";
-import { isAiToolWorkflowLane, toolWorkflowPrompt } from "./tool-workflow";
+import { isAiToolWorkflowLane, toolWorkflowIssues, toolWorkflowPrompt } from "./tool-workflow";
 import { costOf, type GenerationCost } from "@/lib/ai-cost";
 import { laneShapesBlock } from "@/lib/script-families";
 import { coveredCampaignsBlock } from "@/lib/covered-campaigns";
@@ -1117,7 +1117,12 @@ above or to a gap named in the competitive read, and whyNow must say which.${
  */
 export function finalizeIdeas(
   data: unknown,
-  options: { sources: SourceItem[]; blocked: BlockedPattern[]; written: boolean },
+  options: {
+    sources: SourceItem[];
+    blocked: BlockedPattern[];
+    written: boolean;
+    platform: PlatformId;
+  },
 ): { ideas: ContentIdea[]; dropped: string[] } {
   const { sources, blocked, written } = options;
   const parsed = ideaSetSchema.parse(data);
@@ -1203,6 +1208,13 @@ export function finalizeIdeas(
       dropped.push(`"${idea.title}" — ${reason}`);
       continue;
     }
+    const workflowIssues = toolWorkflowIssues(options.platform, idea);
+    if (workflowIssues.length) {
+      dropped.push(
+        `"${idea.title}" — workflow script needs revision: ${workflowIssues.join("; ")}`,
+      );
+      continue;
+    }
     ideas.push(idea);
   }
   return { ideas, dropped };
@@ -1256,8 +1268,9 @@ export async function generateIdeas(
     sources,
     blocked: request.blocked,
     written: request.written,
+    platform,
   });
-  if (dropped.length) console.warn(`[ai:${platform}] dropped blocked idea(s):`, dropped);
+  if (dropped.length) console.warn(`[ai:${platform}] dropped idea(s):`, dropped);
 
   // Persisted append-only, separately from the cached ai_analyses row that
   // regeneration overwrites — this is the feedback loop's memory. The ids

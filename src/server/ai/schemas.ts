@@ -415,7 +415,11 @@ export function ideasSchemaFor(options: {
                 "editorNotes",
               ],
               properties: {
-                durationSeconds: { type: "integer", minimum: 5, maximum: 180 },
+                durationSeconds: {
+                  type: "integer",
+                  minimum: options.reelOnly ? 45 : 5,
+                  maximum: options.reelOnly ? 60 : 180,
+                },
                 aspectRatio: { type: "string", description: 'Usually "9:16".' },
                 coverText: { type: "string", description: "Text for the cover frame." },
                 musicDirection: { type: "string" },
