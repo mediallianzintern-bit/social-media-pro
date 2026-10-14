@@ -9,6 +9,7 @@
 // will happily produce plausible engagement rates that are simply wrong, and a
 // wrong number in a client dashboard is worse than no number.
 import { completeJson } from "./client";
+import { addCosts, reviewDrafts } from "./review";
 import { voiceFor } from "./voice";
 import {
   isAiToolWorkflowLane,
@@ -1280,11 +1281,22 @@ export async function generateIdeas(
     timeoutMs: 420_000,
   });
 
+  // Pritesh's own review-and-rewrite prompt, on a small request to a stronger
+  // model, before anything is checked or saved — see review.ts. Instagram
+  // reels only; any failure keeps the draft as it was.
+  const review = await reviewDrafts(platform, result.data, sources);
+  if (review.reviewed || review.failed) {
+    console.info(
+      `[ai:${platform}] reviewed ${review.reviewed} draft(s), ${review.failed} kept as drafted`,
+    );
+  }
+
   // Reported by OpenAI with the reply. Absent only when it sends no usage
   // block, in which case the panel shows no cost rather than an estimate.
-  const cost = result.usage ? costOf(result.usage, result.model) : undefined;
+  // The review's own cost is added, so the panel shows what the script cost.
+  const cost = addCosts(result.usage ? costOf(result.usage, result.model) : undefined, review.cost);
 
-  const { ideas, dropped } = finalizeIdeas(result.data, {
+  const { ideas, dropped } = finalizeIdeas(review.data, {
     sources,
     blocked: request.blocked,
     written: request.written,

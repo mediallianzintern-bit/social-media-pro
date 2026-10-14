@@ -132,8 +132,25 @@ Source material or notes: the fetched story each idea is built on, and the accou
 Real example, if available: only one the source material provides; otherwise a clearly hypothetical one.
 Desired viewer action, if any: none requested.`;
 
+/**
+ * His second prompt, "Review and rewrite a team draft", verbatim. The review
+ * pass (review.ts) sends it after the master prompt with the strategist's draft
+ * in place of "[Paste the script here]".
+ */
+export const INSTAGRAM_REVIEW_PROMPT = `Review this Instagram Reel draft against Pritesh Patel’s voice and the master instructions above.
+Rewrite it so it sounds like me speaking naturally to one person.
+Keep the useful idea. Remove anything generic, overly polished, repetitive, technical or unnecessarily promotional. Replace vague statements with a clear explanation or example, without inventing facts.
+Make the opening interesting without exaggerating. Keep one main takeaway and a natural closing.
+Aim for 90–110 spoken words, maximum 115. Leave room for pauses. Do not turn it into rushed speech to fit under one minute.
+Return:
+
+1. The final ready-to-record script.
+2. Spoken word count and estimated duration.
+3. A maximum of three brief notes explaining the most important changes.
+4. Any factual claim that needs verification, separately.`;
+
 /** How his OUTPUT section maps onto the editor handover the team requests. */
-const DASHBOARD_HANDOVER = `DASHBOARD HANDOVER — the team requests these, which is the "unless requested" case in OUTPUT above:
+export const DASHBOARD_HANDOVER = `DASHBOARD HANDOVER — the team requests these, which is the "unless requested" case in OUTPUT above:
 - The ready-to-record script is the voiceover across the shot list, in speaking order. Each short paragraph is a shot. The whole voiceover obeys LENGTH above: 90–110 words, never more than 115.
 - The script's first line is the hook. The two alternative opening lines are the two alternative hooks, and each must lead into the same script.
 - The on-screen text suggestions go in the shots' onScreenText: at most three across the whole reel, empty in every other shot.
