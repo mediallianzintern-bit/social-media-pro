@@ -33,7 +33,6 @@ import { dateTime } from "@/lib/format";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import { ageDays, TRENDING_COVERAGE } from "@/lib/sources";
 import { cn } from "@/lib/utils";
-import { isAiToolWorkflowLane } from "@/lib/tool-workflow";
 import type { PlatformId } from "@/lib/analytics-types";
 import type { ContentIdea } from "@/lib/ai-types";
 
@@ -303,7 +302,7 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                                     : "View script"}
                                 </Button>
                               }
-                              {platform === "instagram" && isAiToolWorkflowLane(item.lane) ? (
+                              {
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -312,7 +311,7 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                                   onClick={() =>
                                     write.mutate({ sourceId: item.id, regenerate: true })
                                   }
-                                  title="Uses one AI call to write a new version with the current workflow rules"
+                                  title="Uses AI calls to write a new version with the current rules. The earlier version stays in history."
                                 >
                                   <RefreshCw
                                     className={cn("size-3.5", pending && "animate-spin")}
@@ -320,7 +319,7 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                                   />
                                   {pending ? "Regenerating…" : "Regenerate script"}
                                 </Button>
-                              ) : null}
+                              }
                             </span>
                           ) : (
                             <Button
@@ -410,10 +409,10 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
               none, which is model work — so the claim is qualified rather than
               quietly made false. */}
               <p className="text-[11px] text-muted-foreground">
-                Writing or regenerating a script uses one AI call. Regeneration writes a new version
-                using the current rules and keeps the previous version in history. Refreshing is
-                free — the news search costs nothing. The first refresh on an account with no
-                content lanes yet also derives them, which is two AI calls, once.
+                Writing or regenerating a script uses a few AI calls (about 2.6¢). Regeneration
+                writes a new version using the current rules and keeps the previous version in
+                history. Refreshing is free — the news search costs nothing. The first refresh on an
+                account with no content lanes yet also derives them, which is two AI calls, once.
               </p>
               <div className="flex justify-center pt-2">
                 <CollapseToggle

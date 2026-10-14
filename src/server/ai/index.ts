@@ -615,11 +615,13 @@ export async function generateMore(
       )
     : undefined;
   const requestedLane = workflowLane ?? options.lane;
-  if (options.regenerate && (!options.sourceId || !workflowLane || options.fresh)) {
+  // Regeneration rewrites ONE story's script, so it needs that story. Any
+  // lane may be regenerated; it used to be AI tool workflows only.
+  if (options.regenerate && (!options.sourceId || options.fresh)) {
     return {
       analysis: cached,
       idea: null,
-      reason: "Select an AI tool workflow topic to regenerate its script.",
+      reason: "Choose a topic to regenerate its script.",
     };
   }
   if (

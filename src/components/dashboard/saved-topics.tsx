@@ -25,7 +25,6 @@ import {
 } from "@/lib/analytics.functions";
 import { dateTime } from "@/lib/format";
 import { PLATFORM_META } from "@/lib/platform-meta";
-import { isAiToolWorkflowLane } from "@/lib/tool-workflow";
 import { cn } from "@/lib/utils";
 import type { ContentIdea } from "@/lib/ai-types";
 import type { PlatformId } from "@/lib/analytics-types";
@@ -194,7 +193,7 @@ function SavedRow({ item }: { item: SavedTopic }) {
  * It first asks whether this story already has a script. If it does, the
  * button reads "View script" and opens it in the same drawer the inbox uses,
  * rather than offering to spend a second call on a story already written.
- * AI tool workflow stories also get "Regenerate", as they do in the inbox.
+ * Every story with a script also gets "Regenerate script", as in the inbox.
  *
  * News stories only. A saved rising post is a competitor's post, not a story
  * in source_items, and the script writer builds on stories; rising posts are
@@ -256,19 +255,19 @@ function ScriptActions({ item }: { item: SavedTopic }) {
             <FileText className="size-3.5" aria-hidden />
             View script
           </Button>
-          {platform === "instagram" && isAiToolWorkflowLane(item.lane) ? (
+          {
             <Button
               size="sm"
               variant="outline"
               className="gap-1.5"
               disabled={write.isPending}
               onClick={() => write.mutate(true)}
-              title="Uses one AI call to write a new version with the current workflow rules"
+              title="Uses AI calls to write a new version with the current rules. The earlier version stays in history."
             >
               <RefreshCw className={cn("size-3.5", regenerating && "animate-spin")} aria-hidden />
               {regenerating ? "Regenerating…" : "Regenerate script"}
             </Button>
-          ) : null}
+          }
         </>
       ) : (
         <Button

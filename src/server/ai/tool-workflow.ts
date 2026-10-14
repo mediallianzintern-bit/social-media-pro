@@ -3,19 +3,29 @@ import type { ContentIdea } from "@/lib/ai-types";
 import { isAiToolWorkflowLane } from "../../lib/tool-workflow.ts";
 export { isAiToolWorkflowLane } from "../../lib/tool-workflow.ts";
 
-/** Explicit regeneration is the only exception to the writer's no-repeat rule. */
-export function workflowRegenerationPrompt(
+/**
+ * Explicit regeneration is the only exception to the writer's no-repeat rule.
+ *
+ * Any lane, either platform: the user pressed "Regenerate script" on a story
+ * that already has one. Without this, the ALREADY SUGGESTED block (which now
+ * holds that story's earlier script) would steer the writer onto a different
+ * story. AI tool workflow stories keep their own wording, naming the workflow
+ * rules the rewrite must follow.
+ */
+export function regenerationPrompt(
   platform: PlatformId,
-  lane: string | undefined,
+  lane: string | null | undefined,
   sourceId: string | undefined,
 ): string {
-  if (platform !== "instagram" || !isAiToolWorkflowLane(lane) || !sourceId) return "";
+  if (!sourceId) return "";
+  const workflow = platform === "instagram" && isAiToolWorkflowLane(lane);
+  const what = workflow ? "AI tool workflow reel" : platform === "instagram" ? "script" : "post";
   return `EXPLICIT SCRIPT REGENERATION: the user selected this existing topic again.
-Write exactly one new AI tool workflow reel for sourceId=${JSON.stringify(sourceId)} using the
-current workflow instructions. This is an intentional revision, not a new topic suggestion.
+Write exactly one new ${what} for sourceId=${JSON.stringify(sourceId)} using the current
+${workflow ? "workflow " : ""}instructions. This is an intentional revision, not a new topic suggestion.
 For this source only, the ALREADY SUGGESTED, ALREADY PUBLISHED, calendar and covered-subject
 no-repeat instructions do not prohibit the rewrite. Do not switch to another story.
-All factual-source limits, voice rules, workflow requirements and measured feedback blocks still
+All factual-source limits, voice rules${workflow ? ", workflow requirements" : ""} and measured feedback blocks still
 apply. Do not reuse unsupported claims from an earlier script. Do not say the revised script was
 filmed, published, tested or approved just because the topic appeared before.`;
 }

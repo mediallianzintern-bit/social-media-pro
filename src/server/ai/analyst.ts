@@ -15,7 +15,7 @@ import {
   isAiToolWorkflowLane,
   toolWorkflowIssues,
   toolWorkflowPrompt,
-  workflowRegenerationPrompt,
+  regenerationPrompt,
 } from "./tool-workflow";
 import { costOf, type GenerationCost } from "@/lib/ai-cost";
 import { laneShapesBlock } from "@/lib/script-families";
@@ -664,8 +664,8 @@ export function buildIdeaRequest(
   const workflowOnly =
     platform === "instagram" && allowedLanes.length === 1 && isAiToolWorkflowLane(allowedLanes[0]);
   const regeneration =
-    regenerate && workflowOnly && sources.length === 1
-      ? workflowRegenerationPrompt(platform, onlyLane, sources[0]?.id)
+    regenerate && sources.length === 1
+      ? regenerationPrompt(platform, onlyLane ?? sources[0]?.lane, sources[0]?.id)
       : "";
 
   const system = `You are a content strategist writing production-ready ${
