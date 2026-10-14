@@ -204,8 +204,12 @@ export function preferenceFor(
     };
   }
 
+  // A lane only ever lifts. Every lane is something this account publishes in,
+  // so crossing stories inside one is a verdict on those stories, never on the
+  // lane: counting it against the lane hid uncrossed stories wholesale and
+  // thinned the list the team picks from. Words still carry the dislike.
   const laneTally = candidate.lane ? model.lanes.get(candidate.lane) : undefined;
-  const laneScore = affinity(laneTally, LANE_PRIOR);
+  const laneScore = Math.max(0, affinity(laneTally, LANE_PRIOR));
 
   const learned = wordsOf(candidate.text)
     .map((word) => ({ word, tally: model.words.get(word) }))
@@ -236,8 +240,8 @@ export function preferenceFor(
   // about one specific story — so it is halved rather than trusted in full.
   const score = learned.length ? 0.6 * wordScore + 0.4 * laneScore : 0.5 * laneScore;
 
-  const dislikeEvidence =
-    learned.reduce((total, { tally }) => total + tally.dislike, 0) + (laneTally?.dislike ?? 0);
+  // Only the words count as evidence for hiding — never the lane (see above).
+  const dislikeEvidence = learned.reduce((total, { tally }) => total + tally.dislike, 0);
   const suppressed = score <= SUPPRESS_AT && dislikeEvidence >= SUPPRESS_MIN_EVIDENCE;
 
   const matched = learned
@@ -270,16 +274,17 @@ export function preferenceFor(
  * How many slots a lane gets, scaled by how much the team likes it.
  *
  * This is the "show me more of these" half: a lane the team keeps ticking
- * gets up to twice its share of the list, one it keeps crossing shrinks — but
- * never below two, so a lane is never starved of the chance to win back
- * favour with a better story.
+ * gets up to twice its share of the list. It never shrinks below its base
+ * share: crossing stories in a lane rejects those stories, not the lane, and
+ * shrinking it starved the script writer of topics in lanes the account still
+ * publishes in.
  */
 export function laneQuota(model: PreferenceModel, lane: string | null, base: number): number {
   if (!lane || !model.totalVotes) return base;
   const tally = model.lanes.get(lane);
   if (!tally || tally.votes < LANE_QUOTA_MIN_VOTES) return base;
   const scaled = Math.round(base * (1 + affinity(tally, LANE_PRIOR)));
-  return Math.max(2, Math.min(base * 2, scaled));
+  return Math.max(base, Math.min(base * 2, scaled));
 }
 
 /** What the model has learned, for display. Strongest first. */
@@ -299,7 +304,9 @@ export function learnedSummary(model: PreferenceModel) {
   return {
     totalVotes: model.totalVotes,
     likedLanes: lanes.filter((entry) => entry.affinity > 0.05),
-    dislikedLanes: lanes.filter((entry) => entry.affinity < -0.05).reverse(),
+    // Always empty: a lane is never marked down (see preferenceFor). Kept in
+    // the shape so readers of the summary need no change.
+    dislikedLanes: [] as typeof lanes,
     likedWords: words.filter((entry) => entry.affinity > 0.05).slice(0, 8),
     dislikedWords: words
       .filter((entry) => entry.affinity < -0.05)
