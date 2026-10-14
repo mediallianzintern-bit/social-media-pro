@@ -1837,7 +1837,12 @@ export async function saveSourceItems(
 export async function readSourceItems(
   platform: PlatformId,
   sinceIso: string,
-  limit = 300,
+  // The whole window, not a slice of it. This was 300, and with about a
+  // hundred new stories a day the inbox silently showed only the last three
+  // days of its fourteen: an Oct 6 story the team had ticked simply vanished
+  // on Oct 14 (640 stories were in the window). The cap now only guards
+  // against a runaway table.
+  limit = 3000,
 ): Promise<SourceItem[]> {
   const { data, error } = await db()
     .from("source_items")
