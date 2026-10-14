@@ -229,7 +229,14 @@ async function sameStoryElsewhere(
   }
   const anchors = [...original]
     .sort((a, b) => (frequency.get(a) ?? 0) - (frequency.get(b) ?? 0))
-    .slice(0, 3);
+    .slice(0, 4);
+  // Two shared words beside the anchor, never fewer. One was tried for short
+  // headlines and matched the WRONG stories: "Meta Gives Advertisers a Smarter
+  // AI Assistant" took an article on LinkedIn's Hiring Assistant, and "X
+  // Launches an AI Tool That Builds Ads" a Linux Foundation release on "BUILD".
+  // A wrong article is far worse than none, so a short headline that matches
+  // nothing stays on its headline.
+  const needed = 2;
 
   const seen = new Set([source.url, (source.publisher ?? "").toLowerCase()]);
   const found: Array<{ url: string; publisher: string | null }> = [];
@@ -239,7 +246,12 @@ async function sameStoryElsewhere(
       const words = stem(titleTokens(result.title));
       const shared = [...original].filter((word) => word !== anchor && words.has(word));
       const outlet = (result.publisher ?? "").toLowerCase();
-      if (!words.has(anchor) || shared.length < 2 || seen.has(result.url) || seen.has(outlet)) {
+      if (
+        !words.has(anchor) ||
+        shared.length < needed ||
+        seen.has(result.url) ||
+        seen.has(outlet)
+      ) {
         continue;
       }
       seen.add(result.url);
@@ -249,6 +261,25 @@ async function sameStoryElsewhere(
     if (found.length) break;
   }
   return found;
+}
+
+/** How much of an article's opening is checked: the lede, where a story names its subject. */
+const LEDE_WORDS = 120;
+
+/**
+ * Whether another outlet's article is really about this story, not just a
+ * headline that shares a word. Its OPENING must contain at least 40% of the
+ * original headline's distinctive words. Checked on the lede, not the whole
+ * text: a 900-word article contains most common words somewhere, which let an
+ * unrelated article pass when the whole text was checked.
+ */
+export function coversStory(text: string, headline: string): boolean {
+  const wanted = [...stem(titleTokens(headline))];
+  if (!wanted.length) return false;
+  const lede = text.split(/\s+/).slice(0, LEDE_WORDS).join(" ");
+  const have = stem(titleTokens(lede));
+  const found = wanted.filter((word) => have.has(word)).length;
+  return found / wanted.length >= 0.4;
 }
 
 /**
@@ -280,7 +311,7 @@ export async function readStory(
     const resolved = await publisherUrl(other.url);
     if (!resolved) continue;
     const text = await readPage(resolved);
-    if (text) {
+    if (text && coversStory(text, source.title)) {
       return {
         publisher: other.publisher,
         url: resolved,

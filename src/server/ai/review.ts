@@ -217,7 +217,7 @@ paragraph that STARTS with the action verb: "Open…", "Type…", "Upload…", "
 paragraph is its own shotType "Screen recording" shot. Describing what the tool does ("you can
 input details and it does the rest") is NOT a step. Where the source does not say exactly where a
 control is or what it is called, keep the step and mark the unknown part for the recording team,
-e.g. "Open the ad tool [VERIFY: where it sits in X's ads manager]." Never invent menus as if
+e.g. "Open the tool [VERIFY: where it sits in the app]." Never invent menus as if
 confirmed. The steps count toward the 90–110 words; keep each one short.`;
 
 function reviewUser(
@@ -251,7 +251,17 @@ function reviewUser(
 
 type ReviewResult = z.infer<typeof reviewResult>;
 
-const words = (text: string) => text.trim().split(/\s+/).filter(Boolean).length;
+/**
+ * Words actually SPOKEN. Bracketed notes such as "[VERIFY: where to click]"
+ * are instructions for the team, never said aloud, so they are not counted:
+ * counting them let an 86-word script pass as 99.
+ */
+const words = (text: string) =>
+  text
+    .replace(/\[[^\]]*\]/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
 
 const spokenWords = (review: ReviewResult) =>
   words(review.shots.map((shot) => shot.voiceover).join(" "));

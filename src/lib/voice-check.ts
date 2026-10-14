@@ -131,7 +131,13 @@ function voiceoverText(idea: ContentIdea): string {
   return spoken.join(" ");
 }
 
-const words = (text: string) => text.trim().split(/\s+/).filter(Boolean).length;
+/** Spoken words only: bracketed notes for the team ("[verify: …]") are never said aloud. */
+const words = (text: string) =>
+  text
+    .replace(/\[[^\]]*\]/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
 
 /** Dashes used as punctuation. A hyphen inside a word ("short-form") is not one. */
 const PUNCTUATION_DASH = /[—–]|\s-{1,2}\s/;
