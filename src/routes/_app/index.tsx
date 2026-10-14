@@ -16,6 +16,7 @@ import {
   median,
   organicPosts,
   type PlatformData,
+  viewsOf,
 } from "@/lib/analytics-types";
 
 export const Route = createFileRoute("/_app/")({ component: Overview });
@@ -24,7 +25,10 @@ function summarize(data: PlatformData) {
   const followers = data.latest?.followers ?? 0;
   // Pinned posts are excluded from every rate — see organicPosts.
   const organic = organicPosts(data.posts);
-  const views = organic.map((post) => post.views).filter((value) => value > 0);
+  // Instagram's own count where we hold it — the number the owner sees in the
+  // app, and the one the Instagram page reports. The scraped count runs roughly
+  // half of it, so using it here made the two screens disagree.
+  const views = organic.map(viewsOf).filter((value) => value > 0);
   return {
     followers,
     hasViews: views.length > 0,

@@ -34,6 +34,7 @@ import {
   type DashboardData,
   type PlatformData,
   type PlatformId,
+  viewsOf,
 } from "@/lib/analytics-types";
 
 /**
@@ -248,7 +249,8 @@ export async function loadDashboard(): Promise<DashboardData> {
 /** Summary stats for one platform, computed the same way everywhere. */
 export function summarize(data: PlatformData) {
   const followers = data.latest?.followers ?? 0;
-  const views = data.posts.map((post) => post.views).filter((value) => value > 0);
+  // Instagram's own count where we hold it, matching the Instagram page.
+  const views = data.posts.map(viewsOf).filter((value) => value > 0);
   return {
     followers,
     posts: data.posts.length,
