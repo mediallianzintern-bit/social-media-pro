@@ -11,6 +11,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
+import { CollapseToggle } from "@/components/dashboard/collapse-toggle";
 import { SaveTopicButton } from "@/components/dashboard/save-topic-button";
 import { SectionHeading } from "@/components/dashboard/section-heading";
 import { VoteButtons } from "@/components/dashboard/vote-buttons";
@@ -61,6 +62,7 @@ export function InstagramTrends({ platform }: { platform: PlatformId }) {
     ["topic-inbox", platform],
   ]);
   const [showRejected, setShowRejected] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const meta = PLATFORM_META[platform];
   const accent = meta.color;
   // LinkedIn publishes no view count, so the catcher measures interactions
@@ -117,7 +119,7 @@ export function InstagramTrends({ platform }: { platform: PlatformId }) {
             </p>
           ) : null}
 
-          {data?.scanned.length ? (
+          {!collapsed && data?.scanned.length ? (
             <p className="text-[11px] leading-relaxed text-muted-foreground">
               Watching {data.scanned.map((account) => `@${account.handle}`).join(", ")}.
             </p>
@@ -127,7 +129,7 @@ export function InstagramTrends({ platform }: { platform: PlatformId }) {
 
           {trends.length ? (
             <ul className="divide-y">
-              {trends.map((trend) => (
+              {(collapsed ? trends.slice(0, 3) : trends).map((trend) => (
                 <li key={trend.postId} className="py-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge
@@ -204,7 +206,7 @@ export function InstagramTrends({ platform }: { platform: PlatformId }) {
             </ul>
           ) : null}
 
-          {rejected.length ? (
+          {!collapsed && rejected.length ? (
             <div className="border-t pt-3">
               <Button
                 variant="ghost"
@@ -239,6 +241,14 @@ export function InstagramTrends({ platform }: { platform: PlatformId }) {
               ) : null}
             </div>
           ) : null}
+          <div className="flex justify-center pt-2">
+            <CollapseToggle
+              placement="bottom"
+              collapsed={collapsed}
+              onToggle={() => setCollapsed((value) => !value)}
+              showLabel={`Expand Rising on ${meta.label}`}
+            />
+          </div>
         </CardContent>
       </Card>
     </>

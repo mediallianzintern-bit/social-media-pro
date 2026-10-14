@@ -12,10 +12,12 @@ import {
 import { useMemo, useState } from "react";
 
 import { CollapseToggle } from "@/components/dashboard/collapse-toggle";
+import { AiIdeaCards } from "@/components/dashboard/ai-idea-cards";
 import { IdeaScriptDialog } from "@/components/dashboard/idea-script-dialog";
 import { SaveTopicButton } from "@/components/dashboard/save-topic-button";
 import { SectionHeading } from "@/components/dashboard/section-heading";
 import { Badge } from "@/components/ui/badge";
+import { TopicVoteActivity } from "@/components/dashboard/topic-vote-activity";
 import { TasteSummary } from "@/components/dashboard/taste-summary";
 import { VoteButtons } from "@/components/dashboard/vote-buttons";
 import { Button } from "@/components/ui/button";
@@ -23,6 +25,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   analysisQueryOptions,
   generateOneIdea,
+  getScriptForSource,
   refreshTopics,
   topicInboxQueryOptions,
 } from "@/lib/analytics.functions";
@@ -30,6 +33,7 @@ import { dateTime } from "@/lib/format";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import { ageDays, TRENDING_COVERAGE } from "@/lib/sources";
 import { cn } from "@/lib/utils";
+import { isAiToolWorkflowLane } from "@/lib/tool-workflow";
 import type { PlatformId } from "@/lib/analytics-types";
 import type { ContentIdea } from "@/lib/ai-types";
 
@@ -42,7 +46,7 @@ const PAGE = 8;
  *
  * Nothing in this list is generated. Every row is an article that existed when
  * it was fetched, with its outlet and date, and the headline links to it. The
- * one action that spends anything — "Write script" — is a button per story, so
+ * writing and regenerating are explicit buttons per story, so
  * a model call only ever happens because someone chose that story.
  *
  * Client-side query, like the rest of the AI layer: the inbox is not part of
@@ -68,21 +72,34 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
   });
 
   const write = useMutation({
-    mutationFn: (sourceId: string) => generateOneIdea({ data: { platform, sourceId } }),
-    onSuccess: (result, sourceId) => {
+    mutationFn: (selection: { sourceId: string; regenerate?: boolean }) =>
+      generateOneIdea({ data: { platform, ...selection } }),
+    onMutate: () => setScriptMessage(null),
+    onSuccess: (result, selection) => {
       if (result.analysis) {
         queryClient.setQueryData(analysisQueryOptions(platform).queryKey, result.analysis);
       }
-      if (result.idea) setWrittenFor(sourceId);
+      if (result.idea) {
+        setWrittenFor(selection.sourceId);
+        if (selection.regenerate) setViewing(result.idea);
+      }
       void queryClient.invalidateQueries({ queryKey: topicInboxQueryOptions(platform).queryKey });
     },
   });
 
-  // Stories that already have a script, by the story's id. Read from the
-  // cached analysis rather than asking the server again: finalizeIdeas()
-  // attaches the real source row to the idea, so idea.source.sourceId is the
-  // same id this list is keyed on. A story written before the current cached
-  // batch simply has no entry, and shows "Already an idea" without a button.
+  const [scriptMessage, setScriptMessage] = useState<string | null>(null);
+  const openSavedScript = useMutation({
+    mutationFn: (sourceId: string) => getScriptForSource({ data: { platform, sourceId } }),
+    onMutate: () => setScriptMessage(null),
+    onSuccess: (idea, sourceId) => {
+      const saved = idea ?? ideaForSource.get(sourceId);
+      if (saved) setViewing(saved);
+      else
+        setScriptMessage("This topic was marked as an idea, but its saved script is unavailable.");
+    },
+    onError: () => setScriptMessage("Could not load the saved script. Please try again."),
+  });
+
   const { data: analysis } = useQuery(analysisQueryOptions(platform));
   const ideaForSource = useMemo(() => {
     const map = new Map<string, ContentIdea>();
@@ -101,7 +118,7 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
     [items],
   );
   const filtered = lane ? items.filter((item) => item.lane === lane) : items;
-  const visible = expanded ? filtered : filtered.slice(0, PAGE);
+  const visible = collapsed ? filtered.slice(0, 3) : expanded ? filtered : filtered.slice(0, PAGE);
   const trending = items.filter((item) => item.coverage >= TRENDING_COVERAGE).length;
 
   const noun = platform === "instagram" ? "reel" : "post";
@@ -121,9 +138,10 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
       />
       {/* What the team's votes have taught — directly under the heading of the
           first list those votes reorder, so the cause sits beside the effect. */}
-      {collapsed ? null : (
+      {
         <>
-          <TasteSummary platform={platform} />
+          {!collapsed && <TasteSummary platform={platform} />}
+          {!collapsed && <TopicVoteActivity platform={platform} />}
           <Card>
             <CardContent className="space-y-4 p-5">
               <div className="flex flex-wrap items-center gap-3">
@@ -191,9 +209,8 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                 <ul className="divide-y">
                   {visible.map((item) => {
                     const age = ageDays(item.publishedAt);
-                    const pending = write.isPending && write.variables === item.id;
+                    const pending = write.isPending && write.variables?.sourceId === item.id;
                     const justWritten = writtenFor === item.id;
-                    const writtenIdea = ideaForSource.get(item.id) ?? null;
                     return (
                       <li
                         key={item.id}
@@ -239,7 +256,7 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                             ) : null}
                           </p>
                         </div>
-                        <div className="flex shrink-0 items-center gap-2 pl-5 sm:pl-0">
+                        <div className="flex shrink-0 flex-wrap items-center gap-2 pl-5 sm:max-w-[28rem] sm:justify-end sm:pl-0">
                           <VoteButtons
                             platform={platform}
                             kind="source"
@@ -261,22 +278,47 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                             // script it refers to is now one click away — both
                             // after writing just now and for a story written
                             // earlier, which is the same thing to the reader.
-                            <span className="inline-flex items-center gap-2">
+                            <span className="inline-flex flex-wrap items-center gap-2">
                               <span className="inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400">
                                 <Check className="size-3.5" aria-hidden />
                                 {justWritten
                                   ? `Written — first under "Next ${noun}"`
                                   : "Already an idea"}
                               </span>
-                              {writtenIdea ? (
+                              {
                                 <Button
                                   size="sm"
                                   variant="outline"
                                   className="gap-1.5"
-                                  onClick={() => setViewing(writtenIdea)}
+                                  disabled={openSavedScript.isPending || write.isPending}
+                                  onClick={() => {
+                                    setScriptMessage(null);
+                                    openSavedScript.mutate(item.id);
+                                  }}
                                 >
                                   <FileText className="size-3.5" aria-hidden />
-                                  View script
+                                  {openSavedScript.isPending &&
+                                  openSavedScript.variables === item.id
+                                    ? "Loading…"
+                                    : "View script"}
+                                </Button>
+                              }
+                              {platform === "instagram" && isAiToolWorkflowLane(item.lane) ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="gap-1.5"
+                                  disabled={write.isPending || openSavedScript.isPending}
+                                  onClick={() =>
+                                    write.mutate({ sourceId: item.id, regenerate: true })
+                                  }
+                                  title="Uses one AI call to write a new version with the current workflow rules"
+                                >
+                                  <RefreshCw
+                                    className={cn("size-3.5", pending && "animate-spin")}
+                                    aria-hidden
+                                  />
+                                  {pending ? "Regenerating…" : "Regenerate script"}
                                 </Button>
                               ) : null}
                             </span>
@@ -285,8 +327,8 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                               variant="outline"
                               size="sm"
                               className="gap-1.5"
-                              disabled={write.isPending}
-                              onClick={() => write.mutate(item.id)}
+                              disabled={write.isPending || openSavedScript.isPending}
+                              onClick={() => write.mutate({ sourceId: item.id })}
                               title="Uses one AI call"
                             >
                               {pending ? (
@@ -310,13 +352,20 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                 </p>
               ) : null}
 
-              {filtered.length > PAGE ? (
-                <Button variant="ghost" size="sm" onClick={() => setExpanded((value) => !value)}>
+              {!collapsed && filtered.length > PAGE ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setCollapsed(false);
+                    setExpanded((value) => !value);
+                  }}
+                >
                   {expanded ? "Show fewer" : `Show all ${filtered.length}`}
                 </Button>
               ) : null}
 
-              {data?.hidden?.length ? (
+              {!collapsed && data?.hidden?.length ? (
                 <details className="rounded-md border px-3 py-2 text-xs">
                   <summary className="cursor-pointer text-muted-foreground">
                     {data.hidden.length} stor{data.hidden.length === 1 ? "y" : "ies"} hidden by your
@@ -340,6 +389,11 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                 </details>
               ) : null}
 
+              {scriptMessage && (
+                <p role="status" className="text-sm text-muted-foreground">
+                  {scriptMessage}
+                </p>
+              )}
               {write.data && !write.data.idea ? (
                 <p className="text-xs text-destructive">{write.data.reason}</p>
               ) : null}
@@ -356,21 +410,32 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
               none, which is model work — so the claim is qualified rather than
               quietly made false. */}
               <p className="text-[11px] text-muted-foreground">
-                &ldquo;Write script&rdquo; uses one AI call and builds a {noun} on that story in
-                this account&rsquo;s proven structure. Refreshing is free — the news search costs
-                nothing. The first refresh on an account with no content lanes yet also derives
-                them, which is two AI calls, once.
+                Writing or regenerating a script uses one AI call. Regeneration writes a new version
+                using the current rules and keeps the previous version in history. Refreshing is
+                free — the news search costs nothing. The first refresh on an account with no
+                content lanes yet also derives them, which is two AI calls, once.
               </p>
+              <div className="flex justify-center pt-2">
+                <CollapseToggle
+                  placement="bottom"
+                  collapsed={collapsed}
+                  onToggle={() => setCollapsed((value) => !value)}
+                  showLabel={`Show${items.length ? ` ${items.length} stories` : ""}`}
+                />
+              </div>
             </CardContent>
           </Card>
         </>
-      )}
+      }
 
       {viewing ? (
-        <IdeaScriptDialog
-          idea={viewing}
-          open={viewing !== null}
-          onOpenChange={(next) => !next && setViewing(null)}
+        <AiIdeaCards
+          key={viewing.id}
+          ideas={[viewing]}
+          platform={platform}
+          initialOpenId={viewing.id}
+          panelOnly
+          onClose={() => setViewing(null)}
         />
       ) : null}
     </>

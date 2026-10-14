@@ -354,8 +354,12 @@ export const generateOneIdea = createServerFn({ method: "POST" })
       .object({
         platform: platformSchema,
         sourceId: z.string().uuid().optional(),
+        regenerate: z.boolean().optional(),
         /** Confine the idea to one content lane — the per-lane buttons. */
         lane: z.string().min(1).max(120).optional(),
+      })
+      .refine((value) => !value.regenerate || Boolean(value.sourceId), {
+        message: "Choose a topic to regenerate its script.",
       })
       .parse(input),
   )
@@ -363,6 +367,7 @@ export const generateOneIdea = createServerFn({ method: "POST" })
     const { generateMore } = await import("@/server/ai/index");
     return generateMore(data.platform, {
       ...(data.sourceId ? { sourceId: data.sourceId } : {}),
+      ...(data.regenerate ? { regenerate: true } : {}),
       ...(data.lane ? { lane: data.lane } : {}),
     });
   });
@@ -504,10 +509,11 @@ export const getTopicFeedback = createServerFn({ method: "GET" })
       import("@/server/store"),
       import("@/lib/preferences"),
     ]);
-    const votes = await readTopicVotes(data).catch(() => []);
+    const votes = await readTopicVotes(data);
     return {
       votes: votes.map((vote) => ({ kind: vote.kind, itemId: vote.itemId, verdict: vote.verdict })),
       summary: learnedSummary(buildPreferenceModel(votes)),
+      activity: votes.map(({ actor: _actor, ...vote }) => vote),
     };
   });
 
@@ -793,4 +799,15 @@ export const reactionSourceFile = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { sourceVideoFile } = await import("@/server/reaction-pipeline");
     return sourceVideoFile(data);
+  });
+
+/** Read an existing script without generating or charging for a new one. */
+export const getScriptForSource = createServerFn({ method: "GET" })
+  .middleware([requireStaff])
+  .validator((input: unknown) =>
+    z.object({ platform: platformSchema, sourceId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { readIdeaForSource } = await import("@/server/store");
+    return readIdeaForSource(data.platform, data.sourceId);
   });

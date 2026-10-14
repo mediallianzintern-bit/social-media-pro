@@ -223,6 +223,8 @@ export function ideasSchemaFor(options: {
   sourceIds: string[];
   /** Allowed lanes. Empty means the account has no lane list yet. */
   lanes: string[];
+  /** A dedicated workflow tutorial is a filmed reel, even when it creates a carousel. */
+  reelOnly?: boolean;
 }): Record<string, unknown> {
   const written = options.platform === "linkedin";
   const sourceIds = options.sourceIds.length ? options.sourceIds : ["none"];
@@ -249,7 +251,11 @@ export function ideasSchemaFor(options: {
       id: { type: "string", description: "kebab-case slug" },
       format: {
         type: "string",
-        enum: written ? ["text_post", "article", "document"] : ["reel", "carousel"],
+        enum: written
+          ? ["text_post", "article", "document"]
+          : options.reelOnly
+            ? ["reel"]
+            : ["reel", "carousel"],
       },
       title: {
         type: "string",
@@ -409,7 +415,11 @@ export function ideasSchemaFor(options: {
                 "editorNotes",
               ],
               properties: {
-                durationSeconds: { type: "integer", minimum: 5, maximum: 180 },
+                durationSeconds: {
+                  type: "integer",
+                  minimum: options.reelOnly ? 45 : 5,
+                  maximum: options.reelOnly ? 60 : 180,
+                },
                 aspectRatio: { type: "string", description: 'Usually "9:16".' },
                 coverText: { type: "string", description: "Text for the cover frame." },
                 musicDirection: { type: "string" },

@@ -429,13 +429,25 @@ export function PlatformView({ data, range }: { data: PlatformData; range: Resol
           />
         }
       />
-      {postsCollapsed ? null : (
+      {
         <Card>
           <CardContent className="pt-6">
-            <PostsTable posts={posts} showViews={hasViews} platform={data.platform} />
+            <PostsTable
+              posts={postsCollapsed ? posts.slice(0, 3) : posts}
+              showViews={hasViews}
+              platform={data.platform}
+            />
+            <div className="flex justify-center pt-2">
+              <CollapseToggle
+                placement="bottom"
+                collapsed={postsCollapsed}
+                onToggle={() => setPostsCollapsed((value) => !value)}
+                showLabel={`Show ${posts.length} post${posts.length === 1 ? "" : "s"}`}
+              />
+            </div>
           </CardContent>
         </Card>
-      )}
+      }
     </>
   );
 }

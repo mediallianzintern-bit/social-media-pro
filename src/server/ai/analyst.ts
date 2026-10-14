@@ -10,6 +10,12 @@
 // wrong number in a client dashboard is worse than no number.
 import { completeJson } from "./client";
 import { voiceFor } from "./voice";
+import {
+  isAiToolWorkflowLane,
+  toolWorkflowIssues,
+  toolWorkflowPrompt,
+  workflowRegenerationPrompt,
+} from "./tool-workflow";
 import { costOf, type GenerationCost } from "@/lib/ai-cost";
 import { laneShapesBlock } from "@/lib/script-families";
 import { coveredCampaignsBlock } from "@/lib/covered-campaigns";
@@ -589,6 +595,7 @@ export function buildIdeaRequest(
   sources: SourceItem[] = [],
   /** Restrict every idea to this one lane — the per-lane buttons. */
   onlyLane?: string | undefined,
+  regenerate = false,
 ): IdeaRequest {
   const {
     analyst = null,
@@ -616,7 +623,11 @@ export function buildIdeaRequest(
   // reads the name first anyway, so passing a definition would not change
   // these answers.
   const laneShapes = voice
-    ? laneShapesBlock((owner.lanes ?? []).map((lane) => ({ name: lane.lane, definition: "" })))
+    ? laneShapesBlock(
+        (owner.lanes ?? [])
+          .filter((lane) => !isAiToolWorkflowLane(lane.lane))
+          .map((lane) => ({ name: lane.lane, definition: "" })),
+      )
     : "";
   const covered = voice ? coveredCampaignsBlock() : "";
   const blocked = owner.pastSuggestions?.blocked ?? [];
@@ -635,6 +646,20 @@ export function buildIdeaRequest(
   // to. Ignored when the loop has blocked that lane: a block is a measured
   // result and a button should not quietly override it.
   if (onlyLane && allowedLanes.includes(onlyLane)) allowedLanes = [onlyLane];
+  // The clicked topic can carry this lane even before taxonomy has caught up.
+  if (
+    platform === "instagram" &&
+    isAiToolWorkflowLane(onlyLane) &&
+    !blockedLanes.has(onlyLane!.trim().toLowerCase())
+  )
+    allowedLanes = [onlyLane!];
+  const workflow = toolWorkflowPrompt(platform, allowedLanes);
+  const workflowOnly =
+    platform === "instagram" && allowedLanes.length === 1 && isAiToolWorkflowLane(allowedLanes[0]);
+  const regeneration =
+    regenerate && workflowOnly && sources.length === 1
+      ? workflowRegenerationPrompt(platform, onlyLane, sources[0]?.id)
+      : "";
 
   const system = `You are a content strategist writing production-ready ${
     written ? "LinkedIn posts" : `${platform} scripts`
@@ -642,7 +667,7 @@ export function buildIdeaRequest(
 creator, based on their own measured performance.
 
 ${groundRules(Boolean(owner.owned))}
-${voice ? `\n${voice}\n` : ""}${laneShapes ? `\n${laneShapes}\n` : ""}${covered ? `\n${covered}\n` : ""}
+${voice ? `\n${voice}\n` : ""}${laneShapes ? `\n${laneShapes}\n` : ""}${covered ? `\n${covered}\n` : ""}${workflow ? `\n${workflow}\n` : ""}
 Additional requirements:
 - EVERY IDEA MUST HAVE A CONCRETE SUBJECT. Name the specific brand, campaign, product, tool,
   person or event the reel covers, in the title and again in the angle. A reader who sees only
@@ -666,7 +691,7 @@ ${
   default: most LinkedIn reach goes to plain posts. Use an article only for a story with enough
   substance for 600+ words of real analysis, and a document only when the idea is naturally a
   sequence of steps or frames someone would swipe through and save.`
-    : `- Choose the format (reel or carousel) based on which performs better in the data. Only mention
+    : `- For AI tool workflows use a reel demo as specified above. For other lanes, choose the format (reel or carousel) based on which performs better in the data. Only mention
   the format choice in whyNow if the account actually publishes both and one measurably wins.
   Where every post is one format, saying so is filler — spend the words on something else.`
 }
@@ -1079,12 +1104,13 @@ above or to a gap named in the competitive read, and whyNow must say which.${
   }`;
 
   return {
-    system,
-    user,
+    system: regeneration ? `${system}\n\n${regeneration}` : system,
+    user: regeneration ? `${user}\n\n${regeneration}` : user,
     schema: ideasSchemaFor({
       platform,
       sourceIds: sources.map((source) => source.id),
       lanes: allowedLanes,
+      reelOnly: workflowOnly,
     }),
     blocked,
     written,
@@ -1101,7 +1127,12 @@ above or to a gap named in the competitive read, and whyNow must say which.${
  */
 export function finalizeIdeas(
   data: unknown,
-  options: { sources: SourceItem[]; blocked: BlockedPattern[]; written: boolean },
+  options: {
+    sources: SourceItem[];
+    blocked: BlockedPattern[];
+    written: boolean;
+    platform: PlatformId;
+  },
 ): { ideas: ContentIdea[]; dropped: string[] } {
   const { sources, blocked, written } = options;
   const parsed = ideaSetSchema.parse(data);
@@ -1187,6 +1218,13 @@ export function finalizeIdeas(
       dropped.push(`"${idea.title}" — ${reason}`);
       continue;
     }
+    const workflowIssues = toolWorkflowIssues(options.platform, idea);
+    if (workflowIssues.length) {
+      dropped.push(
+        `"${idea.title}" — workflow script needs revision: ${workflowIssues.join("; ")}`,
+      );
+      continue;
+    }
     ideas.push(idea);
   }
   return { ideas, dropped };
@@ -1206,6 +1244,7 @@ export async function generateIdeas(
   sources: SourceItem[] = [],
   /** Restrict every idea to this one lane — the per-lane buttons. */
   onlyLane?: string | undefined,
+  regenerate = false,
 ): Promise<{
   ideas: ContentIdea[];
   model: string;
@@ -1213,7 +1252,16 @@ export async function generateIdeas(
   /** What this call cost, from OpenAI's own usage figures. */
   cost?: GenerationCost | undefined;
 }> {
-  const request = buildIdeaRequest(platform, owner, rivals, reads, count, sources, onlyLane);
+  const request = buildIdeaRequest(
+    platform,
+    owner,
+    rivals,
+    reads,
+    count,
+    sources,
+    onlyLane,
+    regenerate,
+  );
 
   const result = await completeJson<unknown>({
     system: request.system,
@@ -1240,8 +1288,9 @@ export async function generateIdeas(
     sources,
     blocked: request.blocked,
     written: request.written,
+    platform,
   });
-  if (dropped.length) console.warn(`[ai:${platform}] dropped blocked idea(s):`, dropped);
+  if (dropped.length) console.warn(`[ai:${platform}] dropped idea(s):`, dropped);
 
   // Persisted append-only, separately from the cached ai_analyses row that
   // regeneration overwrites — this is the feedback loop's memory. The ids

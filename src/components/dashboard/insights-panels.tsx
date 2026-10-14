@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { CollapseToggle } from "@/components/dashboard/collapse-toggle";
 import { Bookmark, Eye, Send, Timer, UserPlus, Users } from "lucide-react";
 
 import { KpiTile } from "@/components/dashboard/kpi-tile";
@@ -86,6 +88,7 @@ export function InsightsPanels({
   posts: PostRecord[];
   color: string;
 }) {
+  const [collapsed, setCollapsed] = useState(false);
   const { account, audience } = insights;
 
   const measured = measuredPosts(organicPosts(posts));
@@ -127,93 +130,109 @@ export function InsightsPanels({
           }
           accent={color}
         />
-        <KpiTile
-          label="Profile visits"
-          value={compactNumber(account.profileViews)}
-          icon={Users}
-          hint={
-            account.reach > 0
-              ? `${percent(account.profileViews / account.reach)} of reach visited`
-              : "From content · 28 days"
-          }
-        />
-        <KpiTile
-          label="Total interactions"
-          value={compactNumber(account.totalInteractions)}
-          icon={Send}
-          hint="Likes, comments, saves, shares"
-        />
-        <KpiTile
-          label="Website taps"
-          value={compactNumber(account.websiteClicks)}
-          icon={Send}
-          hint="Bio link · 28 days"
-        />
+        {!collapsed && (
+          <>
+            <KpiTile
+              label="Profile visits"
+              value={compactNumber(account.profileViews)}
+              icon={Users}
+              hint={
+                account.reach > 0
+                  ? `${percent(account.profileViews / account.reach)} of reach visited`
+                  : "From content · 28 days"
+              }
+            />
+            <KpiTile
+              label="Total interactions"
+              value={compactNumber(account.totalInteractions)}
+              icon={Send}
+              hint="Likes, comments, saves, shares"
+            />
+            <KpiTile
+              label="Website taps"
+              value={compactNumber(account.websiteClicks)}
+              icon={Send}
+              hint="Bio link · 28 days"
+            />
+          </>
+        )}
       </div>
 
-      {/* ---- Per-post owner metrics ---- */}
-      {measured.length ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Per-post, measured by Instagram</CardTitle>
-            <CardDescription>
-              Median across {measured.length} post{measured.length === 1 ? "" : "s"} Instagram still
-              reports on. Reach is unique accounts, so the rate below is the honest one — it answers
-              what share of people who saw a post acted on it.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Stat
-              label="Engagement / reach"
-              value={reachRate === null ? "—" : percent(reachRate)}
-              hint="Likes + comments + saves + shares ÷ reach"
-            />
-            <Stat label="Median reach" value={compactNumber(reachPerPost)} hint="Per post" />
-            <Stat
-              label="Median saves"
-              value={fullNumber(saves)}
-              hint="The strongest ranking signal"
-              icon={Bookmark}
-            />
-            <Stat label="Median shares" value={fullNumber(shares)} hint="Sends per post" />
-            {watch.length ? (
-              <Stat
-                label="Avg watch time"
-                value={`${(avgWatch / 1000).toFixed(1)}s`}
-                hint={`Across ${watch.length} reel${watch.length === 1 ? "" : "s"}`}
-                icon={Timer}
-              />
-            ) : null}
-          </CardContent>
-        </Card>
-      ) : null}
+      {!collapsed && (
+        <>
+          {/* ---- Per-post owner metrics ---- */}
+          {measured.length ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Per-post, measured by Instagram</CardTitle>
+                <CardDescription>
+                  Median across {measured.length} post{measured.length === 1 ? "" : "s"} Instagram
+                  still reports on. Reach is unique accounts, so the rate below is the honest one —
+                  it answers what share of people who saw a post acted on it.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <Stat
+                  label="Engagement / reach"
+                  value={reachRate === null ? "—" : percent(reachRate)}
+                  hint="Likes + comments + saves + shares ÷ reach"
+                />
+                <Stat label="Median reach" value={compactNumber(reachPerPost)} hint="Per post" />
+                <Stat
+                  label="Median saves"
+                  value={fullNumber(saves)}
+                  hint="The strongest ranking signal"
+                  icon={Bookmark}
+                />
+                <Stat label="Median shares" value={fullNumber(shares)} hint="Sends per post" />
+                {watch.length ? (
+                  <Stat
+                    label="Avg watch time"
+                    value={`${(avgWatch / 1000).toFixed(1)}s`}
+                    hint={`Across ${watch.length} reel${watch.length === 1 ? "" : "s"}`}
+                    icon={Timer}
+                  />
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
 
-      {/* ---- Audience ---- */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <MetricBars
-          title="Age"
-          description="Share of followers · lifetime"
-          rows={toRows(audience.age, 8)}
-          color={color}
-        />
-        <MetricBars
-          title="Gender"
-          description="Share of followers · lifetime"
-          rows={toRows(audience.gender, 4)}
-          color={color}
-        />
-        <MetricBars
-          title="Top countries"
-          description="Share of followers · lifetime"
-          rows={toRows(audience.country, 8, countryName)}
-          color={color}
-        />
-        <MetricBars
-          title="Top cities"
-          description="Share of followers · lifetime"
-          rows={toRows(audience.city, 8)}
-          color={color}
-          note="Instagram reports city only for followers who share a location, so these shares are of a smaller base than the country split."
+          {/* ---- Audience ---- */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <MetricBars
+              title="Age"
+              description="Share of followers · lifetime"
+              rows={toRows(audience.age, 8)}
+              color={color}
+            />
+            <MetricBars
+              title="Gender"
+              description="Share of followers · lifetime"
+              rows={toRows(audience.gender, 4)}
+              color={color}
+            />
+            <MetricBars
+              title="Top countries"
+              description="Share of followers · lifetime"
+              rows={toRows(audience.country, 8, countryName)}
+              color={color}
+            />
+            <MetricBars
+              title="Top cities"
+              description="Share of followers · lifetime"
+              rows={toRows(audience.city, 8)}
+              color={color}
+              note="Instagram reports city only for followers who share a location, so these shares are of a smaller base than the country split."
+            />
+          </div>
+        </>
+      )}
+      <div className="flex justify-center pt-2">
+        <CollapseToggle
+          placement="bottom"
+          collapsed={collapsed}
+          onToggle={() => setCollapsed((value) => !value)}
+          showLabel="Expand Owner-only metrics"
         />
       </div>
     </div>

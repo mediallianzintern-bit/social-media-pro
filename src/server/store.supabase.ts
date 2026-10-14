@@ -2449,3 +2449,28 @@ export async function linkCalendarEntry(contentHash: string, postId: string): Pr
     throw new Error(`content_calendar link failed: ${error.message}`);
   }
 }
+
+/** Retrieve a saved script independently of the latest analysis batch. */
+export async function readIdeaForSource(
+  platform: PlatformId,
+  sourceId: string,
+): Promise<ContentIdea | null> {
+  const { data, error } = await db()
+    .from("suggested_ideas")
+    .select("id,payload,chosen_hook,status,published_shortcode")
+    .eq("platform", platform)
+    .eq("source_item_id", sourceId)
+    .not("payload", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`Saved script lookup failed: ${error.message}`);
+  if (!data?.payload?.hook) return null;
+  return {
+    ...data.payload,
+    id: data.id,
+    status: data.status === "measured" ? "used" : data.status,
+    publishedShortcode: data.published_shortcode ?? undefined,
+    chosenHook: data.chosen_hook ?? undefined,
+  } as ContentIdea;
+}
