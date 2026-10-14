@@ -195,6 +195,13 @@ export interface IdeaSource {
   origin: string;
   /** A search phrase for finding video coverage or background. */
   searchQuery: string;
+  /**
+   * The article the script was written from, when its text could be read —
+   * the story's own outlet, or another outlet covering the same story when
+   * that one blocks automated reading. Absent means headline only. Only the
+   * outlet and link are kept; the article text itself is never stored.
+   */
+  readFrom?: { publisher: string | null; url: string } | undefined;
 }
 
 /**

@@ -507,12 +507,18 @@ function sourceRules(hasSources: boolean): string {
   search is broad and some results are noise; skip anything off-niche even though it is listed.
   Prefer stories with coverage above 1 — several outlets running it is measured evidence the
   story is live, not merely that our search matched it.
-- YOU HAVE READ THE HEADLINE, NOT THE ARTICLE. The headline is the only fact you hold about the
-  story. The script may say what the headline says and nothing more about the story itself.
-  Where the script needs a detail only the article holds — a figure, a date, a quote, exactly
-  what the brand did — write it as a bracketed instruction, e.g. "[from the article: what the
-  campaign cost]". The team opens the article before filming and fills these in. A bracket is
-  honest; a detail invented and then spoken on camera is a public correction waiting to happen.
+- A SOURCE WITH AN \`article\` FIELD: you have read that article. The script may state what the
+  article text says — the brand's actual move, names, places, what the campaign showed — and
+  nothing beyond it. Say it in his words: never copy the article's sentences, and quote it only
+  for a short phrase the brand itself used (a slogan or campaign name). A figure, quote or
+  result the text does not contain is still a bracketed note, never a guess.
+- A SOURCE WITHOUT ONE: YOU HAVE READ THE HEADLINE, NOT THE ARTICLE. The headline is the only fact
+  you hold about the story. The script may say what the headline says and nothing more about the
+  story itself. Where the script needs a detail only the article holds — a figure, a date, a
+  quote, exactly what the brand did — write it as a bracketed instruction, e.g. "[from the
+  article: what the campaign cost]". The team opens the article before filming and fills these
+  in. A bracket is honest; a detail invented and then spoken on camera is a public correction
+  waiting to happen.
 - source.subject names what the headline is about; source.origin is the publisher as given.
   Never write a URL anywhere — the link is attached from the stored source, not from you.`;
 }
@@ -898,7 +904,11 @@ ${
   sources.length
     ? `
 SOURCES — ${sources.length} real stories fetched from a live news search in the last fortnight. Build
-every idea on one of these, by id. You have the headline only; you have not read the article:
+every idea on one of these, by id. ${
+        sources.some((source) => source.article)
+          ? "A source with an `article` field comes with the article's text, read from the outlet in `articleFrom`; for any other source you have the headline only:"
+          : "You have the headline only; you have not read the article:"
+      }
 ${JSON.stringify(
   sources.map((source) => ({
     id: source.id,
@@ -907,6 +917,9 @@ ${JSON.stringify(
     published: source.publishedAt?.slice(0, 10) ?? null,
     lane: source.lane,
     coverage: source.coverage,
+    ...(source.article
+      ? { articleFrom: source.article.publisher, article: source.article.text }
+      : {}),
   })),
   null,
   2,
@@ -1158,6 +1171,10 @@ export function finalizeIdeas(
           subject: raw.source.subject,
           origin: fetched.publisher ?? raw.source.origin,
           searchQuery: raw.source.searchQuery,
+          // Which article the script was written from. The text is not kept.
+          ...(fetched.article
+            ? { readFrom: { publisher: fetched.article.publisher, url: fetched.article.url } }
+            : {}),
         }
       : {
           verified: false,

@@ -20,6 +20,7 @@ import { classifyPosts, ensureLanes } from "./lanes";
 import { nicheLanes, suggestionFeedback } from "./feedback";
 import { buildPreferenceModel, learnedSummary } from "@/lib/preferences";
 import { currentEra, scopeToEra } from "@/lib/eras";
+import type { SourceItem } from "@/lib/sources";
 import { OWNER_ACCOUNTS } from "../apify/accounts";
 import {
   competitorSnapshots,
@@ -33,6 +34,7 @@ import {
   readPublishedSubjects,
   readCalendarEntries,
   readRecentSuggestions,
+  readSourceItems,
   readSourceItemsById,
   readEras,
   readTaxonomy,
@@ -528,6 +530,45 @@ export interface MoreResult {
  * ever suggested stays in suggested_ideas, the Workspace queue and the
  * don't-repeat list, so the fresh set will not hand back the old one.
  */
+/**
+ * The one story a script is being written from, with its article text where
+ * it can be read — from its own outlet, or another outlet covering the same
+ * story. See server/sources/article.ts. Never throws.
+ */
+async function withArticle(platform: PlatformId, sources: SourceItem[]): Promise<SourceItem[]> {
+  const [source] = sources;
+  if (!source) return sources;
+  try {
+    const { readStory } = await import("../sources/article");
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const inbox = await readSourceItems(platform, since).catch(() => []);
+    const article = await readStory(
+      source,
+      inbox.map((item) => item.title),
+    );
+    if (!article) {
+      console.info(
+        `[ai:${platform}] article not readable, writing from the headline: ${source.title}`,
+      );
+      return sources;
+    }
+    console.info(
+      `[ai:${platform}] article read from ${article.publisher ?? "unknown"} (${article.words} words)` +
+        (article.sameOutlet ? "" : `; ${source.publisher ?? "its own outlet"} could not be read`),
+    );
+    return [
+      {
+        ...source,
+        article: { publisher: article.publisher, url: article.url, text: article.text },
+      },
+      ...sources.slice(1),
+    ];
+  } catch (error) {
+    console.warn(`[ai:${platform}] article read failed, writing from the headline:`, error);
+    return sources;
+  }
+}
+
 export async function generateMore(
   platform: PlatformId,
   options: { sourceId?: string; fresh?: boolean; lane?: string; regenerate?: boolean } = {},
@@ -552,6 +593,10 @@ export async function generateMore(
         reason: "That topic is no longer stored — refresh the topics.",
       };
     }
+    // "Write script" on one story: read the article behind the headline, so
+    // the script can say what actually happened. Free, never stored, and a
+    // story that cannot be read is written from its headline as before.
+    sources = await withArticle(platform, sources);
   } else {
     await refreshSources(platform).catch(() => null);
     sources = await sourceCandidates(platform).catch(() => []);

@@ -176,6 +176,14 @@ function sourceBlock(idea: RawIdea, sources: SourceItem[]): string {
   if (!source) {
     return "SOURCE MATERIAL: none beyond the draft itself. Any figure, date, capability or result in the draft that is not common knowledge goes in needsVerification.";
   }
+  if (source.article) {
+    return `SOURCE MATERIAL — the only facts available. The article was read from ${source.article.publisher ?? "another outlet"}${source.publisher && source.article.publisher !== source.publisher ? ` (the story's own outlet, ${source.publisher}, could not be read)` : ""}:
+Headline: ${source.title}
+Article text:
+${source.article.text}
+
+The script may state what this article says, and nothing beyond it. Say it in Pritesh's words: never copy the article's sentences, and quote only a short phrase the brand itself used, such as a slogan or campaign name. A figure, quote or result the article does not contain goes in needsVerification, never into the script as fact.`;
+  }
   return `SOURCE MATERIAL — the only facts available. Only the headline was fetched, not the article:
 Headline: ${source.title}
 Publisher: ${source.publisher ?? "unknown"}${source.publishedAt ? `, ${source.publishedAt.slice(0, 10)}` : ""}

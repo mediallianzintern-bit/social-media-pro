@@ -86,6 +86,23 @@ export function IdeaScriptBody({ idea }: { idea: ContentIdea }) {
             <ExternalLink className="size-3 shrink-0" aria-hidden />
           </a>
           . Anything in [square brackets] is a detail to take from the article before filming.
+          {idea.source.readFrom ? (
+            <>
+              {" "}
+              Written from{" "}
+              <a
+                href={idea.source.readFrom.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="underline-offset-2 hover:text-foreground hover:underline"
+              >
+                {idea.source.readFrom.publisher ?? "another outlet"}&rsquo;s article
+              </a>
+              .
+            </>
+          ) : (
+            " Written from the headline only."
+          )}
         </p>
       ) : null}
 

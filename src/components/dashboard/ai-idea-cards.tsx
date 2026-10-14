@@ -101,6 +101,15 @@ function toPlainText(idea: ContentIdea): string {
         )}${source.coverage && source.coverage > 1 ? ` · carried by ${source.coverage} outlets` : ""}`,
     );
     lines.push(`Link:      ${source.url}`);
+    // Which article the script was actually written from — the story's own
+    // outlet, or another outlet's report of it when that one blocks reading.
+    if (source.readFrom) {
+      lines.push(
+        `Read from: ${source.readFrom.publisher ?? "another outlet"} — ${source.readFrom.url}`,
+      );
+    } else {
+      lines.push("Read from: headline only, the article could not be read");
+    }
     lines.push(`Video:     ${searchLinks(source.searchQuery)[1]?.href ?? ""}`);
     lines.push(
       "Anything in [square brackets] below is a detail to take from the article before filming.",

@@ -28,6 +28,11 @@ export interface SourceItem {
   /** Outlets that carried the same story in the same fetch. Above one = trending. */
   coverage: number;
   fetchedAt: string;
+  /**
+   * The article's text, read at script time for the one story being written
+   * (see server/sources/article.ts). Never stored, never on inbox rows.
+   */
+  article?: { publisher: string | null; url: string; text: string } | undefined;
 }
 
 /** The fields a fetch produces, before storage assigns an id. */
