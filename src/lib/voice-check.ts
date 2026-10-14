@@ -25,7 +25,8 @@ const BANNED_PHRASES = [
   "in an era of",
   "let's dive in",
   "let's unpack",
-  "imagine if",
+  // "Imagine…" is NOT here: Pritesh's October 2026 brief asks for it, to mark a
+  // hypothetical example as one.
   "picture this",
   "here's the thing",
   "the bottom line is",
@@ -50,6 +51,10 @@ const BANNED_PHRASES = [
   "today i am going to show you",
   "today i'm going to show you",
   "ai is changing the world",
+  // Pritesh's October 2026 reel brief.
+  "you won't believe this",
+  "today i am going to talk about",
+  "today i'm going to talk about",
 ];
 
 /**
@@ -95,15 +100,27 @@ const BANNED_SHAPES: Array<{ label: string; pattern: RegExp }> = [
 ];
 
 /**
- * The SOP's spoken length, in words (§6). A range, not a target: the document
- * says natural pacing matters more than the arithmetic, so the flag fires only
- * outside it and says what it means in seconds rather than quoting a number.
+ * The spoken length, in words, from Pritesh's October 2026 reel brief: aim for
+ * 90-110, never more than 115, under a minute. It replaced the SOP's 110-135.
+ * The flag fires only outside the range and says what it means in seconds.
  */
-const MIN_WORDS = 110;
-const MAX_WORDS = 135;
+const MIN_WORDS = 90;
+const MAX_WORDS = 115;
 
-/** "Agree?" only counts as the influencer tic when it stands alone as a question. */
+/** "Agree?" and "Thoughts?" only count as engagement bait standing alone as a question. */
 const AGREE = /(^|[\s.!])agree\?/i;
+const THOUGHTS = /(^|[\s.!])thoughts\?/i;
+
+/** Emoji, which the brief bans from everything spoken or shown. */
+const EMOJI = /\p{Extended_Pictographic}/u;
+
+/**
+ * A promised guide, resource or link. The brief allows one only once it is
+ * confirmed to exist, which the system cannot know, so it is flagged for the
+ * team to confirm or cut rather than banned.
+ */
+const PROMISED_RESOURCE =
+  /\b(comment|dm|message)\b[^.!?]{0,60}\b(i'?ll|i will|we'?ll|we will)\s+send\b|\blink in (my |the )?bio\b|\b(free|full) (guide|template|checklist|playbook)\b/i;
 
 /** Only the words actually SPOKEN — what §6's word count and §12's dash rule govern. */
 function voiceoverText(idea: ContentIdea): string {
@@ -153,6 +170,8 @@ export function voiceFlags(idea: ContentIdea): string[] {
     if (lower.includes(phrase)) flags.push(`uses “${phrase}”`);
   }
   if (AGREE.test(text)) flags.push("uses “Agree?”");
+  if (THOUGHTS.test(text)) flags.push("uses “Thoughts?”");
+  if (EMOJI.test(text)) flags.push("uses an emoji");
   for (const { word, pattern } of BANNED_WORDS) {
     if (pattern.test(text)) flags.push(`uses “${word}”`);
   }
@@ -167,13 +186,17 @@ export function voiceFlags(idea: ContentIdea): string[] {
     flags.push("uses a dash in the voice over — write the sentence out instead");
   }
 
-  // §6 — 110-135 words is 45-60 seconds spoken. Only once a shot list exists,
-  // and only for a filmed format: a LinkedIn post has no spoken length.
+  if (voiceover && PROMISED_RESOURCE.test(voiceover)) {
+    flags.push("promises a guide, link or resource — keep it only if it exists");
+  }
+
+  // 90-115 words is a relaxed 45-55 seconds spoken. Only once a shot list
+  // exists, and only for a filmed format: a LinkedIn post has no spoken length.
   if (voiceover && !idea.post) {
     const count = words(voiceover);
-    if (count < MIN_WORDS) flags.push(`only ${count} words of voice over — under about 45 seconds`);
+    if (count < MIN_WORDS) flags.push(`only ${count} words of voice over — under about 40 seconds`);
     else if (count > MAX_WORDS)
-      flags.push(`${count} words of voice over — likely to run past 60 seconds`);
+      flags.push(`${count} words of voice over — over 115, likely to run past a minute`);
   }
 
   return flags;

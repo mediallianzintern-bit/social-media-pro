@@ -30,19 +30,22 @@ export function workflowLaneForSource(
   return accountLanes.find(isAiToolWorkflowLane) ?? sourceLane!.trim();
 }
 
-/** Structural checks only: passing these does NOT verify a tool's capabilities. */
+/**
+ * Structural checks only: passing these does NOT verify a tool's capabilities.
+ *
+ * A failure here DROPS the idea, which wastes the model call that wrote it, so
+ * only what makes a script unusable as a workflow reel belongs here: the wrong
+ * format, no demonstrated steps, or a cut over a minute. Word count and the
+ * ending are flagged on the idea by voice-check instead, the same as every
+ * other lane, because a script that is a few words over is a thirty-second edit.
+ */
 export function toolWorkflowIssues(platform: PlatformId, idea: ContentIdea): string[] {
   if (platform !== "instagram" || !isAiToolWorkflowLane(idea.contentLane)) return [];
   const issues: string[] = [];
   if (idea.format !== "reel") issues.push("AI tool workflows need a reel script");
-  const spoken = idea.shots.map((shot) => shot.voiceover).join(" ");
-  const wordCount = spoken.trim().split(/\s+/).filter(Boolean).length;
-  if (wordCount < 110 || wordCount > 135) {
-    issues.push(`the voiceover has ${wordCount} words; it needs 110–135`);
-  }
   const duration = idea.production?.durationSeconds;
-  if (duration == null || duration < 45 || duration > 60) {
-    issues.push("the production plan needs a 45–60 second duration");
+  if (duration == null || duration > 60) {
+    issues.push("the reel must run under one minute");
   }
   // Count demonstrated instructions, not mentions of actions in an abstract
   // benefits paragraph. Bracketed actions remain drafts for the team to verify.
@@ -52,73 +55,52 @@ export function toolWorkflowIssues(platform: PlatformId, idea: ContentIdea): str
       /(?:^|[.!?:]\s*|\[VERIFY:\s*)(?:(?:first|next|then|now|finally)[,:]?\s+)*(?:open|go to|select|choose|click|tap|upload|enter|type|ask|copy|paste|add|set|pick|generate|download|export|save|review|edit|check|drag)\b/i.test(
         shot.voiceover,
       ) &&
-      Boolean(shot.visual.trim()) &&
-      Boolean(shot.onScreenText.trim()),
+      Boolean(shot.visual.trim()),
   );
-  if (steps.length < 4) {
+  if (steps.length < 2) {
     issues.push(
-      "show at least four ordered actions, each in a screen-recording shot with a spoken instruction and step label",
+      "show at least two actions of the workflow, each in a screen-recording shot with a spoken instruction",
     );
-  }
-  const ending = idea.shots.at(-1)?.voiceover ?? "";
-  if (!/\bcomment\s+\S+/i.test(ending) || !/\b(?:process|guide)\b/i.test(ending)) {
-    issues.push("end with a comment keyword and an offer to send the process or guide");
   }
   return issues;
 }
 
-/** User-supplied past reels establish delivery style, not current product capabilities. */
+/**
+ * The AI tool workflows lane, in Pritesh's October 2026 reel brief.
+ *
+ * The lane still SHOWS the tool working, because that is what the lane is.
+ * But it is a reel, not a tutorial: one workflow, a few steps, the same
+ * length and ending rules as every other lane. It no longer ends on "Comment
+ * X and I'll send you the guide": the brief forbids promising a resource that
+ * has not been confirmed to exist. See docs/pritesh-reel-voice-2026-10.md.
+ */
 export function toolWorkflowPrompt(platform: PlatformId, lanes: string[]): string {
   const workflows = lanes.filter(isAiToolWorkflowLane);
   if (platform !== "instagram" || !workflows.length) return "";
   return `AI TOOL WORKFLOW REELS — applies ONLY when contentLane is one of: ${JSON.stringify(workflows)}.
-This lane has its own demonstration structure, overriding the generic AI explainer beats, the
-curiosity rule that conceals the result, and the optional-CTA rule. Other lanes keep their existing
-instructions. Use format="reel" even when the OUTPUT being demonstrated is a carousel or image.
-
-Write like Pritesh's practical tool demos: result first, then "Here's how" and a reproducible
-sequence. The viewer should finish thinking "I can follow these steps myself."
-1. Open on the finished output or a concrete task the tool makes easier. Show the output in the
-   first shot. Say "I created this" only when the supplied evidence confirms his own demo; otherwise
-   use "Here's how to create...". No generic AI-news opening or company-history introduction.
-2. Bridge immediately: "Here's exactly how you can do it" or "Here's how."
-3. Walk through 4–6 short actions in the order the viewer performs them: "Open...", "Select...",
-   "Now click...", "Upload...", "Copy...", "Paste...", "Then generate...". Name the tool, the input,
-   the action and its output. If two tools are used, explicitly show what moves from one to the other.
-   Tell the viewer what a prompt should ask for; don't vaguely say "use AI" or "paste this prompt"
-   without providing the actual task/prompt in the shot or production notes.
-4. Reveal the result again: what is now ready, and one supported practical benefit such as editing
-   the text or branding. Do not replace the walkthrough with an abstract business implication.
-5. End with one specific CTA: "Comment [one relevant keyword] and I'll send you the process/guide."
-   Put the actual keyword in the spoken line. Add an editor/production note to prepare and verify
-   the matching guide before posting. Do not claim delivery automation exists. A follow request may
-   accompany the keyword when natural; do not append unrelated engagement requests.
-
-PAST REEL STYLE REFERENCES supplied by the user, not facts to copy into a new tool's instructions:
-- Canva + ChatGPT carousel: finished carousel first; "Here's exactly how you can do it"; open Canva,
-  choose placement/app/theme; ask ChatGPT for niche content; copy into Canva; generate; reveal the
-  editable result; "Comment Canva and I'll send you the full process."
-- Motion graphics demo: show the finished video; "Here's how"; obtain a reference, analyse it into
-  a detailed prompt, move that prompt into a video tool, generate and show the result; comment Guide.
-Borrow their short, direct, conversational delivery and step order. Do NOT automatically reuse
-Canva, Carousel Studio, Pinterest, Google Flow or the example model name. The new topic determines
-the tools. Do not repeat the claim that AI will eat an editor's business or assert unverified speed.
-
-Keep the existing 45–60 second / 110–135 spoken-word target, three hook choices, caption, five
-hashtags and full production handover. All hook options must lead into this same workflow.
-Map each instruction to a screen-recording shot: visible action, matching voiceover and short
-on-screen step label. Include the input/prompt, output reveal and CTA in the shot list.
-Use shotType="Screen recording" for at least four instruction shots, one action per shot.
-Start each instruction's voiceover with an action (optionally First/Next/Then/Now), such as
-"Open..." or "Next, paste...". Before returning, check the actual spoken word count across the
-shots is 110–135 and production.durationSeconds is 45–60. Do not pad with generic benefits.
-An ad-creation headline does NOT mean an entire campaign runs itself. Never turn "builds ads"
-into "runs your campaign", "without lifting a finger", or claims about savings, cost or quality
-unless the source actually supports those claims. "X just launched a tool", generic marketer
-B-roll and "imagine saving time" are a news summary, not a workflow demonstration.
-Only name UI controls, models, integrations, prices, timings and results supported by supplied
-source material or a verified demo. A headline alone is not evidence for a click-by-click tutorial.
-Where details are absent, mark the exact missing action as [VERIFY: ...] for the recording team;
-never invent menus or pretend the tutorial was tested. Use a rights-cleared reference asset.
-`.trim();
+Every voice, length, one-idea and ending rule of the INSTAGRAM REEL format applies unchanged. What
+this lane adds is that the example is the tool SHOWN working, on screen. Use format="reel" even when
+the output being demonstrated is a carousel or image.
+The viewer should finish thinking "Okay, now I understand it, and I can try this."
+1. Opening: start directly with the task the tool makes easier or the finished output, shown in the
+   first shot. A recognisable problem or an honest question works. Say "I created this" only when
+   the supplied evidence confirms his own demo; otherwise "Here's how you can…". No AI-news opening
+   and no company history.
+2. Explanation: in simple words, what the tool does for that task. One capability, not a feature list.
+3. Example: the ONE workflow, shown in 2-4 short actions in the order the viewer does them ("Open…",
+   "Upload…", "Now click…", "Then generate…"). Name the tool, the input and what comes out. Never a
+   whole tutorial: if the workflow has more steps, show the few that make it click and say so simply.
+4. Closing: one practical next step the viewer can take, or a clear takeaway such as what it is good
+   for or a limitation worth knowing. The script must feel complete without a call to action.
+NEVER promise a guide, process, template, link or resource ("comment X and I'll send you…"): none has
+been confirmed to exist. At most one relevant action, only if genuinely useful.
+Stay within 90-110 spoken words, never more than 115, and under one minute. Count before returning.
+Map each shown action to its own shotType="Screen recording" shot whose voiceover starts with the
+action (optionally First/Next/Then/Now). On-screen text stays within the reel's three-line limit,
+so label only the steps that need it.
+Only name UI controls, models, integrations, prices, timings and results supported by the supplied
+source material. A headline alone is not evidence for a click-by-click demo: where a detail is
+absent, mark the exact action as [VERIFY: ...] for the recording team, never invent menus or pretend
+the demo was tested. "Builds ads" never becomes "runs your campaign", and no claims about savings,
+cost or speed that the source does not support. Use a rights-cleared reference asset.`.trim();
 }

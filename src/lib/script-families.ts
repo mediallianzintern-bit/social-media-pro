@@ -47,17 +47,15 @@ export interface FamilyShape {
 export const FAMILY: Record<ScriptFamily, FamilyShape> = {
   ai: {
     family: "ai",
-    payoff: "“I did not know AI could do that” and “I can actually use this.”",
+    payoff: "“Okay, now I understand it” and “I can actually use this.”",
     structure: [
-      "the problem or the curiosity — a real friction the viewer recognises",
-      "the tool, model or development revealed naturally",
-      "what it actually does, in plain words",
-      "only the most interesting capability — not a feature list",
-      "one specific, ordinary use case",
-      "why the viewer should care",
+      "opening: a problem the viewer recognises, or an honest question, with the tool or development named naturally",
+      "explanation: what it actually does, in simple words, its one most useful capability only, never a feature list",
+      "example: one familiar business situation where it helps (“Let's say…”)",
+      "closing: one practical next step the viewer could take, or a clear takeaway",
     ],
     ending:
-      "END ON A USEFUL IMPLICATION — a workflow benefit, a limitation worth knowing, or where this is heading. " +
+      "END ON ONE PRACTICAL NEXT STEP OR A CLEAR TAKEAWAY, such as a way to try it, a limitation worth knowing, or who it suits. " +
       "NEVER end an AI reel with “the lesson is…”: that belongs to a campaign case study and reads as borrowed there.",
   },
   marketing: {
@@ -65,12 +63,10 @@ export const FAMILY: Record<ScriptFamily, FamilyShape> = {
     payoff:
       "“I did not know this brand did that” and “now I understand why that marketing worked.”",
     structure: [
-      "a curiosity hook that does NOT give the story away",
-      "the brand and campaign revealed right after it, as the answer to that curiosity",
-      "specifically what the brand did — the concrete action, not an abstract description",
-      "the result, ONLY where it is verified — never invent a metric to round the story off",
-      "why it worked, or why it failed: the strategic insight, the mechanism, the psychology",
-      "the transferable lesson",
+      "opening: a specific line that gives a reason to listen without giving the whole story away",
+      "explanation: the brand and specifically what it did, the concrete action, with the result ONLY where verified",
+      "example: why it worked, made clear through one familiar business situation the viewer could apply it to",
+      "closing: the transferable lesson",
     ],
     ending:
       "END ON A TRANSFERABLE MARKETING LESSON — one another marketer could apply to a different brand. " +

@@ -552,9 +552,9 @@ Give 6-10 shots. Front-load: the first shot must work with the sound off, becaus
 decide in the first second.
 
 production must be fillable by the editor without a follow-up question:
-- durationSeconds: realistic for the shot list — 30-45 for a simple point, 45-60 for a concept
-  plus an example, 60-90 only when it truly needs explaining — and never longer than the
-  account's measured watch time can support.
+- durationSeconds: realistic for the shot list — 30-45 for a simple point, 45-55 for a concept
+  plus an example — and never longer than the account's measured watch time can support. An
+  Instagram reel is always UNDER ONE MINUTE: never more than 60.
 - coverText: 3-6 words for the cover frame.
 - musicDirection: genre, energy and where it should drop, not a track name.
 - subtitleStyle: how captions should look and behave.
