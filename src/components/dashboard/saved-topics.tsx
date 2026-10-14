@@ -1,15 +1,33 @@
-import { useQueries } from "@tanstack/react-query";
-import { ExternalLink, Flame, Newspaper } from "lucide-react";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  ExternalLink,
+  FileText,
+  Flame,
+  Loader2,
+  Newspaper,
+  RefreshCw,
+  Sparkles,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { AiIdeaCards } from "@/components/dashboard/ai-idea-cards";
 import { SaveTopicButton } from "@/components/dashboard/save-topic-button";
 import { SectionHeading } from "@/components/dashboard/section-heading";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { savedTopicsQueryOptions } from "@/lib/analytics.functions";
+import {
+  analysisQueryOptions,
+  generateOneIdea,
+  getScriptForSource,
+  savedTopicsQueryOptions,
+  topicInboxQueryOptions,
+} from "@/lib/analytics.functions";
 import { dateTime } from "@/lib/format";
 import { PLATFORM_META } from "@/lib/platform-meta";
+import { isAiToolWorkflowLane } from "@/lib/tool-workflow";
 import { cn } from "@/lib/utils";
+import type { ContentIdea } from "@/lib/ai-types";
 import type { PlatformId } from "@/lib/analytics-types";
 import type { SavedTopic } from "@/lib/saved-topics";
 
@@ -149,7 +167,8 @@ function SavedRow({ item }: { item: SavedTopic }) {
           {item.actor ? <span>by {item.actor}</span> : null}
         </p>
       </div>
-      <div className="flex shrink-0 items-center gap-2 pl-5 sm:pl-0">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 pl-5 sm:pl-0">
+        {item.kind === "source" ? <ScriptActions item={item} /> : null}
         <Badge variant="outline" className="font-normal capitalize">
           {item.lane ?? "no lane"}
         </Badge>
@@ -164,5 +183,122 @@ function SavedRow({ item }: { item: SavedTopic }) {
         />
       </div>
     </li>
+  );
+}
+
+/**
+ * "Write script" for a saved news story — the same action, and the same AI
+ * call, as the button in Topics in the news, so a story the team saved can be
+ * scripted from the shortlist without hunting for it in the inbox.
+ *
+ * It first asks whether this story already has a script. If it does, the
+ * button reads "View script" and opens it in the same drawer the inbox uses,
+ * rather than offering to spend a second call on a story already written.
+ * AI tool workflow stories also get "Regenerate", as they do in the inbox.
+ *
+ * News stories only. A saved rising post is a competitor's post, not a story
+ * in source_items, and the script writer builds on stories; rising posts are
+ * answered through "React to this" instead.
+ */
+function ScriptActions({ item }: { item: SavedTopic }) {
+  const queryClient = useQueryClient();
+  const { platform, itemId: sourceId } = item;
+  const scriptKey = ["script-for-source", platform, sourceId] as const;
+  const [viewing, setViewing] = useState<ContentIdea | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const { data: existing, isLoading } = useQuery({
+    queryKey: scriptKey,
+    queryFn: () => getScriptForSource({ data: { platform, sourceId } }),
+    staleTime: 60 * 1000,
+  });
+
+  const write = useMutation({
+    mutationFn: (regenerate: boolean) =>
+      generateOneIdea({ data: { platform, sourceId, ...(regenerate ? { regenerate } : {}) } }),
+    onMutate: () => setMessage(null),
+    onSuccess: (result) => {
+      if (result.analysis) {
+        queryClient.setQueryData(analysisQueryOptions(platform).queryKey, result.analysis);
+      }
+      if (result.idea) {
+        queryClient.setQueryData(scriptKey, result.idea);
+        setViewing(result.idea);
+      } else {
+        setMessage(result.reason ?? "No script was written for this story.");
+      }
+      void queryClient.invalidateQueries({ queryKey: topicInboxQueryOptions(platform).queryKey });
+    },
+    onError: (error) =>
+      setMessage(
+        error instanceof Error ? error.message : "Could not write a script for this story.",
+      ),
+  });
+
+  const regenerating = write.isPending && write.variables === true;
+
+  return (
+    <>
+      {isLoading ? (
+        <Button size="sm" variant="outline" className="gap-1.5" disabled>
+          <Loader2 className="size-3.5 animate-spin" aria-hidden />
+          Checking…
+        </Button>
+      ) : existing ? (
+        <>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            disabled={write.isPending}
+            onClick={() => setViewing(existing)}
+          >
+            <FileText className="size-3.5" aria-hidden />
+            View script
+          </Button>
+          {platform === "instagram" && isAiToolWorkflowLane(item.lane) ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              disabled={write.isPending}
+              onClick={() => write.mutate(true)}
+              title="Uses one AI call to write a new version with the current workflow rules"
+            >
+              <RefreshCw className={cn("size-3.5", regenerating && "animate-spin")} aria-hidden />
+              {regenerating ? "Regenerating…" : "Regenerate script"}
+            </Button>
+          ) : null}
+        </>
+      ) : (
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1.5"
+          disabled={write.isPending}
+          onClick={() => write.mutate(false)}
+          title="Uses AI calls: writes a script on this story in the account's proven structure"
+        >
+          {write.isPending ? (
+            <Loader2 className="size-3.5 animate-spin" aria-hidden />
+          ) : (
+            <Sparkles className="size-3.5" aria-hidden />
+          )}
+          {write.isPending ? "Writing…" : "Write script"}
+        </Button>
+      )}
+      {message ? <span className="w-full text-xs text-destructive">{message}</span> : null}
+
+      {viewing ? (
+        <AiIdeaCards
+          key={viewing.id}
+          ideas={[viewing]}
+          platform={platform}
+          initialOpenId={viewing.id}
+          panelOnly
+          onClose={() => setViewing(null)}
+        />
+      ) : null}
+    </>
   );
 }
