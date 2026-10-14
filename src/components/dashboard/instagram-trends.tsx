@@ -11,6 +11,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
+import { SaveTopicButton } from "@/components/dashboard/save-topic-button";
 import { SectionHeading } from "@/components/dashboard/section-heading";
 import { VoteButtons } from "@/components/dashboard/vote-buttons";
 import { Badge } from "@/components/ui/badge";
@@ -159,6 +160,15 @@ export function InstagramTrends({ platform }: { platform: PlatformId }) {
                       text={trend.caption || trend.hook}
                       lane={trend.lane}
                       className="ml-auto"
+                    />
+                    <SaveTopicButton
+                      platform={platform}
+                      kind="trend"
+                      itemId={trend.postId}
+                      title={trend.hook}
+                      url={trend.url}
+                      sourceLabel={`@${trend.handle}`}
+                      lane={trend.lane}
                     />
                   </div>
 

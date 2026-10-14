@@ -546,6 +546,68 @@ export const topicFeedbackQueryOptions = (platform: PlatformId) => ({
 });
 
 // ---------------------------------------------------------------------------
+// Saved topics — the team's shared shortlist
+// ---------------------------------------------------------------------------
+
+/** Every bookmarked topic for a platform. Read-only: never fetches, never spends. */
+export const getSavedTopics = createServerFn({ method: "GET" })
+  .validator((input: unknown) => platformSchema.parse(input))
+  .handler(async ({ data }) => {
+    const { readSavedTopics } = await import("@/server/store");
+    return { saved: await readSavedTopics(data).catch(() => []) };
+  });
+
+/**
+ * Bookmarks a topic, or removes the bookmark when `saved` is false.
+ *
+ * The saver is taken from the verified session in requireStaff, never from the
+ * payload, so a shared shortlist can show who added each item. The snapshot
+ * (title, link, label, lane) is stored with it, so the Saved screen renders
+ * without going back to the source tables that the item will eventually age
+ * out of.
+ */
+export const saveTopic = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .validator((input: unknown) =>
+    z
+      .object({
+        platform: platformSchema,
+        kind: z.enum(["source", "trend"]),
+        itemId: z.string().min(1).max(200),
+        saved: z.boolean(),
+        title: z.string().min(1).max(2000),
+        url: z.string().max(2000).nullable(),
+        sourceLabel: z.string().max(200).nullable(),
+        lane: z.string().max(120).nullable(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { saveSavedTopic, removeSavedTopic } = await import("@/server/store");
+    if (data.saved) {
+      await saveSavedTopic({
+        platform: data.platform,
+        kind: data.kind,
+        itemId: data.itemId,
+        title: data.title,
+        url: data.url,
+        sourceLabel: data.sourceLabel,
+        lane: data.lane,
+        actor: context.staffEmail,
+      });
+    } else {
+      await removeSavedTopic(data.platform, data.kind, data.itemId);
+    }
+    return { ok: true };
+  });
+
+export const savedTopicsQueryOptions = (platform: PlatformId) => ({
+  queryKey: ["saved-topics", platform] as const,
+  queryFn: () => getSavedTopics({ data: platform }),
+  staleTime: 30 * 1000,
+});
+
+// ---------------------------------------------------------------------------
 // Addendum E — the reaction-hook format
 // ---------------------------------------------------------------------------
 

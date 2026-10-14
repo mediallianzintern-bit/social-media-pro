@@ -20,6 +20,7 @@ import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppInstagramRouteImport } from './routes/_app/instagram'
 import { Route as AppLinkedinRouteImport } from './routes/_app/linkedin'
 import { Route as AppReactionsRouteImport } from './routes/_app/reactions'
+import { Route as AppSavedRouteImport } from './routes/_app/saved'
 import { Route as AppSourcesRouteImport } from './routes/_app/sources'
 import { Route as AppWorkspaceRouteImport } from './routes/_app/workspace'
 
@@ -77,6 +78,11 @@ const AppReactionsRoute = AppReactionsRouteImport.update({
   path: '/reactions',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSavedRoute = AppSavedRouteImport.update({
+  id: '/saved',
+  path: '/saved',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSourcesRoute = AppSourcesRouteImport.update({
   id: '/sources',
   path: '/sources',
@@ -99,6 +105,7 @@ export interface FileRoutesByFullPath {
   '/instagram': typeof AppInstagramRoute
   '/linkedin': typeof AppLinkedinRoute
   '/reactions': typeof AppReactionsRoute
+  '/saved': typeof AppSavedRoute
   '/sources': typeof AppSourcesRoute
   '/workspace': typeof AppWorkspaceRoute
 }
@@ -112,6 +119,7 @@ export interface FileRoutesByTo {
   '/instagram': typeof AppInstagramRoute
   '/linkedin': typeof AppLinkedinRoute
   '/reactions': typeof AppReactionsRoute
+  '/saved': typeof AppSavedRoute
   '/sources': typeof AppSourcesRoute
   '/workspace': typeof AppWorkspaceRoute
   '/': typeof AppIndexRoute
@@ -128,6 +136,7 @@ export interface FileRoutesById {
   '/_app/instagram': typeof AppInstagramRoute
   '/_app/linkedin': typeof AppLinkedinRoute
   '/_app/reactions': typeof AppReactionsRoute
+  '/_app/saved': typeof AppSavedRoute
   '/_app/sources': typeof AppSourcesRoute
   '/_app/workspace': typeof AppWorkspaceRoute
   '/_app/': typeof AppIndexRoute
@@ -145,6 +154,7 @@ export interface FileRouteTypes {
     | '/instagram'
     | '/linkedin'
     | '/reactions'
+    | '/saved'
     | '/sources'
     | '/workspace'
   fileRoutesByTo: FileRoutesByTo
@@ -158,6 +168,7 @@ export interface FileRouteTypes {
     | '/instagram'
     | '/linkedin'
     | '/reactions'
+    | '/saved'
     | '/sources'
     | '/workspace'
     | '/'
@@ -173,6 +184,7 @@ export interface FileRouteTypes {
     | '/_app/instagram'
     | '/_app/linkedin'
     | '/_app/reactions'
+    | '/_app/saved'
     | '/_app/sources'
     | '/_app/workspace'
     | '/_app/'
@@ -267,6 +279,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppReactionsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/saved': {
+      id: '/_app/saved'
+      path: '/saved'
+      fullPath: '/saved'
+      preLoaderRoute: typeof AppSavedRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/sources': {
       id: '/_app/sources'
       path: '/sources'
@@ -288,6 +307,7 @@ interface AppRouteChildren {
   AppInstagramRoute: typeof AppInstagramRoute
   AppLinkedinRoute: typeof AppLinkedinRoute
   AppReactionsRoute: typeof AppReactionsRoute
+  AppSavedRoute: typeof AppSavedRoute
   AppSourcesRoute: typeof AppSourcesRoute
   AppWorkspaceRoute: typeof AppWorkspaceRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -297,6 +317,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppInstagramRoute: AppInstagramRoute,
   AppLinkedinRoute: AppLinkedinRoute,
   AppReactionsRoute: AppReactionsRoute,
+  AppSavedRoute: AppSavedRoute,
   AppSourcesRoute: AppSourcesRoute,
   AppWorkspaceRoute: AppWorkspaceRoute,
   AppIndexRoute: AppIndexRoute,

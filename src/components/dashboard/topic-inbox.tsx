@@ -13,6 +13,7 @@ import { useMemo, useState } from "react";
 
 import { CollapseToggle } from "@/components/dashboard/collapse-toggle";
 import { IdeaScriptDialog } from "@/components/dashboard/idea-script-dialog";
+import { SaveTopicButton } from "@/components/dashboard/save-topic-button";
 import { SectionHeading } from "@/components/dashboard/section-heading";
 import { Badge } from "@/components/ui/badge";
 import { TasteSummary } from "@/components/dashboard/taste-summary";
@@ -244,6 +245,15 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                             kind="source"
                             itemId={item.id}
                             text={item.title}
+                            lane={item.lane}
+                          />
+                          <SaveTopicButton
+                            platform={platform}
+                            kind="source"
+                            itemId={item.id}
+                            title={item.title}
+                            url={item.url}
+                            sourceLabel={item.publisher}
                             lane={item.lane}
                           />
                           {item.used || justWritten ? (

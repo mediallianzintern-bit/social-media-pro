@@ -7,6 +7,7 @@
 // wired up. The UI says so rather than letting the gap pass unnoticed.
 import type { ContentEra } from "@/lib/eras";
 import type { TopicVote } from "@/lib/preferences";
+import type { SavedTopic } from "@/lib/saved-topics";
 import type { ReactionFields, ReactionSource } from "@/lib/reaction";
 import { isTrendSource } from "./apify/accounts";
 import type {
@@ -469,6 +470,45 @@ export async function saveTopicVote(vote: {
     actor: vote.actor,
     createdAt: new Date().toISOString(),
   });
+}
+
+// Saved topics — the shared shortlist, in memory for previews without Supabase.
+
+const saved: SavedTopic[] = [];
+
+export async function readSavedTopics(platform: PlatformId): Promise<SavedTopic[]> {
+  return saved.filter((topic) => topic.platform === platform);
+}
+
+export async function saveSavedTopic(input: {
+  platform: PlatformId;
+  kind: SavedTopic["kind"];
+  itemId: string;
+  title: string;
+  url: string | null;
+  sourceLabel: string | null;
+  lane: string | null;
+  actor: string | null;
+}): Promise<void> {
+  const index = saved.findIndex(
+    (topic) =>
+      topic.platform === input.platform &&
+      topic.kind === input.kind &&
+      topic.itemId === input.itemId,
+  );
+  if (index >= 0) saved.splice(index, 1);
+  saved.unshift({ ...input, createdAt: new Date().toISOString() });
+}
+
+export async function removeSavedTopic(
+  platform: PlatformId,
+  kind: SavedTopic["kind"],
+  itemId: string,
+): Promise<void> {
+  const index = saved.findIndex(
+    (topic) => topic.platform === platform && topic.kind === kind && topic.itemId === itemId,
+  );
+  if (index >= 0) saved.splice(index, 1);
 }
 
 // ---------------------------------------------------------------------------

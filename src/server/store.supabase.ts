@@ -14,6 +14,7 @@ import type {
 import type { AiAnalysis, ContentIdea } from "@/lib/ai-types";
 import type { ContentEra } from "@/lib/eras";
 import type { TopicVote } from "@/lib/preferences";
+import type { SavedTopic } from "@/lib/saved-topics";
 import type { ReactionFields, ReactionSource } from "@/lib/reaction";
 import { classifyHook, scriptFeatures, type ScriptFeatures } from "@/lib/script-features";
 import type { SourceDraft, SourceItem } from "@/lib/sources";
@@ -2126,6 +2127,91 @@ export async function saveTopicVote(vote: {
       { onConflict: "platform,item_kind,item_id" },
     );
   if (error) throw new Error(`topic_feedback upsert failed: ${error.message}`);
+}
+
+// ---------------------------------------------------------------------------
+// Saved topics — the team's shared shortlist
+// ---------------------------------------------------------------------------
+
+/**
+ * Every bookmarked topic for a platform, newest first.
+ *
+ * [] when the table is absent, like the other enrichment reads: with no table
+ * the Saved screen is simply empty, which is the correct state until migration
+ * 0018 is applied, not an error.
+ */
+export async function readSavedTopics(platform: PlatformId): Promise<SavedTopic[]> {
+  const { data, error } = await db()
+    .from("saved_topics")
+    .select("item_kind,item_id,title,url,source_label,lane,actor,created_at")
+    .eq("platform", platform)
+    .order("created_at", { ascending: false })
+    .limit(500);
+  if (error && schemaNotReady(error)) return [];
+  if (error) throw new Error(`saved_topics read failed: ${error.message}`);
+  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    kind: row["item_kind"] as SavedTopic["kind"],
+    itemId: String(row["item_id"]),
+    platform,
+    title: String(row["title"] ?? ""),
+    url: (row["url"] as string | null) ?? null,
+    sourceLabel: (row["source_label"] as string | null) ?? null,
+    lane: (row["lane"] as string | null) ?? null,
+    actor: (row["actor"] as string | null) ?? null,
+    createdAt: String(row["created_at"]),
+  }));
+}
+
+/** Bookmarks a topic, keyed on the item. Saving twice updates the snapshot. */
+export async function saveSavedTopic(input: {
+  platform: PlatformId;
+  kind: SavedTopic["kind"];
+  itemId: string;
+  title: string;
+  url: string | null;
+  sourceLabel: string | null;
+  lane: string | null;
+  actor: string | null;
+}): Promise<void> {
+  const { error } = await db()
+    .from("saved_topics")
+    .upsert(
+      {
+        platform: input.platform,
+        item_kind: input.kind,
+        item_id: input.itemId,
+        title: input.title.slice(0, 2000),
+        url: input.url,
+        source_label: input.sourceLabel,
+        lane: input.lane,
+        actor: input.actor,
+        created_at: new Date().toISOString(),
+      },
+      { onConflict: "platform,item_kind,item_id" },
+    );
+  if (error && schemaNotReady(error)) {
+    throw new Error(
+      "Saved topics need database migration 0018. Apply it in Supabase, then try again.",
+    );
+  }
+  if (error) throw new Error(`saved_topics upsert failed: ${error.message}`);
+}
+
+/** Removes a bookmark. A no-op when it was not saved. */
+export async function removeSavedTopic(
+  platform: PlatformId,
+  kind: SavedTopic["kind"],
+  itemId: string,
+): Promise<void> {
+  const { error } = await db()
+    .from("saved_topics")
+    .delete()
+    .eq("platform", platform)
+    .eq("item_kind", kind)
+    .eq("item_id", itemId);
+  if (error && !schemaNotReady(error)) {
+    throw new Error(`saved_topics delete failed: ${error.message}`);
+  }
 }
 
 // ---------------------------------------------------------------------------
