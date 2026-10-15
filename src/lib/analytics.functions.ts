@@ -640,6 +640,18 @@ export const searchForReels = createServerFn({ method: "POST" })
     return refreshDiscoveredReels(data);
   });
 
+/**
+ * One search per content lane, so a pass covers everything this creator
+ * publishes about. One Apify run per lane, from an explicit click.
+ */
+export const searchEveryLane = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .validator((input: unknown) => platformSchema.parse(input))
+  .handler(async ({ data }) => {
+    const { refreshEveryLane } = await import("@/server/discovered");
+    return refreshEveryLane(data);
+  });
+
 export const discoveredReelsQueryOptions = (platform: PlatformId) => ({
   queryKey: ["discovered-reels", platform] as const,
   queryFn: () => getDiscoveredReels({ data: platform }),

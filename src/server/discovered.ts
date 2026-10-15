@@ -89,31 +89,77 @@ export async function nextQuery(
     readTopicVotes(platform).catch(() => []),
   ]);
 
-  const lastUsed = new Map<string, number>();
-  for (const reel of stored) {
-    if (!reel.query) continue;
-    const at = Date.parse(reel.foundAt);
-    const seen = lastUsed.get(reel.query) ?? 0;
-    if (Number.isFinite(at) && at > seen) lastUsed.set(reel.query, at);
-  }
-
-  // What the team keeps ticking, first — but never a phrase already searched
-  // recently, or the loop would run the same pull query every time.
-  for (const pull of pullQueries(votes)) {
-    if (!lastUsed.has(pull.query)) return { lane: pull.lane, query: pull.query };
-  }
-
   const lanes = (taxonomy ?? []).map((lane) => lane.name);
-  const candidates: Array<{ lane: string; query: string; used: number }> = [];
-  for (const lane of lanes) {
-    for (const query of queriesFor(lane)) {
-      candidates.push({ lane, query, used: lastUsed.get(query) ?? 0 });
+  if (!lanes.length) return null;
+
+  const lastUsed = new Map<string, number>();
+  const held = new Map<string, number>();
+  for (const reel of stored) {
+    if (reel.query) {
+      const at = Date.parse(reel.foundAt);
+      if (Number.isFinite(at) && at > (lastUsed.get(reel.query) ?? 0)) {
+        lastUsed.set(reel.query, at);
+      }
     }
+    if (reel.lane) held.set(laneKey(reel.lane), (held.get(laneKey(reel.lane)) ?? 0) + 1);
   }
-  if (!candidates.length) return null;
-  candidates.sort((a, b) => a.used - b.used);
-  const pick = candidates[0]!;
-  return { lane: pick.lane, query: pick.query };
+
+  // THE THINNEST LANE FIRST. Every lane this creator publishes in should be
+  // covered, and a rotation that only looked at which QUERY was least recently
+  // used kept returning to whichever lane the team had been ticking — three
+  // searches running, all of them frontier-AI, while two lanes held nothing.
+  // Ordering by what is on the shelf fills the gaps on its own.
+  const order = [...lanes].sort(
+    (a, b) => (held.get(laneKey(a)) ?? 0) - (held.get(laneKey(b)) ?? 0),
+  );
+
+  // Within a lane, a phrase the team's own ticks have earned comes first
+  // (see pullQueries), then the least recently used of its standing queries.
+  const pulls = pullQueries(votes, 4);
+  for (const lane of order) {
+    const pull = pulls.find(
+      (entry) => entry.lane && laneKey(entry.lane) === laneKey(lane) && !lastUsed.has(entry.query),
+    );
+    if (pull) return { lane, query: pull.query };
+
+    const queries = queriesFor(lane);
+    if (!queries.length) continue;
+    const next = [...queries].sort((a, b) => (lastUsed.get(a) ?? 0) - (lastUsed.get(b) ?? 0))[0]!;
+    return { lane, query: next };
+  }
+  return null;
+}
+
+/**
+ * One search for EVERY lane, so a pass covers everything this creator
+ * publishes about rather than deepening whichever lane is already full.
+ *
+ * Sequential, and that is not an accident: Apify caps how many runs this
+ * account may have going at once, and a parallel fan-out trips that cap rather
+ * than finishing sooner. Costs one run per lane, which is why it is its own
+ * button with the price on it.
+ */
+export async function refreshEveryLane(platform: PlatformId): Promise<{
+  ran: boolean;
+  passes: Array<Awaited<ReturnType<typeof refreshDiscoveredReels>>>;
+  reason?: string;
+}> {
+  const owner = OWNER_ACCOUNTS[platform].handle;
+  const taxonomy = await readTaxonomy(platform, owner).catch(() => null);
+  const lanes = (taxonomy ?? []).map((lane) => lane.name);
+  if (!lanes.length) {
+    return { ran: false, passes: [], reason: "Derive this account's content lanes first." };
+  }
+
+  const passes = [];
+  for (let i = 0; i < lanes.length; i += 1) {
+    // nextQuery is re-asked each time, so each pass sees what the one before
+    // it stored and moves on to the lane that is now thinnest.
+    const pass = await refreshDiscoveredReels(platform);
+    passes.push(pass);
+    if (!pass.ran && pass.reason) break;
+  }
+  return { ran: passes.some((pass) => pass.ran), passes };
 }
 
 /**
@@ -280,7 +326,12 @@ export async function discoveredReels(platform: PlatformId): Promise<DiscoveredR
     (entry.suppressed ? hidden : rows).push(entry.row);
   }
 
+  // Every lane this creator publishes in, including the ones holding nothing.
+  // A list of only the lanes that happen to have reels hides the gaps, which
+  // are the whole point of knowing where to search next.
+  const taxonomy = await readTaxonomy(platform, OWNER_ACCOUNTS[platform].handle).catch(() => null);
   const counts = new Map<string, number>();
+  for (const lane of taxonomy ?? []) counts.set(lane.name, 0);
   for (const row of rows) {
     if (row.lane) counts.set(row.lane, (counts.get(row.lane) ?? 0) + 1);
   }

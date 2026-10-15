@@ -1,5 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, Clapperboard, ExternalLink, Eye, Loader2, Search } from "lucide-react";
+import {
+  ChevronDown,
+  Clapperboard,
+  ExternalLink,
+  Eye,
+  Layers,
+  Loader2,
+  Search,
+} from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 
@@ -13,6 +21,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   discoveredReelsQueryOptions,
   saveReactionClip,
+  searchEveryLane,
   searchForReels,
 } from "@/lib/analytics.functions";
 import { RUNNING_LOW, WEAK_FIT, type DiscoveredRow } from "@/lib/discovered";
@@ -46,11 +55,21 @@ export function DiscoveredReels({ platform }: { platform: PlatformId }) {
   const [collapsed, setCollapsed] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
 
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: discoveredReelsQueryOptions(platform).queryKey });
+
   const search = useMutation({
     mutationFn: () => searchForReels({ data: platform }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: discoveredReelsQueryOptions(platform).queryKey }),
+    onSuccess: refresh,
   });
+
+  // One run per lane. Its own button, with the price on it, because this is
+  // the expensive action on a plan where runs are the scarce thing.
+  const sweep = useMutation({
+    mutationFn: () => searchEveryLane({ data: platform }),
+    onSuccess: refresh,
+  });
+  const busy = search.isPending || sweep.isPending;
 
   const rows = useMemo(() => data?.rows ?? [], [data]);
   const lanes = useMemo(
@@ -63,13 +82,16 @@ export function DiscoveredReels({ platform }: { platform: PlatformId }) {
   // The lane closest to running dry, which is what the prompt to search again
   // is actually about. With one search per press, saying which lane needs it
   // is the difference between a useful button and a slot machine.
-  const thin = (data?.byLane ?? []).filter((entry) => entry.shown < RUNNING_LOW);
+  const coverage = data?.byLane ?? [];
+  const laneCount = Math.max(1, coverage.length);
+  const thin = coverage.filter((entry) => entry.shown < RUNNING_LOW);
 
   // Instagram only for now: the search actor is Instagram's.
   if (platform !== "instagram") return null;
   if (!isLoading && !rows.length && !data?.hidden.length && !search.data) return null;
 
   const outcome = search.data;
+  const sweepOutcome = sweep.data;
 
   return (
     <>
@@ -95,22 +117,61 @@ export function DiscoveredReels({ platform }: { platform: PlatformId }) {
                     ? `${rows.length} reels found by searching your lanes.`
                     : "No reels found yet — press Search for reels."}
               </p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="ml-auto gap-1.5"
-                disabled={search.isPending}
-                onClick={() => search.mutate()}
-                title="Runs one Instagram search, which spends one Apify run. Each press looks in a different place."
-              >
-                {search.isPending ? (
-                  <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                ) : (
-                  <Search className="size-3.5" aria-hidden />
-                )}
-                {search.isPending ? "Searching…" : "Search for reels"}
-              </Button>
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={busy}
+                  onClick={() => search.mutate()}
+                  title="Runs one Instagram search, in whichever of your lanes is holding the fewest reels. One Apify run."
+                >
+                  {search.isPending ? (
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                  ) : (
+                    <Search className="size-3.5" aria-hidden />
+                  )}
+                  {search.isPending ? "Searching…" : "Search thinnest lane"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={busy}
+                  onClick={() => sweep.mutate()}
+                  title={`Searches every one of your lanes, one after another. ${laneCount} Apify runs.`}
+                >
+                  {sweep.isPending ? (
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                  ) : (
+                    <Layers className="size-3.5" aria-hidden />
+                  )}
+                  {sweep.isPending
+                    ? "Searching every lane…"
+                    : `Search every lane (${laneCount} runs)`}
+                </Button>
+              </div>
             </div>
+
+            {/* Coverage across every lane, empty ones included: the gaps are
+                what decides where to search next. */}
+            {coverage.length ? (
+              <div className="flex flex-wrap gap-1.5">
+                {coverage.map((entry) => (
+                  <Badge
+                    key={entry.lane}
+                    variant="outline"
+                    className={cn(
+                      "gap-1 font-normal",
+                      entry.shown === 0 && "border-dashed text-muted-foreground",
+                    )}
+                  >
+                    {entry.lane}
+                    <span className="font-semibold tabular-nums">{entry.shown}</span>
+                  </Badge>
+                ))}
+              </div>
+            ) : null}
 
             {/* Said before the list runs dry, not after. */}
             {thin.length && !search.isPending ? (
@@ -118,6 +179,21 @@ export function DiscoveredReels({ platform }: { platform: PlatformId }) {
                 Running low in {thin.map((entry) => `${entry.lane} (${entry.shown})`).join(", ")}.
                 Press Search for reels to look for more — each press searches a different term, and
                 what you tick decides what it looks for next.
+              </p>
+            ) : null}
+
+            {sweepOutcome ? (
+              <p className="rounded-md border px-3 py-2 text-xs text-muted-foreground">
+                Searched {sweepOutcome.passes.length} lane
+                {sweepOutcome.passes.length === 1 ? "" : "s"}:{" "}
+                {sweepOutcome.passes
+                  .map((pass) =>
+                    pass.ran
+                      ? `“${pass.query}” → ${pass.stored ?? 0} new`
+                      : (pass.reason ?? "did not run"),
+                  )
+                  .join("; ")}
+                .
               </p>
             ) : null}
 
