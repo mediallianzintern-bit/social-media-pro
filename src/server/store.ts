@@ -178,3 +178,5 @@ export const linkCalendarEntry: typeof supabase.linkCalendarEntry = (...args) =>
 
 export const readIdeaForSource: typeof supabase.readIdeaForSource = (...args) =>
   store().readIdeaForSource(...args);
+export const readIdeaForReactionSource: typeof supabase.readIdeaForReactionSource = (...args) =>
+  store().readIdeaForReactionSource(...args);

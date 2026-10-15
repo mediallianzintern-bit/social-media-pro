@@ -683,6 +683,14 @@ export async function readChosenHooks(): Promise<Map<string, string>> {
 }
 
 /** Memory previews have no durable suggestion history. */
+export async function readIdeaForReactionSource(
+  _platform: PlatformId,
+  _reactionSourceId: string,
+): Promise<ContentIdea | null> {
+  return null;
+}
+
+/** Memory previews have no durable suggestion history. */
 export async function readIdeaForSource(
   _platform: PlatformId,
   _sourceId: string,

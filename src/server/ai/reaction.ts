@@ -428,8 +428,33 @@ export function assembleReaction(
     expertShots.map((shot) => shot.voiceover),
     allowed,
   );
+  // THE REEL'S OWN CLOCK, rebuilt here rather than taken from the model.
+  //
+  // Two timelines are in play and they are not the same one: where a moment
+  // sits inside the SOURCE clip (borrow 0:25-0:33 of the original), and where
+  // it sits in the FINISHED reel (that borrowed piece runs 0:00-0:08 of what
+  // the viewer watches). The model was writing the first and the shot list was
+  // printing it as the second, so a real handover read "0:00-0:04" for shot 1
+  // and then jumped to "0:27-0:30" for shot 2 — twenty-three seconds of
+  // nothing, and a shot list ending at 0:54 under a heading that said 32s.
+  //
+  // So the source shot runs from zero for as long as the borrow lasts, and the
+  // expert's shots follow it without a gap, sharing his segment in proportion
+  // to how much there is to say in each. The last one ends exactly on the
+  // duration the production block states.
+  const spokenLines = checkedShots.lines.length
+    ? checkedShots.lines
+    : expertShots.map((shot) => shot.voiceover ?? "");
+  // How long the expert's part ACTUALLY runs, from the words written rather
+  // than from the model's own estimate of them. Asked for 28-32 seconds it
+  // returned 12 for seven full sentences, which put a fifteen-word line in a
+  // one-second shot. Words are the thing that takes time to say, so they are
+  // what the clock is built from — the same two-words-a-second the review pass
+  // uses on a written reel.
+  const expertSeconds = expertSecondsFor(spokenLines, raw.expertSeconds);
+  const expertMarks = reelTimeline(segment.seconds, expertSeconds, spokenLines);
   const sourceShot: Shot = {
-    mark: `0:00–${raw.sourceOut}`,
+    mark: `0:00–${asMark(segment.seconds)}`,
     shotType: "Source clip",
     visual: `Borrowed clip from ${source.sourceCreatorHandle ? `@${source.sourceCreatorHandle}` : "the source"}, ${raw.sourceIn}–${raw.sourceOut} of the original. Vertical, credit overlay small and legible.`,
     voiceover: "",
@@ -440,6 +465,7 @@ export function assembleReaction(
     sourceShot,
     ...expertShots.map((shot, index) => ({
       ...shot,
+      mark: expertMarks[index] ?? shot.mark,
       voiceover: checkedShots.lines[index] ?? shot.voiceover,
     })),
   ];
@@ -468,7 +494,7 @@ export function assembleReaction(
     sourceIn: raw.sourceIn,
     sourceOut: raw.sourceOut,
     pivotType: raw.pivotType,
-    expertSeconds: Math.round(raw.expertSeconds),
+    expertSeconds,
     beats: finalBeats,
     missingBeats,
     verifyItems,
@@ -493,7 +519,7 @@ export function assembleReaction(
       .slice(0, 2),
     shots,
     production: {
-      durationSeconds: Math.round(raw.expertSeconds + segment.seconds),
+      durationSeconds: expertSeconds + segment.seconds,
       aspectRatio: "9:16",
       coverText: raw.title,
       musicDirection: "None under the expert; the source clip keeps its own audio.",
@@ -505,6 +531,14 @@ export function assembleReaction(
       editorNotes: [
         // Said exactly, because an editor who is told the wrong thing about
         // where a number came from stops believing the notes.
+        // Said when the words written overrun the length this format is
+        // measured to work at, because the fix is cutting lines, not reading
+        // faster.
+        ...(expertSeconds > EXPERT_SECONDS_CEILING + 5
+          ? [
+              `The expert's lines run about ${expertSeconds}s at a normal pace, against the ${EXPERT_SECONDS_FLOOR}-${EXPERT_SECONDS_CEILING}s this format is measured at. Cut a beat rather than speed up.`,
+            ]
+          : []),
         ...(segment.from === "transcript"
           ? [
               `The borrowed in/out ${segment.sourceIn}-${segment.sourceOut} was read from the clip's own transcript, not chosen by the writer. Check it against the video before cutting.`,
@@ -549,6 +583,60 @@ const toSeconds = (mark: string): number =>
 
 const asMark = (seconds: number): string =>
   `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, "0")}`;
+
+/** A relaxed speaking pace, the same one the written reels are timed at. */
+const WORDS_PER_SECOND = 2;
+
+/**
+ * How many seconds the expert's lines really need.
+ *
+ * The model is asked for this and is bad at it: on a real script it returned
+ * 12 seconds for seven full sentences. Counting the words it actually wrote is
+ * the honest answer, and it is what makes the shot marks usable. The model's
+ * own figure is kept only as a floor, so a deliberately slow delivery is not
+ * squeezed.
+ */
+export function expertSecondsFor(lines: string[], claimed: number): number {
+  const words = lines.join(" ").trim().split(/\s+/).filter(Boolean).length;
+  const spoken = Math.ceil(words / WORDS_PER_SECOND);
+  return Math.max(Math.max(1, lines.length), spoken, Math.round(claimed) || 0);
+}
+
+/**
+ * The finished reel's own shot marks: the borrowed clip, then the expert,
+ * continuous, ending exactly on the stated duration.
+ *
+ * Each expert shot gets a share of his segment in proportion to how many words
+ * it carries, with a floor so a three-word line still has room to land. Marks
+ * are cumulative, so they are contiguous by construction rather than by
+ * arithmetic that can drift.
+ */
+export function reelTimeline(
+  borrowSeconds: number,
+  expertSeconds: number,
+  lines: string[],
+): string[] {
+  if (!lines.length) return [];
+  const words = lines.map((line) => Math.max(1, line.trim().split(/\s+/).filter(Boolean).length));
+  const total = words.reduce((sum, count) => sum + count, 0);
+  const span = Math.max(lines.length, expertSeconds);
+
+  let at = 0;
+  const bounds = [0];
+  for (const count of words) {
+    at += (span * count) / total;
+    bounds.push(at);
+  }
+
+  const marks: string[] = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const from = Math.round(borrowSeconds + bounds[i]!);
+    // Never a zero-length shot, however short its line.
+    const to = Math.max(from + 1, Math.round(borrowSeconds + bounds[i + 1]!));
+    marks.push(`${asMark(from)}–${asMark(to)}`);
+  }
+  return marks;
+}
 
 /** A borrowed setup states the claim and stops. Outside this, the model guessed. */
 const MIN_BORROW_SECONDS = 3;

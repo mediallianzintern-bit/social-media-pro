@@ -2534,6 +2534,39 @@ export async function linkCalendarEntry(contentHash: string, postId: string): Pr
 }
 
 /** Retrieve a saved script independently of the latest analysis batch. */
+/**
+ * The latest script written from one reaction clip, whole.
+ *
+ * The sibling of readIdeaForSource, keyed on the clip rather than the news
+ * story. It exists so the Reaction hooks screen can show the SAME script view
+ * as everywhere else: the cached analysis holds only the current set of ideas,
+ * so a script written weeks ago is in the table but not in that cache.
+ */
+export async function readIdeaForReactionSource(
+  platform: PlatformId,
+  reactionSourceId: string,
+): Promise<ContentIdea | null> {
+  const { data, error } = await db()
+    .from("suggested_ideas")
+    .select("id,payload,chosen_hook,status,published_shortcode")
+    .eq("platform", platform)
+    .eq("reaction_source_id", reactionSourceId)
+    .not("payload", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error && schemaNotReady(error)) return null;
+  if (error) throw new Error(`Reaction script lookup failed: ${error.message}`);
+  if (!data?.payload?.hook) return null;
+  return {
+    ...data.payload,
+    id: data.id,
+    status: data.status === "measured" ? "used" : data.status,
+    publishedShortcode: data.published_shortcode ?? undefined,
+    chosenHook: data.chosen_hook ?? undefined,
+  } as ContentIdea;
+}
+
 export async function readIdeaForSource(
   platform: PlatformId,
   sourceId: string,

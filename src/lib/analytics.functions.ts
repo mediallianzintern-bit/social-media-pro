@@ -853,6 +853,17 @@ export const reactionSourceFile = createServerFn({ method: "POST" })
   });
 
 /** Read an existing script without generating or charging for a new one. */
+/** The full script written from one reaction clip, for the shared script view. */
+export const getReactionScriptForClip = createServerFn({ method: "GET" })
+  .middleware([requireStaff])
+  .validator((input: unknown) =>
+    z.object({ platform: platformSchema, sourceId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { readIdeaForReactionSource } = await import("@/server/store");
+    return readIdeaForReactionSource(data.platform, data.sourceId);
+  });
+
 export const getScriptForSource = createServerFn({ method: "GET" })
   .middleware([requireStaff])
   .validator((input: unknown) =>
