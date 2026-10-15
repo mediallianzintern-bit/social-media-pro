@@ -38,6 +38,10 @@ import {
   enforceVerify,
   EXPERT_SECONDS_CEILING,
   EXPERT_SECONDS_FLOOR,
+  EXPERT_WORDS_MAX,
+  EXPERT_WORDS_MIN,
+  REEL_SECONDS_CEILING,
+  REEL_SECONDS_FLOOR,
   REACTION_BEATS,
   SOURCE_PLATFORM_LABEL,
   SOURCE_TYPE_LABEL,
@@ -203,10 +207,13 @@ export interface ReactionContext {
  */
 export function buildReactionRequest(context: ReactionContext): { system: string; user: string } {
   const { source } = context;
-  const target =
+  // What the expert may spend, once the borrowed clip has taken its share of
+  // the whole reel. Named in WORDS as well as seconds, because words are what
+  // the writer controls and seconds are what it kept guessing wrong.
+  const measured =
     context.expertTarget.seconds != null
-      ? `about ${context.expertTarget.seconds} seconds (${context.expertTarget.basis})`
-      : `${EXPERT_SECONDS_FLOOR}–${EXPERT_SECONDS_CEILING} seconds (${context.expertTarget.basis})`;
+      ? ` This account's own winning reaction reels ran about ${context.expertTarget.seconds} seconds of expert (${context.expertTarget.basis}); stay near that where you can.`
+      : "";
 
   // The core voice only, not the general reel module: this format fixes its
   // own beats, its own timing target and a word-for-word CTA, and the reel
@@ -237,7 +244,15 @@ fixed by this format and take precedence over any general guidance.
   ${REACTION_BEATS.map((beat) => `${beat}: ${BEAT_LABEL[beat]}`).join("; ")}.
 - The redirect lands the topic in the account's OWNED LANE named in the DATA block.
 - The cta beat is the account's STANDARD CTA, word for word, when one is given.
-- Keep the expert segment near ${target}. The expert must add real information, not just react.
+- LENGTH, AND IT IS A HARD LIMIT. The WHOLE reel — the borrowed clip plus the expert — runs
+  ${REEL_SECONDS_FLOOR} to ${REEL_SECONDS_CEILING} seconds. The borrowed clip takes 3 to 12 of
+  those, so the expert speaks ${EXPERT_WORDS_MIN} to ${EXPERT_WORDS_MAX} WORDS in total across
+  every beat. Count them before you answer. Set expertSeconds to roughly half your word count,
+  which is the pace he actually speaks at.${measured}
+- THAT BUDGET IS THE WHOLE JOB, so spend it. Each beat is ONE sentence, twelve to eighteen
+  words. No preamble, no restating the claim before answering it, no sentence that only
+  introduces the next one. If a beat needs a second sentence, something earlier is wasting
+  words — cut that instead. The expert must add real information, not just react.
 - Any factual or domain claim in the voiceover — statistics, prices, dates, figures, legal or
   financial points — must be marked [VERIFY] at the end of its line. Do not present a figure as
   settled fact unless it appears in the DATA block.
@@ -451,7 +466,7 @@ export function assembleReaction(
   // one-second shot. Words are the thing that takes time to say, so they are
   // what the clock is built from — the same two-words-a-second the review pass
   // uses on a written reel.
-  const expertSeconds = expertSecondsFor(spokenLines, raw.expertSeconds);
+  const expertSeconds = expertSecondsFor(spokenLines);
   const expertMarks = reelTimeline(segment.seconds, expertSeconds, spokenLines);
   const sourceShot: Shot = {
     mark: `0:00–${asMark(segment.seconds)}`,
@@ -534,9 +549,10 @@ export function assembleReaction(
         // Said when the words written overrun the length this format is
         // measured to work at, because the fix is cutting lines, not reading
         // faster.
-        ...(expertSeconds > EXPERT_SECONDS_CEILING + 5
+        // Judged on the WHOLE reel, which is what the team watches.
+        ...(expertSeconds + segment.seconds > REEL_SECONDS_CEILING
           ? [
-              `The expert's lines run about ${expertSeconds}s at a normal pace, against the ${EXPERT_SECONDS_FLOOR}-${EXPERT_SECONDS_CEILING}s this format is measured at. Cut a beat rather than speed up.`,
+              `This runs about ${expertSeconds + segment.seconds}s all in (${segment.seconds}s borrowed + ${expertSeconds}s of expert) against a ${REEL_SECONDS_FLOOR}-${REEL_SECONDS_CEILING}s target. Cut words, do not read faster.`,
             ]
           : []),
         ...(segment.from === "transcript"
@@ -588,18 +604,25 @@ const asMark = (seconds: number): string =>
 const WORDS_PER_SECOND = 2;
 
 /**
- * How many seconds the expert's lines really need.
+ * How many seconds the expert's lines really need, from the words alone.
  *
- * The model is asked for this and is bad at it: on a real script it returned
- * 12 seconds for seven full sentences. Counting the words it actually wrote is
- * the honest answer, and it is what makes the shot marks usable. The model's
- * own figure is kept only as a floor, so a deliberately slow delivery is not
- * squeezed.
+ * The model is asked for this figure and is reliably wrong about it: 12
+ * seconds for seven full sentences on one script, 58 for the 96 words of the
+ * next — which put a reel two seconds past its ceiling while the words it
+ * contained were comfortably inside it. Its estimate was briefly kept as a
+ * floor, on the theory that a slow delivery should not be squeezed; all that
+ * did was let a bad guess set the length. The words are what gets spoken, so
+ * the words decide, at the same two a second the written reels are timed at.
  */
-export function expertSecondsFor(lines: string[], claimed: number): number {
-  const words = lines.join(" ").trim().split(/\s+/).filter(Boolean).length;
-  const spoken = Math.ceil(words / WORDS_PER_SECOND);
-  return Math.max(Math.max(1, lines.length), spoken, Math.round(claimed) || 0);
+export function expertSecondsFor(lines: string[]): number {
+  const words = lines
+    .join(" ")
+    // Bracketed notes are for the team, never said aloud.
+    .replace(/\[[^\]]*\]/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+  return Math.max(Math.max(1, lines.length), Math.ceil(words / WORDS_PER_SECOND));
 }
 
 /**
@@ -640,7 +663,9 @@ export function reelTimeline(
 
 /** A borrowed setup states the claim and stops. Outside this, the model guessed. */
 const MIN_BORROW_SECONDS = 3;
-const MAX_BORROW_SECONDS = 20;
+// Twelve, not twenty: the whole reel has 50-60 seconds and the expert needs
+// most of them. A setup longer than this is the source's reel, not his.
+const MAX_BORROW_SECONDS = 12;
 
 /**
  * The borrowed segment, repaired when the model returns one an editor cannot cut.

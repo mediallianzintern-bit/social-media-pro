@@ -123,6 +123,29 @@ export const BEAT_LABEL: Record<(typeof REACTION_BEATS)[number], string> = {
   cta: "Call to action",
 };
 
+/**
+ * How long the WHOLE reaction reel runs — borrowed clip and expert together.
+ *
+ * This is the number the team judges the format by, so it is the number the
+ * writer is given. Scripts were coming back with the expert's lines alone
+ * running past fifty seconds on top of the borrow, because the brief only ever
+ * named his segment and he had no reason to count the clip in front of it.
+ */
+export const REEL_SECONDS_FLOOR = 50;
+export const REEL_SECONDS_CEILING = 60;
+
+/**
+ * What the expert may actually say, in words.
+ *
+ * Deliberately the same budget as Pritesh's own reel brief (90-110, never past
+ * 115): it is one person speaking at one pace, so the limit should not change
+ * because the reel happens to open on someone else's clip. At a relaxed two
+ * words a second that is 45-55 seconds, which with a short borrow lands the
+ * whole reel inside REEL_SECONDS_FLOOR..CEILING.
+ */
+export const EXPERT_WORDS_MIN = 90;
+export const EXPERT_WORDS_MAX = 115;
+
 /** Observed across the three reference reels; validated by the loop as data arrives. */
 export const EXPERT_SECONDS_FLOOR = 28;
 export const EXPERT_SECONDS_CEILING = 32;
