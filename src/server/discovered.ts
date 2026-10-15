@@ -14,6 +14,7 @@ import { buildLaneVocabulary, laneFit, LANE_FIT_THRESHOLD } from "@/lib/lane-fit
 import { offVoiceReason } from "@/lib/instagram-trends";
 import { buildPreferenceModel, preferenceFor, pullQueries } from "@/lib/preferences";
 import {
+  WEAK_FIT,
   ageDaysOf,
   discoveredScore,
   DISCOVERED_WINDOW_DAYS,
@@ -244,6 +245,14 @@ export async function refreshDiscoveredReels(platform: PlatformId): Promise<{
       offLane += 1;
       continue;
     }
+    // WHICH lane, though, is better answered by the search than by the words.
+    // The matcher works on overlap with a vocabulary two AI-heavy lanes share,
+    // and on a short caption a handful of common words decides it: a sweep
+    // aimed at marketing stunts and brand strategy filed eight of its twelve
+    // finds under "AI tool workflows", including a cardboard-campaign reel and
+    // a Rhode brand study. The query knows what it went looking for, so a weak
+    // match defers to it and the overlap stays on the row as evidence.
+    const lane = fit.score >= WEAK_FIT || !next.lane ? fit.lane : next.lane;
     const age = ageDaysOf(post.publishedAt);
     if (age != null && age > DISCOVERED_WINDOW_DAYS) {
       offLane += 1;
@@ -258,7 +267,7 @@ export async function refreshDiscoveredReels(platform: PlatformId): Promise<{
       likes: post.likes,
       comments: post.comments,
       publishedAt: post.publishedAt,
-      lane: fit.lane,
+      lane,
       laneFit: Number(fit.score.toFixed(3)),
       matchedWords: fit.matched.slice(0, 6),
       query: next.query,

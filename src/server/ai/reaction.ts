@@ -14,6 +14,8 @@ import { z } from "zod";
 
 import { completeJson, hasOpenAi } from "./client";
 import { PRITESH_VOICE } from "./voice";
+import { significantWords } from "@/lib/lane-fit";
+
 import { OWNER_ACCOUNTS } from "../apify/accounts";
 import { recordPredictions, currentNiche } from "../predict";
 import {
@@ -70,6 +72,7 @@ export const REACTION_SCHEMA: Record<string, unknown> = {
     "extractedClaim",
     "title",
     "hook",
+    "altHooks",
     "angle",
     "pivotType",
     "sourceIn",
@@ -95,16 +98,30 @@ export const REACTION_SCHEMA: Record<string, unknown> = {
       description:
         "The expert's FIRST sentence. Contradicts, concedes-then-reframes, or raises the stakes.",
     },
+    altHooks: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "Exactly 2 OTHER opening sentences for this same reaction, for an A/B test. Each must " +
+        "pivot off the SAME claim and lead into the same beats, but open a genuinely different " +
+        "way — one may contradict, another concede then reframe, another raise the stakes. " +
+        "Three rewordings of one opening are not a test and are the one thing this must not be.",
+    },
     angle: { type: "string", description: "The expert's take in one sentence." },
     pivotType: { type: "string", enum: ["contradict", "concede_reframe", "raise_stakes"] },
     sourceIn: {
       type: "string",
-      description: 'Where the borrowed segment starts in the source, e.g. "0:02".',
+      description:
+        'Where the borrowed segment starts, as m:ss within the source clip, e.g. "0:02". ' +
+        "The source is a reel, so this is seconds and single-digit minutes — never an hour.",
     },
     sourceOut: {
       type: "string",
       description:
-        'Where it ends — the earliest moment the viewer has heard the claim, e.g. "0:09".',
+        'Where it ends — the earliest moment the viewer has heard the claim, e.g. "0:09". ' +
+        "MUST be LATER than sourceIn: this is a span of real footage, so the two are never " +
+        "equal. Aim for 3 to 20 seconds of borrowed clip, long enough to state the claim and " +
+        "no longer.",
     },
     beats: {
       type: "array",
@@ -144,6 +161,7 @@ const reactionSchema = z.object({
   extractedClaim: z.string().min(1),
   title: z.string().min(1),
   hook: z.string().min(1),
+  altHooks: z.array(z.string()).default([]),
   angle: z.string(),
   pivotType: z.enum(["contradict", "concede_reframe", "raise_stakes"]),
   sourceIn: z.string(),
@@ -202,9 +220,16 @@ REACTION-HOOK FORMAT. You are writing the expert's response to a borrowed clip. 
 contains the clip's transcript and the claim it makes. The beats, timing and CTA rules below are
 fixed by this format and take precedence over any general guidance.
 - Choose the cut-in point: the earliest moment the viewer has heard the claim. Give the source
-  segment's in and out timestamps (sourceIn, sourceOut) against the source clip.
+  segment's in and out timestamps (sourceIn, sourceOut) against the source clip, as m:ss.
+  sourceOut MUST be LATER than sourceIn — this is a span of footage an editor will cut, so
+  "0:00-0:00" is not an answer. Borrow 3 to 20 seconds. Where the transcript carries
+  timestamps, take them from the line that states the claim; where it does not, judge from how
+  long the claim takes to say.
 - The expert's FIRST sentence is the hook. It must contradict, concede-then-reframe, or raise
   the stakes on the claim. Never open with a greeting or with the expert's name.
+- Give TWO alternative opening sentences in altHooks, for the team to choose between. Each
+  pivots off the same claim into the same beats, but opens a different way: if the hook
+  contradicts, let one concede-then-reframe and one raise the stakes. Not three rewordings.
 - Respond to the CLAIM, never mock the person who made it. Where the source is partly right,
   say so first; it builds credibility. Correct it the way he explains anything — calmly, simply,
   with what people are getting wrong and what he actually thinks — not as a takedown.
@@ -351,9 +376,14 @@ export function assembleReaction(
   context: ReactionContext,
 ): ContentIdea {
   const { source } = context;
+  // The borrowed span, checked and repaired before anything reads it — the
+  // shot mark, the visual, the editor note and the duration all quote it.
+  const segment = borrowedSegment(rawInput, source.transcript, source.extractedClaim);
   // Every model-written string, cleaned of links before anything else reads it.
   const raw = {
     ...rawInput,
+    sourceIn: segment.sourceIn,
+    sourceOut: segment.sourceOut,
     title: stripLinks(rawInput.title),
     hook: stripLinks(rawInput.hook),
     angle: stripLinks(rawInput.angle),
@@ -456,9 +486,14 @@ export function assembleReaction(
     contentLane: context.ownedLane ?? raw.contentLane,
     sourceSignal: source.foundBy === "trend_listener" ? "niche_trend" : "niche",
     hook: checkedBeats.lines[0] ?? raw.hook,
+    // Two other ways in, for the same A/B the written reels get.
+    altHooks: rawInput.altHooks
+      .map((line) => stripLinks(line).trim())
+      .filter(Boolean)
+      .slice(0, 2),
     shots,
     production: {
-      durationSeconds: Math.round(raw.expertSeconds + Math.max(0, borrowed(raw))),
+      durationSeconds: Math.round(raw.expertSeconds + segment.seconds),
       aspectRatio: "9:16",
       coverText: raw.title,
       musicDirection: "None under the expert; the source clip keeps its own audio.",
@@ -468,6 +503,17 @@ export function assembleReaction(
         ...(context.leadMagnet ? [`Lead magnet on screen at the end: ${context.leadMagnet}`] : []),
       ],
       editorNotes: [
+        // Said exactly, because an editor who is told the wrong thing about
+        // where a number came from stops believing the notes.
+        ...(segment.from === "transcript"
+          ? [
+              `The borrowed in/out ${segment.sourceIn}-${segment.sourceOut} was read from the clip's own transcript, not chosen by the writer. Check it against the video before cutting.`,
+            ]
+          : segment.from === "placeholder"
+            ? [
+                `PLACEHOLDER in/out: ${segment.sourceIn}-${segment.sourceOut}. This clip has no timed transcript and the writer's own answer was unusable, so watch the clip and set the real cut.`,
+              ]
+            : []),
         `Shot 1 is the source clip with the credit overlay: "${credit}".`,
         `Borrow ${raw.sourceIn}–${raw.sourceOut} of the original.`,
         "Hard cut to the expert on the branded set; same framing every time.",
@@ -495,13 +541,85 @@ export function assembleReaction(
   };
 }
 
-function borrowed(raw: { sourceIn: string; sourceOut: string }): number {
-  const toS = (mark: string) =>
-    mark
-      .split(":")
-      .map(Number)
-      .reduce((total, part) => total * 60 + (Number.isFinite(part) ? part : 0), 0);
-  return toS(raw.sourceOut) - toS(raw.sourceIn);
+const toSeconds = (mark: string): number =>
+  mark
+    .split(":")
+    .map(Number)
+    .reduce((total, part) => total * 60 + (Number.isFinite(part) ? part : 0), 0);
+
+const asMark = (seconds: number): string =>
+  `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, "0")}`;
+
+/** A borrowed setup states the claim and stops. Outside this, the model guessed. */
+const MIN_BORROW_SECONDS = 3;
+const MAX_BORROW_SECONDS = 20;
+
+/**
+ * The borrowed segment, repaired when the model returns one an editor cannot cut.
+ *
+ * Two failures seen on real scripts: "0:00-0:00", which is no footage at all,
+ * and "00:45:00-00:45:00", which reads as forty-five MINUTES into a thirty
+ * second reel. Both are the model filling a required field it had no evidence
+ * for — which happens whenever the clip has no timed transcript.
+ *
+ * So the span is checked rather than trusted. Where it is unusable, the
+ * transcript's own timestamps answer it: the line that states the claim, and
+ * the line after it. Where there is no transcript either, it falls back to the
+ * opening seconds and SAYS SO in the editor notes, because a made-up
+ * timestamp presented as a decision is worse than an obvious placeholder.
+ */
+export function borrowedSegment(
+  raw: { sourceIn: string; sourceOut: string },
+  transcript: string | null,
+  claim: string | null,
+): {
+  sourceIn: string;
+  sourceOut: string;
+  seconds: number;
+  /** "model" when its own answer was usable, otherwise where the repair came from. */
+  from: "model" | "transcript" | "placeholder";
+} {
+  const start = toSeconds(raw.sourceIn);
+  const end = toSeconds(raw.sourceOut);
+  const span = end - start;
+  const sane =
+    Number.isFinite(start) &&
+    Number.isFinite(end) &&
+    start >= 0 &&
+    start < 600 &&
+    span >= MIN_BORROW_SECONDS &&
+    span <= MAX_BORROW_SECONDS;
+  if (sane) {
+    return { sourceIn: asMark(start), sourceOut: asMark(end), seconds: span, from: "model" };
+  }
+
+  // "0:04 For research, this is bad..." — the shape transcripts are stored in.
+  const timed = [...(transcript ?? "").matchAll(/(\d{1,2}:\d{2})\s+([^\n]+)/g)].map((match) => ({
+    at: toSeconds(match[1]!),
+    line: (match[2] ?? "").trim(),
+  }));
+  if (timed.length) {
+    // Stopword-aware, or the match is decided by whichever line happens to
+    // contain "this": on a real transcript that pointed the cut at 0:04, four
+    // lines before the claim it was meant to find.
+    const words = significantWords(claim ?? "");
+    const hit =
+      timed.find((entry) => {
+        const line = entry.line.toLowerCase();
+        return words.length >= 2 && words.filter((word) => line.includes(word)).length >= 2;
+      }) ?? timed[0]!;
+    const index = timed.indexOf(hit);
+    const after = timed[index + 1]?.at ?? hit.at + 8;
+    const to = Math.min(hit.at + MAX_BORROW_SECONDS, Math.max(after, hit.at + MIN_BORROW_SECONDS));
+    return {
+      sourceIn: asMark(hit.at),
+      sourceOut: asMark(to),
+      seconds: to - hit.at,
+      from: "transcript",
+    };
+  }
+
+  return { sourceIn: "0:00", sourceOut: "0:08", seconds: 8, from: "placeholder" };
 }
 
 /**
