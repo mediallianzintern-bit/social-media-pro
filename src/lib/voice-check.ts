@@ -84,7 +84,22 @@ const BANNED_WORDS: Array<{ word: string; pattern: RegExp }> = [
 const BANNED_SHAPES: Array<{ label: string; pattern: RegExp }> = [
   {
     label: "the “it's not just X, it's Y” formula",
-    pattern: /\b(it'?s|it is|this is|that'?s|that is) not just\b[^.!?]{1,80}?\b(it'?s|it is)\b/i,
+    // Both halves of the subject, same as the opener below: "this isn't just
+    // marketing, it's positioning" is the identical formula and was slipping
+    // past a pattern that only knew "is not".
+    pattern:
+      /\b(?:(?:it'?s|it is|this is|that'?s|that is)\s+not|(?:it|this|that)\s+isn'?t)\s+just\b[^.!?]{1,80}?\b(?:it'?s|it is)\b/i,
+  },
+  {
+    // The same formula with its second half left off — "It's not just about
+    // one tool being the best", which a reaction script's alternative hook
+    // came back with. The ban is on the shape, and the shape is the opening:
+    // waiting for the "it's Y" to arrive lets the tell through whenever the
+    // sentence simply stops. Reported separately from the full formula, and
+    // only when the completion is absent, so one sentence never flags twice.
+    label: "the “not just …” opener — the formula's first half",
+    pattern:
+      /\b(?:(?:it'?s|it is|this is|that'?s|that is)\s+not|(?:it|this|that)\s+isn'?t)\s+just\b(?![^.!?]{0,80}?\b(?:it'?s|it is)\b)/i,
   },
   {
     label: "the “this isn't about X, it's about Y” formula",
