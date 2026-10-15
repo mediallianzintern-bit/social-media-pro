@@ -108,6 +108,81 @@ export function shapeFor(lane: { name: string; definition?: string }): FamilySha
 }
 
 /**
+ * The call to action, per lane, as the team set it.
+ *
+ * Pritesh's brief says a script must stand on its own without a CTA, and that
+ * when one IS requested it is one relevant action. The team has now requested
+ * one, word for word, for three lanes. AI tool workflows is the exception on
+ * purpose: its CTA is written for the tool in that reel, so it is left to the
+ * writer, under the brief's own rule that it never promises a guide or a link.
+ */
+export const DAILY_CTA = "Follow for daily AI and marketing updates. See you tomorrow.";
+
+const LANE_CTA: Record<string, string> = {
+  "frontier ai developments": DAILY_CTA,
+  "brand strategy lessons": DAILY_CTA,
+  "marketing stunts": DAILY_CTA,
+};
+
+/** The fixed closing line for a lane, or null where the writer composes it. */
+export function ctaFor(lane: string | null | undefined): string | null {
+  return LANE_CTA[(lane ?? "").trim().toLowerCase()] ?? null;
+}
+
+/** The prompt's wording of the CTA rule for one lane. */
+export function ctaRule(lane: string | null | undefined): string {
+  const fixed = ctaFor(lane);
+  if (fixed) {
+    return `CTA: the reel ENDS on exactly this line, word for word, as its own final shot: "${fixed}" It counts toward the word budget.`;
+  }
+  return "CTA: end on ONE call to action written for this reel's topic and tool (for example, following for more workflows like this one). It counts toward the word budget. Never promise a guide, template, link or resource, and never \"comment X and I'll send you\".";
+}
+
+const normalise = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[^a-z0-9' ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+/**
+ * Makes sure a reel's voiceover ends on its lane's fixed CTA.
+ *
+ * The prompt asks for it; this guarantees it, because a CTA that is "nearly"
+ * the agreed line is a CTA the team has to retype. When the line is already
+ * there it is left alone. When it is missing, it is added as the closing shot
+ * rather than spliced into the last sentence, so nothing the writer said is
+ * cut and the editor gets a clean final beat.
+ */
+export function withLaneCta<T extends { voiceover: string; onScreenText: string }>(
+  shots: T[],
+  lane: string | null | undefined,
+  closingShot: (cta: string) => T,
+): T[] {
+  const cta = ctaFor(lane);
+  if (!cta || !shots.length) return shots;
+  const target = normalise(cta);
+  const spoken = normalise(shots.map((shot) => shot.voiceover ?? "").join(" "));
+  if (spoken.endsWith(target)) return shots;
+  // Already said earlier and then followed by more: move nothing, add nothing.
+  if (spoken.includes(target)) return shots;
+
+  // A near-miss in the closing shot — "follow for daily AI & marketing
+  // updates, see you tomorrow!" — is corrected IN PLACE. Appending the exact
+  // line after it would have him say the same sign-off twice.
+  const words = target.split(" ");
+  const last = shots.length - 1;
+  const lastWords = new Set(normalise(shots[last]!.voiceover ?? "").split(" "));
+  const overlap = words.filter((word) => lastWords.has(word)).length / words.length;
+  if (overlap >= 0.7) {
+    return shots.map((shot, index) => (index === last ? { ...shot, voiceover: cta } : shot));
+  }
+  return [...shots, closingShot(cta)];
+}
+
+/**
+ * The per-lane structure block for the prompt./**
  * The per-lane structure block for the prompt.
  *
  * Written as a list of lanes rather than one chosen shape, because a normal
@@ -129,6 +204,7 @@ export function laneShapesBlock(lanes: ContentLane[]): string {
       `  Beats, as planning logic only — never spoken, never labelled on screen:`,
       ...shape.structure.map((beat, index) => `    ${index + 1}. ${beat}`),
       `  ${shape.ending}`,
+      `  ${ctaRule(lane.name)}`,
     ].join("\n");
   });
 

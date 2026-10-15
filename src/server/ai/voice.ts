@@ -151,7 +151,8 @@ Return:
 
 /** How his OUTPUT section maps onto the editor handover the team requests. */
 export const DASHBOARD_HANDOVER = `DASHBOARD HANDOVER — the team requests these, which is the "unless requested" case in OUTPUT above:
-- The ready-to-record script is the voiceover across the shot list, in speaking order. Each short paragraph is a shot. The whole voiceover obeys LENGTH above: 90–110 words, never more than 115.
+- The ready-to-record script is the voiceover across the shot list, in speaking order. Each short paragraph is a shot.
+- LENGTH FOR THIS DASHBOARD: the team asks for the top of the range in LENGTH above. The reel runs 50 to 60 seconds, so the whole voiceover is 100 to 115 spoken words, never more than 115. Short scripts have been the problem, so count before you return: under 100 means the Explanation or the Example is thin, and it is filled with substance, never padding.
 - The script's first line is the hook. The two alternative opening lines are the two alternative hooks, and each must lead into the same script.
 - The on-screen text suggestions go in the shots' onScreenText: at most three across the whole reel, empty in every other shot.
 - The approximate duration is production.durationSeconds, never more than 60. The dashboard counts the spoken words itself.

@@ -17,7 +17,9 @@ import { HOOK_PRESENT, type HookScore } from "@/lib/double-down";
 import type { ContentIdea } from "@/lib/ai-types";
 
 /** A/B/C — how the variants are referred to on screen and in a decision. */
-export const VARIANT_LABELS = ["A", "B", "C"] as const;
+// Twelve, not three: the team can ask for more hooks in a chosen style, and
+// every one of them needs a letter to be picked by.
+export const VARIANT_LABELS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"] as const;
 
 export interface HookVariant {
   /** "A", "B", "C". A is always the idea's own first hook. */

@@ -119,7 +119,8 @@ const BANNED_SHAPES: Array<{ label: string; pattern: RegExp }> = [
  * 90-110, never more than 115, under a minute. It replaced the SOP's 110-135.
  * The flag fires only outside the range and says what it means in seconds.
  */
-const MIN_WORDS = 90;
+// 100, not the brief's 90: the team asked for 50-60 second reels.
+const MIN_WORDS = 100;
 const MAX_WORDS = 115;
 
 /** "Agree?" and "Thoughts?" only count as engagement bait standing alone as a question. */
@@ -229,7 +230,7 @@ export function voiceFlags(idea: ContentIdea): string[] {
   // exists, and only for a filmed format: a LinkedIn post has no spoken length.
   if (voiceover && !idea.post) {
     const count = words(voiceover);
-    if (count < MIN_WORDS) flags.push(`only ${count} words of voice over — under about 40 seconds`);
+    if (count < MIN_WORDS) flags.push(`only ${count} words of voice over — under about 50 seconds`);
     else if (count > MAX_WORDS)
       flags.push(`${count} words of voice over — over 115, likely to run past a minute`);
   }

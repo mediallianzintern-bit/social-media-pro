@@ -417,7 +417,7 @@ export function ideasSchemaFor(options: {
               properties: {
                 durationSeconds: {
                   type: "integer",
-                  minimum: options.reelOnly ? 45 : 5,
+                  minimum: options.reelOnly ? 50 : 5,
                   maximum: options.reelOnly ? 60 : 180,
                 },
                 aspectRatio: { type: "string", description: 'Usually "9:16".' },

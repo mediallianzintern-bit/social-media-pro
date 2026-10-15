@@ -11,7 +11,7 @@ import type {
   PlatformId,
   PostRecord,
 } from "@/lib/analytics-types";
-import type { AiAnalysis, ContentIdea } from "@/lib/ai-types";
+import type { AiAnalysis, ContentIdea, HookStyle } from "@/lib/ai-types";
 import type { ContentEra } from "@/lib/eras";
 import type { TopicVote } from "@/lib/preferences";
 import type { SavedTopic } from "@/lib/saved-topics";
@@ -666,6 +666,91 @@ export async function markIdeaUsed(id: string, shortcode: string): Promise<void>
  *
  * Passing null clears the choice, returning the idea to its own first hook.
  */
+/** One stored idea, whole, by its own id. Null when it is not stored. */
+export async function readIdeaById(id: string): Promise<ContentIdea | null> {
+  const { data, error } = await db()
+    .from("suggested_ideas")
+    .select("id,payload,chosen_hook,status,published_shortcode")
+    .eq("id", id)
+    .maybeSingle();
+  if (error && schemaNotReady(error)) return null;
+  if (error) throw new Error(`suggested_ideas read failed: ${error.message}`);
+  if (!data?.payload?.hook) return null;
+  return {
+    ...data.payload,
+    id: data.id,
+    status: data.status === "measured" ? "used" : data.status,
+    publishedShortcode: data.published_shortcode ?? undefined,
+    chosenHook: data.chosen_hook ?? undefined,
+  } as ContentIdea;
+}
+
+/**
+ * Adds hooks to an idea, so they can be picked like the ones it came with.
+ *
+ * setChosenHook only accepts a hook the idea already offers, which is what
+ * stops chosen_hook becoming a free-text field. So a hook asked for later has
+ * to become part of the idea first: it is appended to the stored payload's
+ * altHooks, with the style it was written in, and the cached analysis is
+ * patched the same way so every screen that shows this idea shows them.
+ *
+ * Returns the idea as it now stands, or null when it is not a stored idea.
+ */
+export async function addIdeaHooks(
+  id: string,
+  hooks: string[],
+  style: HookStyle,
+): Promise<ContentIdea | null> {
+  const current = await db()
+    .from("suggested_ideas")
+    .select("id,platform,payload,chosen_hook,status,published_shortcode")
+    .eq("id", id)
+    .maybeSingle();
+  if (current.error && schemaNotReady(current.error)) return null;
+  if (current.error) throw new Error(`suggested_ideas read failed: ${current.error.message}`);
+  const row = current.data as {
+    platform: PlatformId;
+    payload?: ContentIdea;
+    chosen_hook?: string | null;
+    status?: string;
+    published_shortcode?: string | null;
+  } | null;
+  if (!row?.payload) return null;
+
+  const idea = row.payload;
+  const seen = new Set([idea.hook, ...(idea.altHooks ?? [])].map((h) => h.trim().toLowerCase()));
+  const fresh = hooks.map((h) => h.trim()).filter((h) => h && !seen.has(h.toLowerCase()));
+  const altHooks = [...(idea.altHooks ?? []), ...fresh];
+  const hookStyles = { ...(idea.hookStyles ?? {}) };
+  for (const hook of fresh) hookStyles[hook] = style;
+  const payload: ContentIdea = { ...idea, altHooks, hookStyles };
+
+  const { error } = await db()
+    .from("suggested_ideas")
+    .update({ payload, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw new Error(`suggested_ideas hooks update failed: ${error.message}`);
+
+  // The cached analysis holds its own copy of the idea; patch that too.
+  const cached = await readAnalysis(row.platform).catch(() => null);
+  if (cached?.ideas.some((entry) => entry.id === id)) {
+    await saveAnalysis(row.platform, {
+      ...cached,
+      ideas: cached.ideas.map((entry) =>
+        entry.id === id ? { ...entry, altHooks, hookStyles } : entry,
+      ),
+    }).catch(() => undefined);
+  }
+
+  return {
+    ...payload,
+    id,
+    status: row.status === "measured" ? "used" : row.status,
+    publishedShortcode: row.published_shortcode ?? undefined,
+    chosenHook: row.chosen_hook ?? undefined,
+  } as ContentIdea;
+}
+
 export async function setChosenHook(id: string, hook: string | null): Promise<boolean> {
   const current = await db()
     .from("suggested_ideas")

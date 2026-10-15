@@ -104,7 +104,7 @@ The viewer should finish thinking "Okay, now I understand it, and I can try this
    for or a limitation worth knowing. The script must feel complete without a call to action.
 NEVER promise a guide, process, template, link or resource ("comment X and I'll send you…"): none has
 been confirmed to exist. At most one relevant action, only if genuinely useful.
-Stay within 90-110 spoken words, never more than 115, and under one minute. Count before returning.
+Stay within 100-115 spoken words, never more than 115: a 50 to 60 second reel. Count before returning.
 Map each shown action to its own shotType="Screen recording" shot whose voiceover starts with the
 action (optionally First/Next/Then/Now). On-screen text stays within the reel's three-line limit,
 so label only the steps that need it.

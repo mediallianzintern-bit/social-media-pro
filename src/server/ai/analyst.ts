@@ -18,7 +18,7 @@ import {
   regenerationPrompt,
 } from "./tool-workflow";
 import { costOf, type GenerationCost } from "@/lib/ai-cost";
-import { laneShapesBlock } from "@/lib/script-families";
+import { laneShapesBlock, withLaneCta } from "@/lib/script-families";
 import { coveredCampaignsBlock } from "@/lib/covered-campaigns";
 import { saveSuggestedIdeas } from "../store";
 import {
@@ -58,6 +58,8 @@ import type {
   ContentIdea,
   FeedRead,
   ReflectionRead,
+  ProductionNotes,
+  Shot,
 } from "@/lib/ai-types";
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -559,9 +561,8 @@ Give 6-10 shots. Front-load: the first shot must work with the sound off, becaus
 decide in the first second.
 
 production must be fillable by the editor without a follow-up question:
-- durationSeconds: realistic for the shot list — 30-45 for a simple point, 45-55 for a concept
-  plus an example — and never longer than the account's measured watch time can support. An
-  Instagram reel is always UNDER ONE MINUTE: never more than 60.
+- durationSeconds: an Instagram reel runs 50 to 60 seconds, which is what the team asked
+  for, and never more than 60. A carousel is read, so it has no spoken length.
 - coverText: 3-6 words for the cover frame.
 - musicDirection: genre, energy and where it should drop, not a track name.
 - subtitleStyle: how captions should look and behave.
@@ -1139,6 +1140,61 @@ above or to a gap named in the competitive read, and whyNow must say which.${
  * fetched row by id; an id that matches nothing is marked unverified; and an
  * idea using a blocked trait or opening is discarded.
  */
+/**
+ * An Instagram reel's shots and production, with the lane's agreed CTA as its
+ * closing line.
+ *
+ * When the writer already ended on it, nothing changes. When it did not, the
+ * CTA becomes its own final shot — timed straight after the last one, at the
+ * two words a second the reels are timed at — and the stated duration grows to
+ * match, never past the minute. Splicing it into the last sentence would cut
+ * something the writer said; a clean closing beat is what an editor wants.
+ */
+function closingCta(
+  raw: {
+    shots: Shot[];
+    production?: ProductionNotes | undefined;
+    contentLane: string;
+    format: string;
+  },
+  platform: PlatformId,
+): { shots: Shot[]; production?: ProductionNotes } {
+  const production = raw.production ? { production: raw.production } : {};
+  if (platform !== "instagram" || raw.format !== "reel") return { shots: raw.shots, ...production };
+
+  const toSeconds = (mark: string) =>
+    mark
+      .split(":")
+      .map(Number)
+      .reduce((total, part) => total * 60 + (Number.isFinite(part) ? part : 0), 0);
+  const asMark = (seconds: number) =>
+    `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, "0")}`;
+
+  let added = 0;
+  const shots = withLaneCta(raw.shots, raw.contentLane, (cta) => {
+    const lastEnd = raw.shots.at(-1)?.mark.split(/[–-]/)[1]?.trim();
+    const from = lastEnd && /^\d+:\d{2}$/.test(lastEnd) ? toSeconds(lastEnd) : null;
+    added = Math.ceil(cta.split(/\s+/).length / 2);
+    return {
+      mark: from != null ? `${asMark(from)}–${asMark(from + added)}` : "",
+      shotType: "Talking head — medium",
+      visual: "Pritesh to camera, closing the reel.",
+      voiceover: cta,
+      onScreenText: "",
+      transition: "Hold, then end",
+    };
+  });
+
+  if (!added || !raw.production) return { shots, ...production };
+  return {
+    shots,
+    production: {
+      ...raw.production,
+      durationSeconds: Math.min(60, raw.production.durationSeconds + added),
+    },
+  };
+}
+
 export function finalizeIdeas(
   data: unknown,
   options: {
@@ -1207,8 +1263,7 @@ export function finalizeIdeas(
       })(),
       // A written format has no shot list and no production brief; the post
       // IS the deliverable.
-      shots: written ? [] : raw.shots,
-      ...(written ? {} : raw.production ? { production: raw.production } : {}),
+      ...(written ? { shots: [] } : closingCta(raw, options.platform)),
       ...(written && raw.post ? { post: raw.post } : {}),
       // The hashtags are listed separately and rendered as their own block, so
       // a caption ending in the same five tags shows them twice — which is

@@ -25,13 +25,14 @@ import type { SourceItem } from "@/lib/sources";
 
 import { completeJson } from "./client";
 import type { ContentIdea } from "@/lib/ai-types";
+import { ctaRule } from "@/lib/script-families";
 
 import { isAiToolWorkflowLane, toolWorkflowIssues, toolWorkflowPrompt } from "./tool-workflow";
 import { DASHBOARD_HANDOVER, INSTAGRAM_MASTER_PROMPT, INSTAGRAM_REVIEW_PROMPT } from "./voice";
 
 const REVIEW_MODEL_DEFAULT = "gpt-4o";
 
-function reviewModel(): string {
+export function reviewModel(): string {
   return process.env["OPENAI_REVIEW_MODEL"]?.trim() || REVIEW_MODEL_DEFAULT;
 }
 
@@ -89,7 +90,7 @@ const reviewSchema = {
         "OUTPUT item 1: the one ready-to-record script, complete, as 5-8 short paragraphs " +
         "separated by blank lines, following SCRIPT FLOW without labels: the Opening, the " +
         "Explanation in simple words, ONE familiar business Example, and a Closing with one " +
-        "practical next step or a clear takeaway. 90-110 spoken words, never more than 115.",
+        "practical next step or a clear takeaway. 100-115 spoken words (50-60 seconds), never more than 115.",
     },
     spokenWordCount: {
       type: "integer",
@@ -109,7 +110,7 @@ const reviewSchema = {
         "one paragraph of `script`, WORD FOR WORD: every spoken word of the script appears in " +
         "exactly one shot, and no shot adds spoken words the script does not have.",
     },
-    durationSeconds: { type: "integer", minimum: 30, maximum: 60 },
+    durationSeconds: { type: "integer", minimum: 50, maximum: 60 },
     caption: { type: "string" },
     hashtags: { type: "array", items: { type: "string" }, description: "Exactly 5." },
     changeNotes: {
@@ -206,7 +207,7 @@ const WORDS_PER_SECOND = 2;
 /** Two rounds at most: the first rewrite, and one more if it misses a hard rule. */
 const REVIEW_ROUNDS = 2;
 
-const LENGTH_GUIDANCE = `LENGTH WITHOUT INVENTING: reach 90–110 spoken words through the Explanation and the Example,
+const LENGTH_GUIDANCE = `LENGTH WITHOUT INVENTING: reach 100–115 spoken words (a 50–60 second reel) through the Explanation and the Example,
 never through invented facts or filler. When the source is only a headline, the Example is a
 clearly hypothetical business situation ("Let's say you run a small bakery…") showing how the
 viewer would use it. Count the words across every shot's voiceover before returning.`;
@@ -218,7 +219,7 @@ paragraph is its own shotType "Screen recording" shot. Describing what the tool 
 input details and it does the rest") is NOT a step. Where the source does not say exactly where a
 control is or what it is called, keep the step and mark the unknown part for the recording team,
 e.g. "Open the tool [VERIFY: where it sits in the app]." Never invent menus as if
-confirmed. The steps count toward the 90–110 words; keep each one short.`;
+confirmed. The steps count toward the 100–115 words; keep each one short.`;
 
 function reviewUser(
   idea: RawIdea,
@@ -231,6 +232,9 @@ function reviewUser(
     sourceBlock(idea, sources),
     LENGTH_GUIDANCE,
     lane && isAiToolWorkflowLane(lane) ? WORKFLOW_GUIDANCE : "",
+    // The team's call to action for this lane — the "when a call to action is
+    // requested" case in his ENDING section.
+    ctaRule(lane),
     `Draft:\n${JSON.stringify(draftFor(idea), null, 2)}`,
     feedback
       ? `YOUR PREVIOUS REWRITE broke these hard rules, counted by code, not estimated:\n${feedback.problems
@@ -282,7 +286,13 @@ function problemsOf(review: ReviewResult, lane: string | null): string[] {
         `every paragraph of the script must be one shot's voiceover, word for word`,
     );
   }
-  if (count < 90) problems.push(`${count} spoken words; it needs 90–110, never more than 115`);
+  // 100, not his brief's 90: the team asked for 50-60 second reels, and at a
+  // relaxed two words a second that is the floor.
+  if (count < 100) {
+    problems.push(
+      `${count} spoken words; it needs 100–115 for a 50–60 second reel, never more than 115`,
+    );
+  }
   if (count > 115) problems.push(`${count} spoken words; the maximum is 115`);
   const onScreen = review.shots.filter((shot) => shot.onScreenText.trim()).length;
   if (onScreen > 3) {

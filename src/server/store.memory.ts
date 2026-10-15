@@ -697,3 +697,13 @@ export async function readIdeaForSource(
 ): Promise<ContentIdea | null> {
   return null;
 }
+/** The ephemeral store keeps no suggestions table, so there is no idea to read. */
+export async function readIdeaById(): Promise<null> {
+  return null;
+}
+
+/** The ephemeral store keeps no suggestions table, so there is nothing to add to. */
+export async function addIdeaHooks(): Promise<null> {
+  return null;
+}
+

@@ -68,6 +68,10 @@ export const markIdeaMeasured: typeof supabase.markIdeaMeasured = (...args) =>
   store().markIdeaMeasured(...args);
 export const setChosenHook: typeof supabase.setChosenHook = (...args) =>
   store().setChosenHook(...args);
+export const addIdeaHooks: typeof supabase.addIdeaHooks = (...args) =>
+  store().addIdeaHooks(...args);
+export const readIdeaById: typeof supabase.readIdeaById = (...args) =>
+  store().readIdeaById(...args);
 export const readChosenHooks: typeof supabase.readChosenHooks = (...args) =>
   store().readChosenHooks(...args);
 export const resolveStaffUser: typeof supabase.resolveStaffUser = (...args) =>

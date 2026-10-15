@@ -43,6 +43,7 @@ import { dateTime } from "@/lib/format";
 import {
   analysisQueryOptions,
   chooseHook,
+  getMoreHooks,
   dismissIdea,
   generateOneIdea,
   markIdeaUsed,
@@ -50,10 +51,16 @@ import {
 } from "@/lib/analytics.functions";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import type { Prediction } from "@/lib/prediction";
-import { FORMAT_LABEL, type AiAnalysis, type ContentIdea } from "@/lib/ai-types";
+import {
+  FORMAT_LABEL,
+  HOOK_STYLE_LABEL,
+  type AiAnalysis,
+  type ContentIdea,
+  type HookStyle,
+} from "@/lib/ai-types";
 import type { PlatformId } from "@/lib/analytics-types";
 import { hookScores } from "@/lib/double-down";
-import { hookTest } from "@/lib/hook-variants";
+import { hookTest, VARIANT_LABELS } from "@/lib/hook-variants";
 import { voiceFlags } from "@/lib/voice-check";
 import { computeInsights } from "@/lib/insights";
 import { usePlatform } from "@/lib/use-dashboard";
@@ -499,6 +506,12 @@ export function AiIdeaCards({
                   platform={platform}
                   accent={accent}
                   onChoose={(hook) => patchIdea(open.id, { chosenHook: hook ?? undefined })}
+                  onHooks={(updated) =>
+                    patchIdea(open.id, {
+                      altHooks: updated.altHooks,
+                      hookStyles: updated.hookStyles,
+                    })
+                  }
                 />
 
                 {platform === "instagram" ? <VoiceFlags idea={open} /> : null}
@@ -952,11 +965,14 @@ function HookChoice({
   platform,
   accent,
   onChoose,
+  onHooks,
 }: {
   idea: ContentIdea;
   platform: PlatformId;
   accent: string;
   onChoose: (hook: string | null) => void;
+  /** Called with the idea as it stands after more hooks were added to it. */
+  onHooks: (idea: ContentIdea) => void;
 }) {
   const { allPosts } = usePlatform(platform);
   const insights = useMemo(() => computeInsights(allPosts), [allPosts]);
@@ -975,6 +991,26 @@ function HookChoice({
     },
     onError: (error) => setReason(error instanceof Error ? error.message : String(error)),
   });
+
+  // "Get more hooks": three more openings in the style the team picks. One AI
+  // call per press; the new ones are saved onto the idea, so they can be
+  // filmed and recorded exactly like the three it came with.
+  const [more, setMore] = useState<string | null>(null);
+  const extend = useMutation({
+    mutationFn: (style: HookStyle) => getMoreHooks({ data: { ideaId: idea.id, style } }),
+    onMutate: () => setMore(null),
+    onSuccess: (result) => {
+      if (result.idea) {
+        onHooks(result.idea);
+        setMore(`Added ${result.added} hook${result.added === 1 ? "" : "s"} — pick one below.`);
+      } else {
+        setMore(result.reason ?? "No hooks were added.");
+      }
+    },
+    onError: (error) => setMore(error instanceof Error ? error.message : String(error)),
+  });
+  const full =
+    [idea.hook, ...(idea.altHooks ?? [])].filter(Boolean).length >= VARIANT_LABELS.length;
 
   if (!test.variants.length) return null;
 
@@ -1012,6 +1048,11 @@ function HookChoice({
                   <span className="text-xs font-bold tabular-nums" style={{ color: accent }}>
                     {variant.label}
                   </span>
+                ) : null}
+                {idea.hookStyles?.[variant.hook] ? (
+                  <Badge variant="secondary" className="text-[10px] font-medium">
+                    {HOOK_STYLE_LABEL[idea.hookStyles[variant.hook]!]} hook
+                  </Badge>
                 ) : null}
                 <Badge variant="outline" className="text-[10px] font-normal">
                   {variant.typeLabel}
@@ -1056,6 +1097,38 @@ function HookChoice({
       {test.reason ? <p className="mt-2 text-xs text-muted-foreground">{test.reason}</p> : null}
       {test.warning ? <p className="mt-1 text-xs text-muted-foreground">{test.warning}</p> : null}
       {reason ? <p className="mt-1 text-xs text-destructive">{reason}</p> : null}
+
+      {!idea.post ? (
+        <div className="mt-3 rounded-lg border border-dashed p-3">
+          <p className="text-xs font-medium">Get more hooks</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            Three more openings for this same script, in the style you pick. One AI call each.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {(Object.keys(HOOK_STYLE_LABEL) as HookStyle[]).map((style) => (
+              <Button
+                key={style}
+                size="sm"
+                variant="outline"
+                className="h-auto gap-1.5 px-2.5 py-1 text-xs"
+                disabled={extend.isPending || full}
+                onClick={() => extend.mutate(style)}
+              >
+                {extend.isPending && extend.variables === style ? (
+                  <Loader2 className="size-3 animate-spin" aria-hidden />
+                ) : null}
+                {HOOK_STYLE_LABEL[style]}
+              </Button>
+            ))}
+          </div>
+          {full ? (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              This script has {VARIANT_LABELS.length} hooks, the most the picker can label.
+            </p>
+          ) : null}
+          {more ? <p className="mt-2 text-[11px] text-muted-foreground">{more}</p> : null}
+        </div>
+      ) : null}
     </section>
   );
 }

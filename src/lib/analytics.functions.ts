@@ -119,6 +119,39 @@ export const markIdeaUsed = createServerFn({ method: "POST" })
  * write arbitrary text onto a row. Passing null returns the idea to its own
  * first hook.
  */
+/**
+ * "Get more hooks" — three more opening lines for a script, in a chosen style.
+ *
+ * One model call, from an explicit click. The idea is read from the database
+ * by its id, never taken from the request, and the new hooks are saved onto it
+ * so they can be picked and recorded like the ones it came with.
+ */
+export const getMoreHooks = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .validator((input: unknown) =>
+    z
+      .object({
+        ideaId: z.string().min(1),
+        style: z.enum(["authority", "curiosity", "question"]),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const [{ readIdeaById }, { moreHooks }] = await Promise.all([
+      import("@/server/store"),
+      import("@/server/ai/hooks"),
+    ]);
+    const idea = await readIdeaById(data.ideaId).catch(() => null);
+    if (!idea) {
+      return {
+        idea: null,
+        added: 0,
+        reason: "This idea is not stored yet, so new hooks cannot be saved to it.",
+      };
+    }
+    return moreHooks(idea, data.style);
+  });
+
 export const chooseHook = createServerFn({ method: "POST" })
   .validator((input: unknown) =>
     z.object({ ideaId: z.string().min(1), hook: z.string().nullable() }).parse(input),

@@ -178,6 +178,15 @@ export interface WrittenPost {
  * subject comes from the model's own knowledge; the UI says so and offers a
  * search instead of a link.
  */
+/** The kinds of opening the team can ask for more of. */
+export type HookStyle = "authority" | "curiosity" | "question";
+
+export const HOOK_STYLE_LABEL: Record<HookStyle, string> = {
+  authority: "Authority",
+  curiosity: "Curiosity",
+  question: "Question",
+};
+
 export interface IdeaSource {
   verified: boolean;
   /** The source_items row, when verified. */
@@ -294,6 +303,12 @@ export interface ContentIdea {
    *
    * Absent on ideas generated before this existed; those show one hook.
    */
+  /**
+   * The style each hook was written in, when the team asked for more of one
+   * ("Get more hooks": authority, curiosity, question). Keyed by the hook's
+   * own text. Hooks written with the script carry no style.
+   */
+  hookStyles?: Record<string, HookStyle> | undefined;
   altHooks?: string[] | undefined;
   /**
    * The hook the team picked to film, when it was not the first one. What the
