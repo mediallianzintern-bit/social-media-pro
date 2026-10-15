@@ -53,6 +53,19 @@ export interface DiscoveredResult {
 export const RUNNING_LOW = 4;
 
 /**
+ * Below this fit, the lane is a guess rather than a finding.
+ *
+ * Measured on the first live search: three reels about one model launch came
+ * back at 0.100, 0.106 and 0.181, and two of the three were filed under "AI
+ * tool workflows" when they plainly belonged in "Frontier AI developments".
+ * The words that carried them were generic ("time", "today", "create"), which
+ * is exactly what a low score means. They are still worth showing — they ARE
+ * in this creator's world — so the fix is to stop presenting the label as
+ * settled, not to throw the reel away.
+ */
+export const WEAK_FIT = 0.2;
+
+/**
  * Older than this and a reel is history rather than a model to learn from.
  *
  * Deliberately far wider than the 45 days the trend catcher allows on tracked

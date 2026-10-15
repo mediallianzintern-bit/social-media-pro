@@ -15,7 +15,7 @@ import {
   saveReactionClip,
   searchForReels,
 } from "@/lib/analytics.functions";
-import { RUNNING_LOW, type DiscoveredRow } from "@/lib/discovered";
+import { RUNNING_LOW, WEAK_FIT, type DiscoveredRow } from "@/lib/discovered";
 import { compactNumber } from "@/lib/format";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import { cn } from "@/lib/utils";
@@ -132,6 +132,9 @@ export function DiscoveredReels({ platform }: { platform: PlatformId }) {
                   ? `Searched “${outcome.query}” — ${outcome.stored ?? 0} new reel${
                       outcome.stored === 1 ? "" : "s"
                     } in your lanes, ${outcome.offLane ?? 0} off-lane.` +
+                    (outcome.alreadyTracked
+                      ? ` ${outcome.alreadyTracked} were from accounts you already track, so they stay in Rising on Instagram.`
+                      : "") +
                     (outcome.hiddenByPlan
                       ? ` ${outcome.hiddenByPlan} more could not be read: the free Apify plan hides their captions, and a reel with no caption cannot be matched to a lane.`
                       : "")
@@ -244,6 +247,10 @@ function ReelRow({
   platform: PlatformId;
   accent: string;
 }) {
+  // A low fit means the words it shares with the lane are common ones. The
+  // reel is still worth showing; the LABEL is what must not look certain.
+  const weak = row.laneFit < WEAK_FIT;
+
   return (
     <li className="py-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -262,8 +269,17 @@ function ReelRow({
           </span>
         ) : null}
         {row.lane ? (
-          <Badge variant="outline" className="font-normal">
+          <Badge
+            variant="outline"
+            className={cn("font-normal", weak && "border-dashed text-muted-foreground")}
+            title={
+              weak
+                ? "A weak match: the words it shares with this lane are common ones, so check the lane before using it"
+                : `Matched this lane on ${row.matchedWords.join(", ")}`
+            }
+          >
             {row.lane}
+            {weak ? " ?" : ""}
           </Badge>
         ) : null}
         <VoteButtons
@@ -289,6 +305,7 @@ function ReelRow({
 
       {row.matchedWords.length ? (
         <p className="mt-1 text-xs text-muted-foreground">
+          {weak ? "Weak match — check the lane. " : ""}
           Matched your {row.lane} lane on: {row.matchedWords.join(", ")}
         </p>
       ) : null}

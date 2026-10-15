@@ -23,7 +23,7 @@ import {
 } from "@/lib/discovered";
 import type { PlatformId } from "@/lib/analytics-types";
 
-import { OWNER_ACCOUNTS } from "./apify/accounts";
+import { accountsFor, OWNER_ACCOUNTS } from "./apify/accounts";
 import { apifyToken } from "./apify/client";
 import { searchInstagramPosts } from "./apify/search";
 import {
@@ -130,6 +130,7 @@ export async function refreshDiscoveredReels(platform: PlatformId): Promise<{
   found?: number;
   stored?: number;
   offLane?: number;
+  alreadyTracked?: number;
   hiddenByPlan?: number;
   reason?: string;
 }> {
@@ -171,9 +172,21 @@ export async function refreshDiscoveredReels(platform: PlatformId): Promise<{
     };
   }
 
+  // A reel from an account the system already scrapes belongs in "Rising on
+  // <platform>", where it is scored against that account's own median. Showing
+  // it here as well is the same reel twice, with a weaker claim about it.
+  const tracked = new Set(
+    accountsFor(platform).map((account) => account.handle.trim().toLowerCase()),
+  );
+
   const keep: DiscoveredReel[] = [];
   let offLane = 0;
+  let alreadyTracked = 0;
   for (const post of result.posts) {
+    if (post.creatorHandle && tracked.has(post.creatorHandle.trim().toLowerCase())) {
+      alreadyTracked += 1;
+      continue;
+    }
     if (offVoiceReason(post.caption)) {
       offLane += 1;
       continue;
@@ -219,6 +232,7 @@ export async function refreshDiscoveredReels(platform: PlatformId): Promise<{
     found: result.posts.length,
     stored,
     offLane,
+    alreadyTracked,
     hiddenByPlan: result.hiddenByPlan,
   };
 }
