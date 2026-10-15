@@ -1,5 +1,6 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Clapperboard,
   ExternalLink,
   FileText,
   Flame,
@@ -8,6 +9,7 @@ import {
   RefreshCw,
   Sparkles,
 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 
 import { AiIdeaCards } from "@/components/dashboard/ai-idea-cards";
@@ -20,11 +22,15 @@ import {
   analysisQueryOptions,
   generateOneIdea,
   getScriptForSource,
+  reactionsQueryOptions,
   savedTopicsQueryOptions,
+  saveReactionClip,
   topicInboxQueryOptions,
+  writeReactionScript,
 } from "@/lib/analytics.functions";
 import { dateTime } from "@/lib/format";
 import { PLATFORM_META } from "@/lib/platform-meta";
+import { normalizeSourceUrl } from "@/lib/reaction";
 import { cn } from "@/lib/utils";
 import type { ContentIdea } from "@/lib/ai-types";
 import type { PlatformId } from "@/lib/analytics-types";
@@ -126,7 +132,8 @@ export function SavedTopics() {
 
 function SavedRow({ item }: { item: SavedTopic }) {
   const meta = PLATFORM_META[item.platform];
-  const Icon = item.kind === "trend" ? Flame : Newspaper;
+  const reaction = item.kind === "trend";
+  const Icon = reaction ? Flame : Newspaper;
 
   return (
     <li className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:gap-4">
@@ -152,6 +159,17 @@ function SavedRow({ item }: { item: SavedTopic }) {
           </span>
         )}
         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 pl-5 text-xs text-muted-foreground">
+          {/* What this will BECOME, said plainly. The two kinds are made in
+              completely different ways — one answers a borrowed clip, the
+              other explains a news story — so the row leads with that. */}
+          <Badge variant="secondary" className="gap-1 font-medium">
+            {reaction ? (
+              <Clapperboard className="size-3" aria-hidden />
+            ) : (
+              <Sparkles className="size-3" aria-hidden />
+            )}
+            {reaction ? "Reaction hook reel" : "AI reel topic"}
+          </Badge>
           <span
             className="inline-flex items-center gap-1 font-medium"
             style={{ color: meta.color }}
@@ -159,7 +177,7 @@ function SavedRow({ item }: { item: SavedTopic }) {
             <meta.icon className="size-3" aria-hidden />
             {meta.label}
           </span>
-          <span>· {item.kind === "trend" ? "Rising post" : "News story"}</span>
+          <span>· {reaction ? "answers a rising post" : "built on a news story"}</span>
           {item.sourceLabel ? <span>· {item.sourceLabel}</span> : null}
           {item.lane ? <span>· {item.lane}</span> : null}
           <span>· saved {dateTime(item.createdAt)}</span>
@@ -167,7 +185,7 @@ function SavedRow({ item }: { item: SavedTopic }) {
         </p>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2 pl-5 sm:pl-0">
-        {item.kind === "source" ? <ScriptActions item={item} /> : null}
+        {reaction ? <ReactionScriptActions item={item} /> : <NewsScriptActions item={item} />}
         <Badge variant="outline" className="font-normal capitalize">
           {item.lane ?? "no lane"}
         </Badge>
@@ -186,7 +204,7 @@ function SavedRow({ item }: { item: SavedTopic }) {
 }
 
 /**
- * "Write script" for a saved news story — the same action, and the same AI
+ * "Write script" for a saved NEWS STORY — the same action, and the same AI
  * call, as the button in Topics in the news, so a story the team saved can be
  * scripted from the shortlist without hunting for it in the inbox.
  *
@@ -199,7 +217,7 @@ function SavedRow({ item }: { item: SavedTopic }) {
  * in source_items, and the script writer builds on stories; rising posts are
  * answered through "React to this" instead.
  */
-function ScriptActions({ item }: { item: SavedTopic }) {
+function NewsScriptActions({ item }: { item: SavedTopic }) {
   const queryClient = useQueryClient();
   const { platform, itemId: sourceId } = item;
   const scriptKey = ["script-for-source", platform, sourceId] as const;
@@ -285,6 +303,156 @@ function ScriptActions({ item }: { item: SavedTopic }) {
           )}
           {write.isPending ? "Writing…" : "Write script"}
         </Button>
+      )}
+      {message ? <span className="w-full text-xs text-destructive">{message}</span> : null}
+
+      {viewing ? (
+        <AiIdeaCards
+          key={viewing.id}
+          ideas={[viewing]}
+          platform={platform}
+          initialOpenId={viewing.id}
+          panelOnly
+          onClose={() => setViewing(null)}
+        />
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * "Write script" for a saved RISING POST, which becomes a reaction-hook reel.
+ *
+ * A rising post is a competitor's reel, not a story in the news inbox, so it
+ * goes through the reaction pipeline instead of the news one: the post is
+ * stored as a source clip (the same row "React to this" creates, keyed on the
+ * link so pressing either never makes a second copy), and the expert's answer
+ * is written against the claim that post makes. One press does both, so the
+ * shortlist does not send anyone to another screen to finish the job.
+ *
+ * The script is written in Pritesh's voice, from his own brief — the reaction
+ * format keeps its own beats, measured expert timing and standard CTA, which
+ * is what makes it a reaction rather than an explainer.
+ */
+function ReactionScriptActions({ item }: { item: SavedTopic }) {
+  const queryClient = useQueryClient();
+  const { platform } = item;
+  const [viewing, setViewing] = useState<ContentIdea | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const { data: reactions, isLoading } = useQuery(reactionsQueryOptions(platform));
+  const { data: analysis } = useQuery(analysisQueryOptions(platform));
+
+  // The clip, matched on the normalised link — the same key the store upserts
+  // on, so a post saved here and a post added through "React to this" are one
+  // clip, never two.
+  const link = item.url ? normalizeSourceUrl(item.url) : null;
+  const clipUrl = link?.ok ? link.url : item.url;
+  const clip = clipUrl ? (reactions?.sources.find((s) => s.sourceUrl === clipUrl) ?? null) : null;
+  // Whether a script exists at all, from the stored list; and the full script
+  // to show, from the cached analysis. The first survives a cache refresh.
+  const written = clip
+    ? Boolean(reactions?.scripts?.some((entry) => entry.reaction.sourceId === clip.id))
+    : false;
+  const idea = clip
+    ? (analysis?.ideas ?? []).find((entry) => entry.reaction?.sourceId === clip.id)
+    : undefined;
+
+  const write = useMutation({
+    mutationFn: async () => {
+      let clipId = clip?.id;
+      if (!clipId) {
+        if (!item.url) throw new Error("This saved post has no link to react to.");
+        const created = await saveReactionClip({
+          data: {
+            platform,
+            sourceUrl: item.url,
+            sourceCreatorHandle: item.sourceLabel?.replace(/^@/, "") ?? null,
+            // The team sets the real clip type on the card in Reaction hooks;
+            // "other" is the honest default rather than a guess.
+            sourceType: "other",
+            // The post's opening line IS the claim being answered, exactly as
+            // "React to this" stores it.
+            ...(item.title.trim() ? { extractedClaim: item.title.trim().slice(0, 1000) } : {}),
+            foundBy: "trend_listener",
+          },
+        });
+        if ("reason" in created) throw new Error(created.reason);
+        clipId = created.source.id;
+      }
+      return writeReactionScript({ data: clipId });
+    },
+    onMutate: () => setMessage(null),
+    onSuccess: (result) => {
+      if (result.idea) setViewing(result.idea);
+      else setMessage(result.reason ?? "No reaction script was written for this post.");
+      void queryClient.invalidateQueries({ queryKey: ["reactions", platform] });
+      void queryClient.invalidateQueries({ queryKey: analysisQueryOptions(platform).queryKey });
+    },
+    onError: (error) =>
+      setMessage(
+        error instanceof Error ? error.message : "Could not write a reaction script for this post.",
+      ),
+  });
+
+  return (
+    <>
+      {isLoading ? (
+        <Button size="sm" variant="outline" className="gap-1.5" disabled>
+          <Loader2 className="size-3.5 animate-spin" aria-hidden />
+          Checking…
+        </Button>
+      ) : (
+        <>
+          {idea ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              disabled={write.isPending}
+              onClick={() => setViewing(idea)}
+            >
+              <FileText className="size-3.5" aria-hidden />
+              View script
+            </Button>
+          ) : written ? (
+            // Written earlier, but no longer in the cached idea list. The clip
+            // card on Reaction hooks always has it.
+            <Button size="sm" variant="outline" className="gap-1.5" asChild>
+              <Link to="/reactions">
+                <FileText className="size-3.5" aria-hidden />
+                Open in Reaction hooks
+              </Link>
+            </Button>
+          ) : null}
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            disabled={write.isPending || !item.url}
+            onClick={() => write.mutate()}
+            title={
+              item.url
+                ? "Uses one AI call to write the expert's answer to this post, in Pritesh's voice"
+                : "This saved post has no link to react to"
+            }
+          >
+            {write.isPending ? (
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            ) : written || idea ? (
+              <RefreshCw className="size-3.5" aria-hidden />
+            ) : (
+              <Sparkles className="size-3.5" aria-hidden />
+            )}
+            {write.isPending
+              ? written || idea
+                ? "Regenerating…"
+                : "Writing…"
+              : written || idea
+                ? "Regenerate script"
+                : "Write script"}
+          </Button>
+        </>
       )}
       {message ? <span className="w-full text-xs text-destructive">{message}</span> : null}
 

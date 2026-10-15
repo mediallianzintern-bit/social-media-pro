@@ -160,11 +160,14 @@ export const DASHBOARD_HANDOVER = `DASHBOARD HANDOVER — the team requests thes
 - A claim that needs checking is written as a bracketed note for the team, e.g. "[verify: the release date]", never stated as confirmed.`;
 
 /**
- * The voice alone, for the reaction format: his intro, voice, avoid and
- * accuracy sections, verbatim. The reaction format fixes its own beats, timing
- * and CTA, so the reel's length, flow and output sections would compete there.
+ * The voice alone, for the reaction format: his intro, voice, delivery, avoid
+ * and accuracy sections, verbatim — everything in his brief that governs how
+ * he SOUNDS. Only the sections that fix a reel's shape are left out (LENGTH,
+ * SCRIPT FLOW, ENDING, OUTPUT), because the reaction format sets its own
+ * beats, its own measured expert timing and a word-for-word CTA, and those
+ * would compete. A reaction script should still be unmistakably him.
  */
-export const PRITESH_VOICE = [INTRO, MY_VOICE, AVOID, ACCURACY].join("\n");
+export const PRITESH_VOICE = [INTRO, MY_VOICE, DELIVERY, AVOID, ACCURACY].join("\n");
 
 /** A carousel is read, not spoken. The same voice, laid out slide by slide. */
 export const INSTAGRAM_CAROUSEL = `

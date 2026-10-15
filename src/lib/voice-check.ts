@@ -142,14 +142,28 @@ const words = (text: string) =>
 /** Dashes used as punctuation. A hyphen inside a word ("short-form") is not one. */
 const PUNCTUATION_DASH = /[—–]|\s-{1,2}\s/;
 
-/** Everything in an idea that will be spoken aloud or read on screen. */
+/**
+ * Everything in an idea that will be spoken aloud or read on screen.
+ *
+ * The credit overlay is deliberately excluded. On a reaction reel the system
+ * writes it itself, as "🎥 @handle on Instagram" — a crediting convention the
+ * format requires, not the model reaching for an emoji. Counting it flagged
+ * every reaction script for an emoji nobody had a choice about, which teaches
+ * the team to ignore the flags.
+ */
 function spokenText(idea: ContentIdea): string {
+  const credit = idea.reaction?.creditOverlayText?.trim();
+  const withoutCredit = (text: string) =>
+    credit && text.includes(credit) ? text.split(credit).join(" ") : text;
   return (
     [
       idea.chosenHook ?? "",
       idea.hook,
       ...(idea.altHooks ?? []),
-      ...(idea.shots ?? []).flatMap((shot) => [shot.voiceover ?? "", shot.onScreenText ?? ""]),
+      ...(idea.shots ?? []).flatMap((shot) => [
+        shot.voiceover ?? "",
+        withoutCredit(shot.onScreenText ?? ""),
+      ]),
       idea.caption ?? "",
       idea.post?.body ?? "",
       ...(idea.post?.sections ?? []).flatMap((section) => [section.heading, section.text]),
