@@ -1144,13 +1144,14 @@ above or to a gap named in the competitive read, and whyNow must say which.${
  * An Instagram reel's shots and production, with the lane's agreed CTA as its
  * closing line.
  *
- * When the writer already ended on it, nothing changes. When it did not, the
- * CTA becomes its own final shot — timed straight after the last one, at the
- * two words a second the reels are timed at — and the stated duration grows to
- * match, never past the minute. Splicing it into the last sentence would cut
- * something the writer said; a clean closing beat is what an editor wants.
+ * When the writer already ended on it, the CTA is left alone. When it did not,
+ * the CTA becomes its own final shot and the stated duration grows by its
+ * length, at the two words a second the reels are timed at, never past the
+ * minute. Splicing it into the last sentence would cut something the writer
+ * said; a clean closing beat is what an editor wants. Every shot's mark is
+ * then rebuilt to fit the duration.
  */
-function closingCta(
+export function closingCta(
   raw: {
     shots: Shot[];
     production?: ProductionNotes | undefined;
@@ -1162,21 +1163,15 @@ function closingCta(
   const production = raw.production ? { production: raw.production } : {};
   if (platform !== "instagram" || raw.format !== "reel") return { shots: raw.shots, ...production };
 
-  const toSeconds = (mark: string) =>
-    mark
-      .split(":")
-      .map(Number)
-      .reduce((total, part) => total * 60 + (Number.isFinite(part) ? part : 0), 0);
   const asMark = (seconds: number) =>
     `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, "0")}`;
 
   let added = 0;
   const shots = withLaneCta(raw.shots, raw.contentLane, (cta) => {
-    const lastEnd = raw.shots.at(-1)?.mark.split(/[–-]/)[1]?.trim();
-    const from = lastEnd && /^\d+:\d{2}$/.test(lastEnd) ? toSeconds(lastEnd) : null;
     added = Math.ceil(cta.split(/\s+/).length / 2);
     return {
-      mark: from != null ? `${asMark(from)}–${asMark(from + added)}` : "",
+      // Timed below, with every other shot.
+      mark: "",
       shotType: "Talking head — medium",
       visual: "Pritesh to camera, closing the reel.",
       voiceover: cta,
@@ -1185,14 +1180,39 @@ function closingCta(
     };
   });
 
-  if (!added || !raw.production) return { shots, ...production };
-  return {
-    shots,
-    production: {
-      ...raw.production,
-      durationSeconds: Math.min(60, raw.production.durationSeconds + added),
-    },
-  };
+  if (!raw.production || !shots.length) return { shots, ...production };
+
+  // The marks are rebuilt from the words, so they end exactly on the stated
+  // duration. The writer's own marks drifted: one reel stated 53 seconds and
+  // its last shot ended at 0:50. Each shot gets a share of the reel in
+  // proportion to the words it carries, never under a second, and the marks
+  // are cumulative so they stay contiguous.
+  const counts = shots.map((shot) =>
+    Math.max(
+      1,
+      (shot.voiceover ?? "")
+        .replace(/\[[^\]]*\]/g, " ")
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean).length,
+    ),
+  );
+  const total = counts.reduce((sum, count) => sum + count, 0);
+  const durationSeconds = Math.min(
+    60,
+    Math.max(raw.production.durationSeconds + added, Math.ceil(total / 2), shots.length),
+  );
+  let at = 0;
+  let end = 0;
+  const timed = shots.map((shot, index) => {
+    const from = end;
+    at += (durationSeconds * counts[index]!) / total;
+    const last = index === shots.length - 1;
+    end = Math.max(from + 1, last ? durationSeconds : Math.round(at));
+    return { ...shot, mark: `${asMark(from)}–${asMark(end)}` };
+  });
+
+  return { shots: timed, production: { ...raw.production, durationSeconds } };
 }
 
 export function finalizeIdeas(

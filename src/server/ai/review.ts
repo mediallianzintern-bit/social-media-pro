@@ -294,6 +294,12 @@ function problemsOf(review: ReviewResult, lane: string | null): string[] {
     );
   }
   if (count > 115) problems.push(`${count} spoken words; the maximum is 115`);
+  const said = [review.hook, ...review.altHooks, ...review.shots.map((shot) => shot.voiceover)];
+  if (said.some((line) => line.includes("!"))) {
+    problems.push(
+      "an exclamation mark in a hook or the voiceover; say it calmly, end on a full stop",
+    );
+  }
   const onScreen = review.shots.filter((shot) => shot.onScreenText.trim()).length;
   if (onScreen > 3) {
     problems.push(`${onScreen} shots have on-screen text; at most three may, the rest empty`);

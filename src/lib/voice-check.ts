@@ -222,6 +222,18 @@ export function voiceFlags(idea: ContentIdea): string[] {
     flags.push("uses a dash in the voice over — write the sentence out instead");
   }
 
+  // An exclamation mark is hype in punctuation: "It's wild!" was offered as a
+  // hook. Checked on what is said and shown in the reel, not the caption.
+  const performed = [
+    idea.chosenHook ?? "",
+    idea.hook,
+    ...(idea.altHooks ?? []),
+    ...(idea.shots ?? []).flatMap((shot) => [shot.voiceover ?? "", shot.onScreenText ?? ""]),
+  ].join("\n");
+  if (performed.includes("!")) {
+    flags.push("uses an exclamation mark — say it calmly instead");
+  }
+
   if (voiceover && PROMISED_RESOURCE.test(voiceover)) {
     flags.push("promises a guide, link or resource — keep it only if it exists");
   }

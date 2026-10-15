@@ -30,12 +30,20 @@ const MAX_HOOKS = 12;
  */
 const STYLE_BRIEF: Record<HookStyle, string> = {
   authority:
-    'AUTHORITY: open with a confident, plain verdict from someone who works in marketing every day — what most people get wrong about this, or what actually matters here. Sound sure, not superior. Use "I" only if the script itself does, and never invent an experience, a client or a result to sound credible.',
+    'AUTHORITY: open with a VERDICT, not a description. State a position a marketer could disagree with: what most brands get wrong here, why this worked when most attempts fail, or the one decision that made the difference. Shape, not content: "Most brands would have spent this budget on ads. This was smarter." A line that only says what happened ("X launched a campaign that went viral") is a description and fails. Sound sure, not superior. Use "I" only if the script itself does, and never invent an experience, a client or a result to sound credible.',
   curiosity:
-    'CURIOSITY: open on the most surprising TRUE thing in this script and hold back the how or the why, so the viewer stays for the answer the script gives. Name the subject — no vague "this" hiding it. Never exaggerate, never promise more than the script delivers.',
+    'CURIOSITY: open on the most surprising TRUE detail in this script, stated as a plain fact, and hold back the how or the why so the viewer stays for the answer the script gives. Shape: "This brand gave its product away to the people least likely to buy it." Name the subject; no vague "this one thing". Never exaggerate, never promise more than the script delivers.',
   question:
-    'QUESTION: open with ONE honest question the viewer would genuinely ask themselves about this, which the script then answers. Never a rhetorical "did you know", never a yes/no that invites a scroll, never engagement bait like "agree?".',
+    'QUESTION: open with ONE specific question a marketer would genuinely ask about this, which the script then answers. Shape: "Why would a film studio pay for ads that never show the film?" It names the subject and cannot be answered with yes or no. Never "did you know", never "have you ever wondered", never engagement bait like "agree?".',
 };
+
+/**
+ * Stock phrases that make a hook sound like every other reel. A hook that
+ * uses one is dropped rather than shown: they carry no point of view, which
+ * is the one thing a hook has to have.
+ */
+const CLICHES =
+  /\b(next level|raised? the bar|masterclass|genius|game on|broke the internet|nailed it|level up|crushed it|took (it|things) up a notch|blew (everyone|us) away|mind[- ]?blowing|insane|wild)\b/i;
 
 const schema = {
   type: "object",
@@ -101,7 +109,8 @@ Rules for every line:
 - One spoken sentence, at most 14 words. Short enough to say in the first three seconds.
 - It must fit THIS script: the line after it, as written, still follows naturally.
 - Different from every opening already offered below, and from each other.
-- No emoji, no dashes, no hype words, no promise of a guide or link.${reaction}
+- No emoji, no dashes, no exclamation marks, no hype words, no promise of a guide or link.
+- No stock phrases: "next level", "raised the bar", "masterclass", "genius", "wild", "insane".${reaction}
 
 Title: ${idea.title}
 Openings already offered (do not repeat or reword these):
@@ -134,6 +143,7 @@ ${scriptText(idea)}`;
     .filter((hook) => {
       if (!hook || seen.has(hook.toLowerCase())) return false;
       if (hook.split(/\s+/).length > 18) return false;
+      if (CLICHES.test(hook)) return false;
       // The same checks the script itself is held to, applied to the line alone.
       const probe = {
         ...idea,
