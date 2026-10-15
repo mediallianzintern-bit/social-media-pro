@@ -168,7 +168,7 @@ function SavedRow({ item }: { item: SavedTopic }) {
             ) : (
               <Sparkles className="size-3" aria-hidden />
             )}
-            {reaction ? "Reaction hook reel" : "AI reel topic"}
+            {reaction ? "Reaction hook reel" : "Reel topic"}
           </Badge>
           <span
             className="inline-flex items-center gap-1 font-medium"
