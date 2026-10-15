@@ -15,6 +15,7 @@ import type { AiAnalysis, ContentIdea } from "@/lib/ai-types";
 import type { ContentEra } from "@/lib/eras";
 import type { TopicVote } from "@/lib/preferences";
 import type { SavedTopic } from "@/lib/saved-topics";
+import type { DiscoveredReel } from "@/lib/discovered";
 import type { ReactionFields, ReactionSource } from "@/lib/reaction";
 import { classifyHook, scriptFeatures, type ScriptFeatures } from "@/lib/script-features";
 import type { SourceDraft, SourceItem } from "@/lib/sources";
@@ -2217,6 +2218,83 @@ export async function removeSavedTopic(
   if (error && !schemaNotReady(error)) {
     throw new Error(`saved_topics delete failed: ${error.message}`);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Reels found by search, from accounts nobody tracks (0019)
+// ---------------------------------------------------------------------------
+
+/**
+ * Every stored discovered reel for a platform, newest find first.
+ *
+ * [] when the table is absent, like the other enrichment reads: with no table
+ * the section simply does not appear, which is the right state until migration
+ * 0019 is applied, not an error.
+ */
+export async function readDiscoveredReels(platform: PlatformId): Promise<DiscoveredReel[]> {
+  const { data, error } = await db()
+    .from("discovered_reels")
+    .select(
+      "post_id,url,creator_handle,caption,views,likes,comments,published_at,lane,lane_fit,matched_words,query,found_at",
+    )
+    .eq("platform", platform)
+    .order("found_at", { ascending: false })
+    .limit(1000);
+  if (error && schemaNotReady(error)) return [];
+  if (error) throw new Error(`discovered_reels read failed: ${error.message}`);
+  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    postId: String(row["post_id"]),
+    url: String(row["url"]),
+    creatorHandle: (row["creator_handle"] as string | null) ?? null,
+    caption: String(row["caption"] ?? ""),
+    views: (row["views"] as number | null) ?? null,
+    likes: (row["likes"] as number | null) ?? null,
+    comments: (row["comments"] as number | null) ?? null,
+    publishedAt: (row["published_at"] as string | null) ?? null,
+    lane: (row["lane"] as string | null) ?? null,
+    laneFit: Number(row["lane_fit"] ?? 0),
+    matchedWords: (row["matched_words"] as string[] | null) ?? [],
+    query: (row["query"] as string | null) ?? null,
+    foundAt: String(row["found_at"]),
+  }));
+}
+
+/**
+ * Adds what a search found. Append-only: a reel already stored keeps its
+ * original row, so the pool only ever grows and a cross never empties it.
+ */
+export async function saveDiscoveredReels(
+  platform: PlatformId,
+  reels: DiscoveredReel[],
+): Promise<number> {
+  if (!reels.length) return 0;
+  const { error } = await db()
+    .from("discovered_reels")
+    .upsert(
+      reels.map((reel) => ({
+        platform,
+        post_id: reel.postId,
+        url: reel.url,
+        creator_handle: reel.creatorHandle,
+        caption: reel.caption.slice(0, 4000),
+        views: reel.views,
+        likes: reel.likes,
+        comments: reel.comments,
+        published_at: reel.publishedAt,
+        lane: reel.lane,
+        lane_fit: reel.laneFit,
+        matched_words: reel.matchedWords,
+        query: reel.query,
+      })),
+      { onConflict: "platform,post_id", ignoreDuplicates: true },
+    );
+  if (error && schemaNotReady(error)) {
+    throw new Error(
+      "Discovered reels need database migration 0019. Apply it in Supabase, then try again.",
+    );
+  }
+  if (error) throw new Error(`discovered_reels upsert failed: ${error.message}`);
+  return reels.length;
 }
 
 // ---------------------------------------------------------------------------

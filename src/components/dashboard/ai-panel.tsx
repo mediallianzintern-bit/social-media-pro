@@ -18,6 +18,7 @@ import { CollapsibleAnalysisCard } from "@/components/dashboard/collapsible-anal
 import { AiIdeaCards } from "@/components/dashboard/ai-idea-cards";
 import { CollapseToggle } from "@/components/dashboard/collapse-toggle";
 import { SectionHeading } from "@/components/dashboard/section-heading";
+import { DiscoveredReels } from "@/components/dashboard/discovered-reels";
 import { InstagramTrends } from "@/components/dashboard/instagram-trends";
 import { TopicInbox } from "@/components/dashboard/topic-inbox";
 import { Badge } from "@/components/ui/badge";
@@ -636,6 +637,11 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
           count — the catcher now measures interactions where views are not
           published, so both platforms have a breakout to measure. */}
       <InstagramTrends platform={platform} />
+
+      {/* The same question asked of the open platform rather than of a fixed
+          list of accounts: what is working in these lanes, from anyone. The
+          lane is the gate here, which is what keeps it relevant. */}
+      <DiscoveredReels platform={platform} />
 
       {/* These carry a real subject and a full shot list, so this is where the
           "next reel to make" label belongs — not on the rule-based plays below,

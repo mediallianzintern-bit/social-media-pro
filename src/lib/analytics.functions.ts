@@ -607,6 +607,45 @@ export const saveTopic = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// ---------------------------------------------------------------------------
+// Reels found by search, from accounts nobody tracks (0019)
+// ---------------------------------------------------------------------------
+
+/** The stored reels with the team's votes applied. Read-only: never searches, never spends. */
+export const getDiscoveredReels = createServerFn({ method: "GET" })
+  .validator((input: unknown) => platformSchema.parse(input))
+  .handler(async ({ data }) => {
+    const { discoveredReels } = await import("@/server/discovered");
+    return discoveredReels(data).catch(() => ({
+      rows: [],
+      hidden: [],
+      byLane: [],
+      lastFoundAt: null,
+      storable: false,
+    }));
+  });
+
+/**
+ * Runs ONE Instagram search and stores the reels that match a lane.
+ *
+ * One Apify actor run, from an explicit click. Which search it runs is decided
+ * by rotation — least recently used, with queries the team's own ticks have
+ * earned going first — so pressing it twice looks in two different places.
+ */
+export const searchForReels = createServerFn({ method: "POST" })
+  .middleware([requireStaff])
+  .validator((input: unknown) => platformSchema.parse(input))
+  .handler(async ({ data }) => {
+    const { refreshDiscoveredReels } = await import("@/server/discovered");
+    return refreshDiscoveredReels(data);
+  });
+
+export const discoveredReelsQueryOptions = (platform: PlatformId) => ({
+  queryKey: ["discovered-reels", platform] as const,
+  queryFn: () => getDiscoveredReels({ data: platform }),
+  staleTime: 60 * 1000,
+});
+
 export const savedTopicsQueryOptions = (platform: PlatformId) => ({
   queryKey: ["saved-topics", platform] as const,
   queryFn: () => getSavedTopics({ data: platform }),

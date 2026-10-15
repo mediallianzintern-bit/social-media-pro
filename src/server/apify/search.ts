@@ -34,6 +34,58 @@ interface IgSearchRow {
   creatorFullName?: string;
   playCount?: number | null;
   likeCount?: number | null;
+  commentCount?: number | null;
+  postId?: string;
+  shortCode?: string;
+  postUrl?: string;
+  postType?: string;
+  caption?: string;
+  thumbnailUrl?: string;
+  /**
+   * Set by the actor on every row it had to degrade. On a free Apify plan
+   * only the first few rows come back whole: the rest arrive with a
+   * four-character caption and a rounded view count. Measured 15 Oct 2026 —
+   * 3 of 20 rows were complete.
+   */
+  freePlanNote?: string | null;
+}
+
+/** One top post from a search, with everything needed to show and judge it. */
+export interface SearchedPost {
+  postId: string;
+  url: string;
+  creatorHandle: string | null;
+  caption: string;
+  views: number | null;
+  likes: number | null;
+  comments: number | null;
+  /** Derived from the post id, which encodes the publish time. */
+  publishedAt: string | null;
+  query: string;
+}
+
+/**
+ * When a post was published, read out of its own id.
+ *
+ * Instagram ids carry the publish time in their high bits, offset from the
+ * epoch the platform counts from. The search returns no date at all, and its
+ * Top tab reaches back years, so this is the only way to tell a reel from this
+ * month from one from 2023 — and it costs nothing. Checked against the age
+ * Instagram writes into the post's own video URL: a post this decodes to 22
+ * April 2026 is the one that URL calls 175 days old, which lands on today.
+ */
+export function publishedAtOf(postId: string): string | null {
+  try {
+    const ms = Number(BigInt(postId) >> 23n) + 1_314_220_021_721;
+    const date = new Date(ms);
+    const year = date.getUTCFullYear();
+    // A decode that lands outside Instagram's own lifetime is a decode that
+    // went wrong; an undated reel is better than a wrongly dated one.
+    if (year < 2010 || ms > Date.now() + 86_400_000) return null;
+    return date.toISOString();
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -153,4 +205,49 @@ export async function searchLinkedIn(
   }
 
   return [...found.values()];
+}
+
+/**
+ * The top POSTS for one search term, rather than the accounts behind them.
+ *
+ * searchInstagram() above reads the same rows to learn which accounts exist
+ * and throws the posts away; this keeps them. One actor run, like that one,
+ * because the actor processes only the first query it is given.
+ *
+ * Rows the free Apify plan degraded are dropped rather than stored half-blind:
+ * they arrive with a four-character caption, which cannot be matched against a
+ * content lane, and a view count rounded to the nearest million. The count of
+ * what was dropped is returned so the UI can say plainly what the plan is
+ * costing rather than quietly showing three results.
+ */
+export async function searchInstagramPosts(
+  query: string,
+  perQuery = 40,
+): Promise<{ posts: SearchedPost[]; hiddenByPlan: number }> {
+  const rows = await searchInstagramOnce(query, perQuery);
+  const posts: SearchedPost[] = [];
+  let hiddenByPlan = 0;
+
+  for (const row of rows) {
+    const postId = row.postId?.trim();
+    const url = row.postUrl?.trim();
+    if (!postId || !url) continue;
+    if (row.freePlanNote) {
+      hiddenByPlan += 1;
+      continue;
+    }
+    posts.push({
+      postId,
+      url,
+      creatorHandle: row.creatorUsername?.trim() || null,
+      caption: (row.caption ?? "").trim(),
+      views: row.playCount ?? null,
+      likes: row.likeCount ?? null,
+      comments: row.commentCount ?? null,
+      publishedAt: publishedAtOf(postId),
+      query,
+    });
+  }
+
+  return { posts, hiddenByPlan };
 }

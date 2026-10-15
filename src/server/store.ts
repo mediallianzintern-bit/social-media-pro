@@ -60,6 +60,10 @@ export const saveSavedTopic: typeof supabase.saveSavedTopic = (...args) =>
   store().saveSavedTopic(...args);
 export const removeSavedTopic: typeof supabase.removeSavedTopic = (...args) =>
   store().removeSavedTopic(...args);
+export const readDiscoveredReels: typeof supabase.readDiscoveredReels = (...args) =>
+  store().readDiscoveredReels(...args);
+export const saveDiscoveredReels: typeof supabase.saveDiscoveredReels = (...args) =>
+  store().saveDiscoveredReels(...args);
 export const markIdeaMeasured: typeof supabase.markIdeaMeasured = (...args) =>
   store().markIdeaMeasured(...args);
 export const setChosenHook: typeof supabase.setChosenHook = (...args) =>

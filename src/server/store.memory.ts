@@ -8,6 +8,7 @@
 import type { ContentEra } from "@/lib/eras";
 import type { TopicVote } from "@/lib/preferences";
 import type { SavedTopic } from "@/lib/saved-topics";
+import type { DiscoveredReel } from "@/lib/discovered";
 import type { ReactionFields, ReactionSource } from "@/lib/reaction";
 import { isTrendSource } from "./apify/accounts";
 import type {
@@ -498,6 +499,29 @@ export async function saveSavedTopic(input: {
   );
   if (index >= 0) saved.splice(index, 1);
   saved.unshift({ ...input, createdAt: new Date().toISOString() });
+}
+
+// Discovered reels (0019) — in memory for previews without Supabase.
+
+const discovered: Array<DiscoveredReel & { platform: PlatformId }> = [];
+
+export async function readDiscoveredReels(platform: PlatformId): Promise<DiscoveredReel[]> {
+  return discovered
+    .filter((reel) => reel.platform === platform)
+    .map(({ platform: _platform, ...reel }) => reel);
+}
+
+export async function saveDiscoveredReels(
+  platform: PlatformId,
+  reels: DiscoveredReel[],
+): Promise<number> {
+  for (const reel of reels) {
+    if (discovered.some((kept) => kept.platform === platform && kept.postId === reel.postId)) {
+      continue;
+    }
+    discovered.unshift({ ...reel, platform });
+  }
+  return reels.length;
 }
 
 export async function removeSavedTopic(
