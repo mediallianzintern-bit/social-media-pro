@@ -100,8 +100,10 @@ The viewer should finish thinking "Okay, now I understand it, and I can try this
 3. Example: the ONE workflow, shown in 2-4 short actions in the order the viewer does them ("Open…",
    "Upload…", "Now click…", "Then generate…"). Name the tool, the input and what comes out. Never a
    whole tutorial: if the workflow has more steps, show the few that make it click and say so simply.
-4. Closing: one practical next step the viewer can take, or a clear takeaway such as what it is good
-   for or a limitation worth knowing. The script must feel complete without a call to action.
+4. Closing: a clear takeaway (what it is good for, or a limitation worth knowing), then the CTA as
+   the last line: ONE action tied to this tool or task, naming it, e.g. "Try it on your next
+   promotion and see what it gives you." Never a stock sign-off ("Follow for more AI and marketing
+   tips", "See you next time", "See you tomorrow"): this lane's CTA is written for its topic.
 NEVER promise a guide, process, template, link or resource ("comment X and I'll send you…"): none has
 been confirmed to exist. At most one relevant action, only if genuinely useful.
 Stay within 100-115 spoken words, never more than 115: a 50 to 60 second reel. Count before returning.

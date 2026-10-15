@@ -17,6 +17,7 @@
 //
 // Client-safe. No model call. See docs/pritesh-voice.md.
 import type { ContentIdea } from "@/lib/ai-types";
+import { isAiToolWorkflowLane, workflowCtaIssue } from "@/lib/tool-workflow";
 
 /** Phrases banned outright by the voice document. Matched case-insensitively. */
 const BANNED_PHRASES = [
@@ -232,6 +233,15 @@ export function voiceFlags(idea: ContentIdea): string[] {
   ].join("\n");
   if (performed.includes("!")) {
     flags.push("uses an exclamation mark — say it calmly instead");
+  }
+
+  // An AI tool workflow reel's CTA is written for its tool, not borrowed.
+  if (voiceover && !idea.post && isAiToolWorkflowLane(idea.contentLane)) {
+    const issue = workflowCtaIssue(
+      idea.shots?.at(-1)?.voiceover ?? "",
+      `${idea.title ?? ""} ${idea.angle ?? ""}`,
+    );
+    if (issue) flags.push(issue.replace(/^the closing line/, "the CTA"));
   }
 
   if (voiceover && PROMISED_RESOURCE.test(voiceover)) {

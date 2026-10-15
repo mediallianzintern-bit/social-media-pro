@@ -135,7 +135,7 @@ export function ctaRule(lane: string | null | undefined): string {
   if (fixed) {
     return `CTA: the reel ENDS on exactly this line, word for word, as its own final shot: "${fixed}" It counts toward the word budget.`;
   }
-  return "CTA: end on ONE call to action written for this reel's topic and tool (for example, following for more workflows like this one). It counts toward the word budget. Never promise a guide, template, link or resource, and never \"comment X and I'll send you\".";
+  return 'CTA: end on ONE call to action written for THIS reel: it names the tool or the task the reel just showed, so it could not close any other reel. Shapes, not wording: "Try it on your next promotion and see what it gives you." / "Save this for the next time an ad is due tomorrow." / "Follow if you want more ways to get ads out faster." Never a stock sign-off such as "Follow for more AI and marketing tips", "See you next time" or "See you tomorrow", and never the daily line the other lanes use. It counts toward the word budget. Never promise a guide, template, link or resource, and never "comment X and I\'ll send you".';
 }
 
 const normalise = (text: string) =>

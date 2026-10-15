@@ -28,6 +28,7 @@ import type { ContentIdea } from "@/lib/ai-types";
 import { ctaRule } from "@/lib/script-families";
 
 import { isAiToolWorkflowLane, toolWorkflowIssues, toolWorkflowPrompt } from "./tool-workflow";
+import { workflowCtaIssue } from "@/lib/tool-workflow";
 import { DASHBOARD_HANDOVER, INSTAGRAM_MASTER_PROMPT, INSTAGRAM_REVIEW_PROMPT } from "./voice";
 
 const REVIEW_MODEL_DEFAULT = "gpt-4o";
@@ -219,7 +220,9 @@ paragraph is its own shotType "Screen recording" shot. Describing what the tool 
 input details and it does the rest") is NOT a step. Where the source does not say exactly where a
 control is or what it is called, keep the step and mark the unknown part for the recording team,
 e.g. "Open the tool [VERIFY: where it sits in the app]." Never invent menus as if
-confirmed. The steps count toward the 100–115 words; keep each one short.`;
+confirmed. The steps count toward the 100–115 words; keep each one short.
+The LAST line is this reel's own CTA: one action that names the tool or the task just shown. A
+stock sign-off ("Follow for more AI and marketing tips. See you next time.") is wrong here.`;
 
 function reviewUser(
   idea: RawIdea,
@@ -274,7 +277,7 @@ const spokenWords = (review: ReviewResult) =>
  * The hard rules a rewrite can be held to in code. Judgement rules — voice,
  * one idea, a good example — are left to the model; these are counted.
  */
-function problemsOf(review: ReviewResult, lane: string | null): string[] {
+function problemsOf(review: ReviewResult, lane: string | null, subject: string): string[] {
   const problems: string[] = [];
   const count = spokenWords(review);
   // The shots are what the editor cuts from, so they are what is counted. A
@@ -323,6 +326,8 @@ function problemsOf(review: ReviewResult, lane: string | null): string[] {
           : issue,
       );
     }
+    const cta = workflowCtaIssue(review.shots.at(-1)?.voiceover ?? "", subject);
+    if (cta) problems.push(cta);
   }
   return problems;
 }
@@ -390,7 +395,11 @@ export async function reviewDrafts(
             console.warn(`[ai:review] invalid review reply:`, parsed.error.message);
             continue;
           }
-          const problems = problemsOf(parsed.data, lane);
+          const problems = problemsOf(
+            parsed.data,
+            lane,
+            `${String(idea["title"] ?? "")} ${String(idea["angle"] ?? "")}`,
+          );
           console.info(
             `[ai:review] "${String(idea["title"])}" round ${round + 1}: ` +
               `${spokenWords(parsed.data)} spoken words (reply said ${parsed.data.spokenWordCount})` +
