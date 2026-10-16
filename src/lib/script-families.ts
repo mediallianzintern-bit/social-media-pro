@@ -23,6 +23,13 @@
 //
 // Client-safe. No model call. See docs/pritesh-reel-sop.md §25, §27, §28,
 // §35, §44.
+
+import {
+  isAiToolWorkflowLane,
+  isWorkflowCta,
+  workflowCta,
+  workflowKeyword,
+} from "./tool-workflow.ts";
 import type { ContentLane } from "@/lib/analytics-types";
 
 export type ScriptFamily = "ai" | "marketing";
@@ -111,10 +118,10 @@ export function shapeFor(lane: { name: string; definition?: string }): FamilySha
  * The call to action, per lane, as the team set it.
  *
  * Pritesh's brief says a script must stand on its own without a CTA, and that
- * when one IS requested it is one relevant action. The team has now requested
- * one, word for word, for three lanes. AI tool workflows is the exception on
- * purpose: its CTA is written for the tool in that reel, so it is left to the
- * writer, under the brief's own rule that it never promises a guide or a link.
+ * when one IS requested it is one relevant action. The team has requested one
+ * for every lane: the daily line, word for word, for three of them, and for
+ * AI tool workflows "Comment KEYWORD and I'll send you the full step-by-step
+ * guide.", with a keyword chosen for each reel's topic.
  */
 export const DAILY_CTA = "Follow for daily AI and marketing updates. See you tomorrow.";
 
@@ -129,11 +136,24 @@ export function ctaFor(lane: string | null | undefined): string | null {
   return LANE_CTA[(lane ?? "").trim().toLowerCase()] ?? null;
 }
 
+/**
+ * The closing line a lane's reel ends on, ready to say: the fixed line, or
+ * for AI tool workflows the comment CTA with a keyword from the title. Null
+ * for a lane without an agreed CTA.
+ */
+export function closingLineFor(lane: string | null | undefined, title: string): string | null {
+  if (isAiToolWorkflowLane(lane)) return workflowCta(workflowKeyword(title));
+  return ctaFor(lane);
+}
+
 /** The prompt's wording of the CTA rule for one lane. */
 export function ctaRule(lane: string | null | undefined): string {
   const fixed = ctaFor(lane);
   if (fixed) {
     return `CTA: the reel ENDS on exactly this line, word for word, as its own final shot: "${fixed}" It counts toward the word budget.`;
+  }
+  if (isAiToolWorkflowLane(lane)) {
+    return `CTA: the reel ENDS on the comment CTA, as its own final shot, in exactly this shape: "${workflowCta("KEYWORD")}" Replace KEYWORD with ONE short word in capitals taken from this reel's tool or task (ADS for an ad builder, GEMINI for a Gemini workflow), so each reel's comments can be told apart. The team sends the guide to everyone who comments, so this promise is confirmed. Never a stock sign-off such as "Follow for more" or "See you next time". It counts toward the word budget.`;
   }
   return 'CTA: end on ONE call to action written for THIS reel: it names the tool or the task the reel just showed, so it could not close any other reel. Shapes, not wording: "Try it on your next promotion and see what it gives you." / "Save this for the next time an ad is due tomorrow." / "Follow if you want more ways to get ads out faster." Never a stock sign-off such as "Follow for more AI and marketing tips", "See you next time" or "See you tomorrow", and never the daily line the other lanes use. It counts toward the word budget. Never promise a guide, template, link or resource, and never "comment X and I\'ll send you".';
 }
@@ -159,9 +179,18 @@ export function withLaneCta<T extends { voiceover: string; onScreenText: string 
   shots: T[],
   lane: string | null | undefined,
   closingShot: (cta: string) => T,
+  title = "",
 ): T[] {
+  if (!shots.length) return shots;
+  // AI tool workflows: the comment CTA, in whatever keyword the writer chose.
+  // When the closing line is not one, the CTA is added after it with a
+  // keyword from the title, so the reel never ends without it.
+  if (isAiToolWorkflowLane(lane)) {
+    if (isWorkflowCta(shots[shots.length - 1]!.voiceover ?? "")) return shots;
+    return [...shots, closingShot(workflowCta(workflowKeyword(title)))];
+  }
   const cta = ctaFor(lane);
-  if (!cta || !shots.length) return shots;
+  if (!cta) return shots;
   const target = normalise(cta);
   const spoken = normalise(shots.map((shot) => shot.voiceover ?? "").join(" "));
   if (spoken.endsWith(target)) return shots;

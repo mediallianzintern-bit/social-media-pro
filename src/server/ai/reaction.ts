@@ -15,6 +15,8 @@ import { z } from "zod";
 import { completeJson, hasOpenAi } from "./client";
 import { PRITESH_VOICE } from "./voice";
 import { significantWords } from "@/lib/lane-fit";
+import { DAILY_CTA, closingLineFor } from "@/lib/script-families";
+import { workflowCta } from "@/lib/tool-workflow";
 
 import { OWNER_ACCOUNTS } from "../apify/accounts";
 import { recordPredictions, currentNiche } from "../predict";
@@ -272,7 +274,7 @@ LANES (views as a multiple of this account's own median):
 ${context.lanes.length ? context.lanes.map((lane) => `- ${lane.lane}: ${lane.vsMedian}× over ${lane.posts} posts`).join("\n") : "- none classified yet"}
 
 OWNED LANE FOR THE REDIRECT: ${context.ownedLane ?? "choose the best-fitting lane above"}
-STANDARD CTA: ${context.standardCta ? `"${context.standardCta}"` : "none set — write one clear ask"}
+STANDARD CTA: ${context.standardCta ? `"${context.standardCta}"` : `none set by the client, so the lane's: Frontier AI developments, Brand strategy lessons and Marketing stunts end on "${DAILY_CTA}"; AI tool workflows end on "${workflowCta("KEYWORD")}" with one keyword in capitals from the topic`}
 LEAD MAGNET: ${context.leadMagnet ?? "none"}
 BRAND SET: ${context.brandSetNotes ?? "the account's usual set"}
 
@@ -418,18 +420,21 @@ export function assembleReaction(
 
   // Figures the expert may state as fact: only those in what the script was
   // given. Everything else is [VERIFY], whatever the model marked.
+  // The client's own CTA when one is set, otherwise the lane's agreed line.
+  const closing =
+    context.standardCta ?? closingLineFor(context.ownedLane ?? raw.contentLane, raw.title);
   const allowed = [
     source.transcript ?? "",
     source.extractedClaim ?? "",
     raw.extractedClaim,
     context.leadMagnet ?? "",
-    context.standardCta ?? "",
+    closing ?? "",
   ].join(" \n ");
 
   const beats = REACTION_BEATS.map((beat) => {
     const line = raw.beats.find((entry) => entry.beat === beat)?.line ?? "";
     // The CTA is the client's, word for word, whenever one is set.
-    return { beat, line: beat === "cta" && context.standardCta ? context.standardCta : line };
+    return { beat, line: beat === "cta" && closing ? closing : line };
   });
   const checkedBeats = enforceVerify(
     beats.map((entry) => entry.line),
@@ -438,7 +443,13 @@ export function assembleReaction(
 
   // Shot 1 is the source clip, always, carrying the stored credit — never a
   // credit the model composed.
-  const expertShots = raw.shots.filter((shot) => !/source/i.test(shot.shotType));
+  // The closing line is set BEFORE the clock is built, so the marks are
+  // timed on the words actually said, CTA included.
+  const expertShots = raw.shots
+    .filter((shot) => !/source/i.test(shot.shotType))
+    .map((shot, index, all) =>
+      closing && index === all.length - 1 ? { ...shot, voiceover: closing } : shot,
+    );
   const checkedShots = enforceVerify(
     expertShots.map((shot) => shot.voiceover),
     allowed,
@@ -484,11 +495,6 @@ export function assembleReaction(
       voiceover: checkedShots.lines[index] ?? shot.voiceover,
     })),
   ];
-  // The closing spoken line is the CTA, word for word.
-  if (context.standardCta && shots.length > 1) {
-    const last = shots[shots.length - 1]!;
-    shots[shots.length - 1] = { ...last, voiceover: context.standardCta };
-  }
 
   const verifyItems = [...new Set([...checkedBeats.verifyItems, ...checkedShots.verifyItems])];
   const finalBeats = beats.map((entry, index) => ({

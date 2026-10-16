@@ -8,32 +8,63 @@ export function isAiToolWorkflowLane(lane: string | null | undefined): boolean {
 }
 
 /**
- * A sign-off that would fit any reel. The daily line belongs to the other
- * lanes; "Follow for more AI and marketing tips. See you next time." is the
- * model drifting back to it, which is what an AI tool workflow reel ended on
- * when its CTA was meant to be written for the tool it shows.
+ * The AI tool workflows CTA, as the team set it: the viewer comments one
+ * keyword and is sent the full step-by-step guide. The keyword is the
+ * reel's own, in capitals, so the comments for each reel can be told apart:
+ * "Comment ADS and I'll send you the full step-by-step guide."
+ *
+ * Pritesh's brief allows a promised guide only once it is confirmed to exist.
+ * The team has asked for this CTA on every workflow reel, which is them
+ * confirming it: whoever posts the reel sends the guide to each commenter.
  */
-const GENERIC_SIGN_OFF =
-  /\b(see you (next time|tomorrow|soon)|(ai|marketing) (tips|updates)|daily ai|follow for more\b(?! \w+ (with|using|like|for) ))/i;
+export function workflowCta(keyword: string): string {
+  return `Comment ${keyword} and I'll send you the full step-by-step guide.`;
+}
+
+/** "Comment ADS …": the word after "comment", which must be in capitals. */
+const COMMENT_KEYWORD = /\b[Cc]omment\s+["\u201c']?([A-Z0-9][A-Z0-9-]{0,19})["\u201d']?(?![a-z])/;
+
+/** …and what they get for it: the guide, the process, the steps. */
+const SENDS_GUIDE =
+  /\b(send|get|dm|message)\b[^.?!]*\b(guide|process|step[- ]by[- ]step|steps|workflow|walkthrough)\b/i;
+
+/** True when the line is the comment-a-keyword CTA in its agreed shape. */
+export function isWorkflowCta(line: string): boolean {
+  const text = line.replace(/[\u2018\u2019]/g, "'");
+  return COMMENT_KEYWORD.test(text) && SENDS_GUIDE.test(text);
+}
 
 /**
- * Why an AI tool workflow reel's closing line is not written for its tool,
- * or null when it is.
- *
- * The lane's CTA is the one the writer composes, so it must name the tool or
- * the task the reel showed. A line that shares no word with the reel's
- * subject, or is a stock sign-off, is the generic CTA the team asked to stop.
+ * A keyword for the comment CTA when the writer did not give one, in
+ * capitals: the product named after a brand's possessive ("Google's Gemini 4
+ * launch" gives GEMINI, "Meta's Muse Spark" gives MUSE), otherwise the
+ * longest word of the title that says what it is about ("X's new AI tool
+ * that builds ads" gives ADS).
+ */
+export function workflowKeyword(title: string): string {
+  const product = /\b[A-Za-z0-9]+['\u2019]s\s+([A-Za-z0-9]{2,20})\b/.exec(title)?.[1];
+  if (product && subjectWords(product).size > 0) return product.toUpperCase();
+  const candidates = title
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/'s\b/gi, "")
+    .split(/[^A-Za-z0-9]+/)
+    .filter((word) => word.length >= 2 && subjectWords(word).size > 0);
+  const best = candidates.reduce<string>(
+    (longest, word) => (word.length > longest.length ? word : longest),
+    "",
+  );
+  return (best || "GUIDE").toUpperCase().slice(0, 20);
+}
+
+/**
+ * Why an AI tool workflow reel's closing line is not the comment CTA, or
+ * null when it is.
  */
 export function workflowCtaIssue(closingLine: string, subject: string): string | null {
   const line = closingLine.trim();
-  if (!line) return "the reel has no closing line";
-  if (GENERIC_SIGN_OFF.test(line)) {
-    return `the closing line "${line}" is a generic sign-off; end on one action tied to this reel's tool or task`;
-  }
-  const about = subjectWords(subject);
-  const said = subjectWords(line);
-  if (about.size && ![...said].some((word) => about.has(word))) {
-    return `the closing line "${line}" never names the tool or the task; end on one action tied to them`;
-  }
-  return null;
+  if (isWorkflowCta(line)) return null;
+  const example = workflowCta(workflowKeyword(subject));
+  return line
+    ? `the closing line "${line}" is not this lane's CTA; end on the comment CTA, e.g. "${example}", with one keyword from this topic in capitals`
+    : `the reel has no closing line; end on the comment CTA, e.g. "${example}"`;
 }

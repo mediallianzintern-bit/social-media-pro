@@ -226,8 +226,9 @@ input details and it does the rest") is NOT a step. Where the source does not sa
 control is or what it is called, keep the step and mark the unknown part for the recording team,
 e.g. "Open the tool [VERIFY: where it sits in the app]." Never invent menus as if
 confirmed. The steps count toward the 100–115 words; keep each one short.
-The LAST line is this reel's own CTA: one action that names the tool or the task just shown. A
-stock sign-off ("Follow for more AI and marketing tips. See you next time.") is wrong here.`;
+The LAST line is this lane's CTA, its own shot: "Comment KEYWORD and I'll send you the full
+step-by-step guide.", with ONE keyword in capitals from this reel's tool or task. The team sends the
+guide to every commenter, so this promise is confirmed. A stock sign-off is wrong here.`;
 
 function reviewUser(
   idea: RawIdea,

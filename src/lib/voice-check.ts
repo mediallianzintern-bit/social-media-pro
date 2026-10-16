@@ -18,7 +18,7 @@
 // Client-safe. No model call. See docs/pritesh-voice.md.
 import type { ContentIdea } from "@/lib/ai-types";
 import { hookIssue } from "@/lib/hook-check";
-import { isAiToolWorkflowLane, workflowCtaIssue } from "@/lib/tool-workflow";
+import { isAiToolWorkflowLane, isWorkflowCta, workflowCtaIssue } from "@/lib/tool-workflow";
 
 /** Phrases banned outright by the voice document. Matched case-insensitively. */
 const BANNED_PHRASES = [
@@ -245,7 +245,7 @@ export function voiceFlags(idea: ContentIdea): string[] {
     );
   }
 
-  // An AI tool workflow reel's CTA is written for its tool, not borrowed.
+  // An AI tool workflow reel ends on the comment CTA the team asked for.
   if (voiceover && !idea.post && isAiToolWorkflowLane(idea.contentLane)) {
     const issue = workflowCtaIssue(
       idea.shots?.at(-1)?.voiceover ?? "",
@@ -254,7 +254,15 @@ export function voiceFlags(idea: ContentIdea): string[] {
     if (issue) flags.push(issue.replace(/^the closing line/, "the CTA"));
   }
 
-  if (voiceover && PROMISED_RESOURCE.test(voiceover)) {
+  // The workflow lane's comment CTA promises a guide on purpose: the team
+  // sends it. Anything else that promises a resource is still flagged.
+  const promises = isAiToolWorkflowLane(idea.contentLane)
+    ? (idea.shots ?? [])
+        .map((shot) => shot.voiceover ?? "")
+        .filter((line) => !isWorkflowCta(line))
+        .join(" ")
+    : voiceover;
+  if (promises && PROMISED_RESOURCE.test(promises)) {
     flags.push("promises a guide, link or resource — keep it only if it exists");
   }
 

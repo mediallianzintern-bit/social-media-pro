@@ -1157,6 +1157,7 @@ export function closingCta(
     production?: ProductionNotes | undefined;
     contentLane: string;
     format: string;
+    title?: string;
   },
   platform: PlatformId,
 ): { shots: Shot[]; production?: ProductionNotes } {
@@ -1167,18 +1168,23 @@ export function closingCta(
     `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, "0")}`;
 
   let added = 0;
-  const shots = withLaneCta(raw.shots, raw.contentLane, (cta) => {
-    added = Math.ceil(cta.split(/\s+/).length / 2);
-    return {
-      // Timed below, with every other shot.
-      mark: "",
-      shotType: "Talking head — medium",
-      visual: "Pritesh to camera, closing the reel.",
-      voiceover: cta,
-      onScreenText: "",
-      transition: "Hold, then end",
-    };
-  });
+  const shots = withLaneCta(
+    raw.shots,
+    raw.contentLane,
+    (cta) => {
+      added = Math.ceil(cta.split(/\s+/).length / 2);
+      return {
+        // Timed below, with every other shot.
+        mark: "",
+        shotType: "Talking head — medium",
+        visual: "Pritesh to camera, closing the reel.",
+        voiceover: cta,
+        onScreenText: "",
+        transition: "Hold, then end",
+      };
+    },
+    raw.title ?? "",
+  );
 
   if (!raw.production || !shots.length) return { shots, ...production };
 

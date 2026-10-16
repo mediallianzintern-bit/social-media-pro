@@ -80,9 +80,10 @@ export function toolWorkflowIssues(platform: PlatformId, idea: ContentIdea): str
  *
  * The lane still SHOWS the tool working, because that is what the lane is.
  * But it is a reel, not a tutorial: one workflow, a few steps, the same
- * length and ending rules as every other lane. It no longer ends on "Comment
- * X and I'll send you the guide": the brief forbids promising a resource that
- * has not been confirmed to exist. See docs/pritesh-reel-voice-2026-10.md.
+ * length rules as every other lane. It ends on "Comment KEYWORD and I'll send
+ * you the full step-by-step guide.": the team asked for it and sends the guide
+ * to each commenter, which is the confirmation Pritesh's brief requires before
+ * a resource is promised. See docs/pritesh-reel-voice-2026-10.md.
  */
 export function toolWorkflowPrompt(platform: PlatformId, lanes: string[]): string {
   const workflows = lanes.filter(isAiToolWorkflowLane);
@@ -101,11 +102,11 @@ The viewer should finish thinking "Okay, now I understand it, and I can try this
    "Upload…", "Now click…", "Then generate…"). Name the tool, the input and what comes out. Never a
    whole tutorial: if the workflow has more steps, show the few that make it click and say so simply.
 4. Closing: a clear takeaway (what it is good for, or a limitation worth knowing), then the CTA as
-   the last line: ONE action tied to this tool or task, naming it, e.g. "Try it on your next
-   promotion and see what it gives you." Never a stock sign-off ("Follow for more AI and marketing
-   tips", "See you next time", "See you tomorrow"): this lane's CTA is written for its topic.
-NEVER promise a guide, process, template, link or resource ("comment X and I'll send you…"): none has
-been confirmed to exist. At most one relevant action, only if genuinely useful.
+   its own final shot, in exactly this shape: "Comment KEYWORD and I'll send you the full
+   step-by-step guide." KEYWORD is ONE short word in capitals from this reel's tool or task (ADS,
+   GEMINI, CANVA). The team sends the guide to every commenter, so this promise is confirmed. Never a
+   stock sign-off ("Follow for more AI and marketing tips", "See you next time", "See you tomorrow").
+Promise nothing else: no link, template or other resource.
 Stay within 100-115 spoken words, never more than 115: a 50 to 60 second reel. Count before returning.
 Map each shown action to its own shotType="Screen recording" shot whose voiceover starts with the
 action (optionally First/Next/Then/Now). On-screen text stays within the reel's three-line limit,

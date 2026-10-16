@@ -33,8 +33,10 @@ export const subjectWords = (text: string): Set<string> =>
       .replace(/[‘’]/g, "'")
       .replace(/'s\b/g, "")
       .split(/[^a-z0-9]+/)
+      // "launches" is checked as written, then folded, so neither form slips through.
+      .filter((word) => word.length >= 1 && !NOT_SUBJECT.has(word))
       .map((word) => (word.length >= 3 ? word.replace(/s$/, "") : word))
-      .filter((word) => word.length >= 1 && !NOT_SUBJECT.has(word)),
+      .filter((word) => !NOT_SUBJECT.has(word)),
   );
 
 /**
