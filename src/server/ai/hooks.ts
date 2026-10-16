@@ -9,6 +9,7 @@
 import { z } from "zod";
 
 import type { ContentIdea, HookStyle } from "@/lib/ai-types";
+import { hookIssue } from "@/lib/hook-check";
 import { voiceFlags } from "@/lib/voice-check";
 
 import { completeJson, hasOpenAi } from "./client";
@@ -108,6 +109,7 @@ first, on camera, that leads naturally into the rest of the script as written.`;
 Rules for every line:
 - One spoken sentence, at most 14 words. Short enough to say in the first three seconds.
 - It must fit THIS script: the line after it, as written, still follows naturally.
+- It is ABOUT the script's subject and names it: the tool, brand, campaign or development. Never open on the everyday example or a hypothetical ("Imagine…", "Let's say…", "What if…", "Picture…").
 - Different from every opening already offered below, and from each other.
 - No emoji, no dashes, no exclamation marks, no hype words, no promise of a guide or link.
 - No stock phrases: "next level", "raised the bar", "masterclass", "genius", "wild", "insane".${reaction}
@@ -144,6 +146,7 @@ ${scriptText(idea)}`;
       if (!hook || seen.has(hook.toLowerCase())) return false;
       if (hook.split(/\s+/).length > 18) return false;
       if (CLICHES.test(hook)) return false;
+      if (hookIssue(hook, `${idea.title} ${idea.angle}`)) return false;
       // The same checks the script itself is held to, applied to the line alone.
       const probe = {
         ...idea,

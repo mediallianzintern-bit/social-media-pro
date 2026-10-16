@@ -17,6 +17,7 @@
 //
 // Client-safe. No model call. See docs/pritesh-voice.md.
 import type { ContentIdea } from "@/lib/ai-types";
+import { hookIssue } from "@/lib/hook-check";
 import { isAiToolWorkflowLane, workflowCtaIssue } from "@/lib/tool-workflow";
 
 /** Phrases banned outright by the voice document. Matched case-insensitively. */
@@ -233,6 +234,15 @@ export function voiceFlags(idea: ContentIdea): string[] {
   ].join("\n");
   if (performed.includes("!")) {
     flags.push("uses an exclamation mark — say it calmly instead");
+  }
+
+  // Every hook opens on what the reel is about, in every lane.
+  const subject = `${idea.title ?? ""} ${idea.angle ?? ""}`;
+  const hooks = [...new Set([idea.hook, ...(idea.altHooks ?? [])].filter(Boolean))];
+  if (hooks.some((hook) => hookIssue(hook, subject))) {
+    flags.push(
+      "a hook opens on a hypothetical or never names the subject; open on what the reel is about",
+    );
   }
 
   // An AI tool workflow reel's CTA is written for its tool, not borrowed.

@@ -29,6 +29,7 @@ import { ctaRule } from "@/lib/script-families";
 
 import { isAiToolWorkflowLane, toolWorkflowIssues, toolWorkflowPrompt } from "./tool-workflow";
 import { workflowCtaIssue } from "@/lib/tool-workflow";
+import { hookIssue } from "@/lib/hook-check";
 import { DASHBOARD_HANDOVER, INSTAGRAM_MASTER_PROMPT, INSTAGRAM_REVIEW_PROMPT } from "./voice";
 
 const REVIEW_MODEL_DEFAULT = "gpt-4o";
@@ -97,7 +98,11 @@ const reviewSchema = {
       type: "integer",
       description: "OUTPUT item 2: the words in `script`, counted one by one.",
     },
-    hook: { type: "string", description: "The script's first line, word for word." },
+    hook: {
+      type: "string",
+      description:
+        'The script\'s first line, word for word. It names what the reel is about (the tool, brand, campaign or development), never a hypothetical like "Imagine…" or the everyday example.',
+    },
     altHooks: {
       type: "array",
       items: { type: "string" },
@@ -297,6 +302,10 @@ function problemsOf(review: ReviewResult, lane: string | null, subject: string):
     );
   }
   if (count > 115) problems.push(`${count} spoken words; the maximum is 115`);
+  for (const hook of [review.hook, ...review.altHooks]) {
+    const issue = hookIssue(hook, subject);
+    if (issue) problems.push(issue);
+  }
   const said = [review.hook, ...review.altHooks, ...review.shots.map((shot) => shot.voiceover)];
   if (said.some((line) => line.includes("!"))) {
     problems.push(
