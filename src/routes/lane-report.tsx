@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { compactNumber, dateTime, fullNumber, TIME_ZONE } from "@/lib/format";
+import { dateTime, fullNumber, TIME_ZONE } from "@/lib/format";
 import {
   LANE_METRIC_LABEL,
   LANE_METRICS,
@@ -109,8 +109,34 @@ const dash = <span className="text-muted-foreground">–</span>;
 
 /** A metric's value as the reader sees it in a "÷" sum. */
 function metricValue(value: number, metric: LaneMetric): string {
-  if (metric === "watch") return `${value.toFixed(1)}s`;
-  return Number.isInteger(value) ? fullNumber(value) : value.toFixed(1);
+  return metric === "watch" ? `${exact(value)}s` : exact(value);
+}
+
+/**
+ * A measured figure, never rounded. Every input is a whole count or a whole
+ * number of milliseconds, so a median is at most four decimals (half of a
+ * thousandth of a second) and this shows it in full, without trailing zeros.
+ */
+function exact(value: number): string {
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 4 }).format(value);
+}
+
+/**
+ * A share or a multiple: a division, which often never ends (31 ÷ 54 is
+ * 0.574074…). Shown to two decimals, with the exact sum written under it.
+ */
+function ratio(numerator: number, denominator: number, asPercent: boolean) {
+  if (denominator <= 0) return dash;
+  const value = (numerator / denominator) * (asPercent ? 100 : 1);
+  return (
+    <>
+      {value.toFixed(2)}
+      {asPercent ? "%" : "×"}
+      <span className="block text-xs tabular-nums text-muted-foreground">
+        {exact(numerator)} ÷ {exact(denominator)}
+      </span>
+    </>
+  );
 }
 
 function multiple(value: number | null) {
@@ -121,7 +147,7 @@ function multiple(value: number | null) {
       : value < 0.75
         ? "text-rose-700 dark:text-rose-400"
         : "";
-  return <span className={`font-medium tabular-nums ${tone}`}>{value.toFixed(1)}×</span>;
+  return <span className={`font-medium tabular-nums ${tone}`}>{value.toFixed(2)}×</span>;
 }
 
 function LaneReportPage() {
@@ -133,10 +159,12 @@ function LaneReportPage() {
   const metric = search.metric;
   // The typical reel across every lane in these dates, on the chosen metric:
   // the one number every "vs median" below is divided by.
-  const typical = metricMedian(
-    data.lanes.flatMap((lane) => lane.reels),
-    metric,
+  const allReels = data.lanes.flatMap((lane) => lane.reels);
+  const allInteractions = allReels.reduce(
+    (sum, reel) => sum + (metricOf(reel, "interactions") ?? 0),
+    0,
   );
+  const typical = metricMedian(allReels, metric);
   const meta = PLATFORM_META[search.platform];
   const unit = search.platform === "instagram" ? "reel" : "post";
 
@@ -310,6 +338,14 @@ function LaneReportPage() {
                 <tbody>
                   {data.lanes.map((lane) => {
                     const laneTypical = metricMedian(lane.reels, metric);
+                    const laneInteractions = lane.reels.reduce(
+                      (sum, reel) => sum + (metricOf(reel, "interactions") ?? 0),
+                      0,
+                    );
+                    const medianOf = (which: LaneMetric) => {
+                      const value = metricMedian(lane.reels, which);
+                      return value === null ? dash : metricValue(value, which);
+                    };
                     return (
                       <tr key={lane.lane} className="border-t">
                         <td className="px-3 py-2 font-medium capitalize">
@@ -322,25 +358,17 @@ function LaneReportPage() {
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">{lane.postCount}</td>
                         <td className="px-3 py-2 text-right tabular-nums">
-                          {lane.shareOfOutputPct}%
+                          {ratio(lane.reels.length, allReels.length, true)}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">
-                          {lane.shareOfPerformancePct}%
+                          {ratio(laneInteractions, allInteractions, true)}
                         </td>
+                        <td className="px-3 py-2 text-right tabular-nums">{medianOf("views")}</td>
                         <td className="px-3 py-2 text-right tabular-nums">
-                          {compactNumber(lane.medianViews)}
+                          {medianOf("interactions")}
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          {compactNumber(lane.medianInteractions)}
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          {lane.medianSaves !== undefined ? compactNumber(lane.medianSaves) : dash}
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          {lane.medianWatchSeconds !== undefined
-                            ? `${lane.medianWatchSeconds}s`
-                            : dash}
-                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">{medianOf("saves")}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{medianOf("watch")}</td>
                         <td className="px-3 py-2 text-right">
                           {multiple(vsMedian(laneTypical, typical))}
                           {laneTypical !== null && typical ? (
@@ -411,10 +439,10 @@ function LaneSection({
         <h2 className="text-lg font-semibold capitalize">{lane.lane}</h2>
         <span className="text-sm text-muted-foreground">
           {lane.postCount} {unit}
-          {lane.postCount === 1 ? "" : "s"} · {compactNumber(lane.totalViews)} views ·{" "}
-          {compactNumber(lane.totalInteractions)} interactions
+          {lane.postCount === 1 ? "" : "s"} · {fullNumber(lane.totalViews)} views ·{" "}
+          {fullNumber(lane.totalInteractions)} interactions
           {laneVs !== null
-            ? ` · typical ${unit} ${laneVs.toFixed(1)}× median ${LANE_METRIC_LABEL[metric].toLowerCase()}`
+            ? ` · typical ${unit} ${laneVs.toFixed(2)}× median ${LANE_METRIC_LABEL[metric].toLowerCase()}`
             : ""}
         </span>
       </div>
@@ -510,7 +538,7 @@ function ReelRow({
       ) : null}
       {hasWatch ? (
         <td className="px-3 py-2 text-right tabular-nums">
-          {reel.avgWatchSeconds !== undefined ? `${reel.avgWatchSeconds}s` : dash}
+          {reel.avgWatchSeconds !== undefined ? `${exact(reel.avgWatchSeconds)}s` : dash}
         </td>
       ) : null}
       <td className="px-3 py-2 text-right">

@@ -93,14 +93,15 @@ export function laneReport(allPosts: PostRecord[], from: string, to: string): La
           likes: post.likes,
           comments: post.comments,
           shares: post.shares,
-          vsMedian: Number((primary(post) / baseline).toFixed(2)),
+          vsMedian: primary(post) / baseline,
         };
         if (post.url) reel.url = post.url;
         if (post.insight) {
           reel.saves = post.insight.saved;
           reel.reach = post.insight.reach;
           if (post.insight.avgWatchMs) {
-            reel.avgWatchSeconds = Number((post.insight.avgWatchMs / 1000).toFixed(1));
+            // Exact: Instagram reports milliseconds, so seconds need three decimals.
+            reel.avgWatchSeconds = post.insight.avgWatchMs / 1000;
           }
         }
         return reel;
@@ -110,7 +111,7 @@ export function laneReport(allPosts: PostRecord[], from: string, to: string): La
       ...lane,
       totalViews: group.reduce((sum, post) => sum + viewsOf(post), 0),
       totalInteractions: group.reduce((sum, post) => sum + engagementsOf(post), 0),
-      medianViews: Math.round(median(group.map(viewsOf))),
+      medianViews: median(group.map(viewsOf)),
       reels,
     };
   });
@@ -121,7 +122,7 @@ export function laneReport(allPosts: PostRecord[], from: string, to: string): La
     reelCount: inWindow.length,
     unlabelled: inWindow.length - labelled.length,
     measuredBy: useViews ? "views" : "interactions",
-    medianViews: Math.round(median(labelled.map(viewsOf))),
+    medianViews: median(labelled.map(viewsOf)),
     lanes,
   };
 }
