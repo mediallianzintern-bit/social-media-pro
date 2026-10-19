@@ -65,11 +65,12 @@ function titleOf(caption: string): string {
 
 /**
  * The report for posts published from `from` (inclusive) to `to` (inclusive,
- * whole day), both "YYYY-MM-DD".
+ * whole day), both "YYYY-MM-DD" and both days in India (IST), which is where
+ * the team reads them: a reel posted at 1 AM IST belongs to that day.
  */
 export function laneReport(allPosts: PostRecord[], from: string, to: string): LaneReport {
-  const start = Date.parse(`${from}T00:00:00Z`);
-  const end = Date.parse(`${to}T23:59:59.999Z`);
+  const start = Date.parse(`${from}T00:00:00+05:30`);
+  const end = Date.parse(`${to}T23:59:59.999+05:30`);
   const inWindow = organicPosts(allPosts).filter((post) => {
     const at = Date.parse(post.publishedAt);
     return Number.isFinite(at) && at >= start && at <= end;

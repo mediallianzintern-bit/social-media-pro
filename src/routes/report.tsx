@@ -18,6 +18,7 @@ import { GrowthChart } from "@/components/dashboard/growth-chart";
 import { compactNumber, dateTime } from "@/lib/format";
 import { reportQueryOptions } from "@/lib/analytics.functions";
 import { GoToLogin } from "@/components/auth/go-to";
+import { BackButton } from "@/components/nav/back-button";
 import { currentStaffEmail } from "@/lib/session";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import { trajectoryStatement } from "@/lib/growth";
@@ -344,6 +345,7 @@ function ReportPage() {
       <header className="space-y-2">
         {/* This is the shareable artifact — the one screen that leaves the
             agency — so it is the one that has to be unmistakably ours. */}
+        <BackButton fallback="/" label="Back to dashboard" />
         <Wordmark className="mb-5 h-7" />
         {/* Controls are for the agency, not the client: none of them prints. */}
         <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">

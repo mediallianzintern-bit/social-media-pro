@@ -12,10 +12,11 @@ import { z } from "zod";
 
 import { Wordmark } from "@/components/brand";
 import { GoToLogin } from "@/components/auth/go-to";
+import { BackButton } from "@/components/nav/back-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { compactNumber, dateTime, fullNumber } from "@/lib/format";
+import { compactNumber, dateTime, fullNumber, TIME_ZONE } from "@/lib/format";
 import type { LaneReportLane, LaneReportReel } from "@/lib/lane-report";
 import { laneReportQueryOptions } from "@/lib/lane-report.functions";
 import { PLATFORM_META } from "@/lib/platform-meta";
@@ -23,9 +24,12 @@ import { currentStaffEmail } from "@/lib/session";
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
-/** "YYYY-MM-DD" for a date `days` before today, in UTC like the stored posts. */
+/** IST is UTC+5:30: India has no daylight saving, so a fixed offset is exact. */
+const IST_OFFSET_MS = 330 * 60_000;
+
+/** "YYYY-MM-DD" for the day `days` before today, in India. */
 function daysAgo(days: number): string {
-  return new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+  return new Date(Date.now() + IST_OFFSET_MS - days * 86_400_000).toISOString().slice(0, 10);
 }
 
 /** Far enough back to include every stored post. */
@@ -69,13 +73,17 @@ function LaneReportGate() {
   return <LaneReportPage />;
 }
 
-/** "5 Oct 2026": the year matters in a report that can span several. */
+/**
+ * "5 Oct 2026": the year matters in a report that can span several. A bare
+ * date is a calendar day; a timestamp is the day it was in India.
+ */
 function day(iso: string): string {
-  return new Date(`${iso.slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-GB", {
+  const bare = /^\d{4}-\d{2}-\d{2}$/.test(iso);
+  return new Date(bare ? `${iso}T00:00:00Z` : iso).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
     year: "numeric",
-    timeZone: "UTC",
+    timeZone: bare ? "UTC" : TIME_ZONE,
   });
 }
 
@@ -125,6 +133,7 @@ function LaneReportPage() {
   return (
     <main data-report className="mx-auto max-w-5xl space-y-10 px-4 py-10 sm:py-14 print:py-0">
       <header className="space-y-3">
+        <BackButton fallback={`/${search.platform}`} label="Back to dashboard" />
         <Wordmark className="mb-5 h-7" />
         <div className="flex flex-wrap items-end justify-between gap-3 print:hidden">
           <div className="flex flex-wrap items-end gap-2">
