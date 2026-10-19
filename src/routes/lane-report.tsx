@@ -6,7 +6,7 @@
 // The controls it does have (dates, download) are hidden when printed.
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Download } from "lucide-react";
+import { Download, X } from "lucide-react";
 import { useEffect } from "react";
 import { z } from "zod";
 
@@ -73,7 +73,8 @@ export const Route = createFileRoute("/lane-report")({
       .catch(() => daysAgo(0))
       .default(() => daysAgo(0)),
     /** What "vs median" compares on. In the URL, so a shared link keeps it. */
-    metric: z.enum(LANE_METRICS).catch("views").default("views"),
+    // Absent means the full table, compared by views.
+    metric: z.enum(LANE_METRICS).optional().catch(undefined),
   }),
   beforeLoad: async ({ location }) => ({
     staffEmail: await currentStaffEmail(),
@@ -150,13 +151,49 @@ function multiple(value: number | null) {
   return <span className={`font-medium tabular-nums ${tone}`}>{value.toFixed(2)}×</span>;
 }
 
+/** The columns of "Lanes at a glance", besides the lane, its count and vs median. */
+type GlanceColumn = "output" | "interactionShare" | LaneMetric;
+
+const COLUMN_LABEL: Record<GlanceColumn, string> = {
+  output: "Share of output",
+  interactionShare: "Share of interactions",
+  views: "Median views",
+  interactions: "Median interactions",
+  saves: "Median saves",
+  watch: "Median watch",
+};
+
+/** No metric picked: every column, as the table has always been. */
+const ALL_COLUMNS: GlanceColumn[] = [
+  "output",
+  "interactionShare",
+  "views",
+  "interactions",
+  "saves",
+  "watch",
+];
+
+/** A metric picked: only the columns that belong with it. */
+const FOCUS_COLUMNS: Record<LaneMetric, GlanceColumn[]> = {
+  views: ["output", "views", "watch"],
+  interactions: ["output", "interactionShare", "interactions"],
+  saves: ["output", "saves"],
+  watch: ["output", "watch", "views"],
+};
+
 function LaneReportPage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: "/lane-report" });
   const { data } = useSuspenseQuery(
     laneReportQueryOptions({ platform: search.platform, from: search.from, to: search.to }),
   );
-  const metric = search.metric;
+  // What the person picked, if anything; and what vs median compares on,
+  // which is views until they pick something else.
+  const chosen = search.metric;
+  const metric: LaneMetric = chosen ?? "views";
+  const columns = chosen ? FOCUS_COLUMNS[chosen] : ALL_COLUMNS;
+  const setMetric = (next: LaneMetric | undefined) =>
+    void navigate({ search: (prev) => ({ ...prev, metric: next }), replace: true });
   // The typical reel across every lane in these dates, on the chosen metric:
   // the one number every "vs median" below is divided by.
   const allReels = data.lanes.flatMap((lane) => lane.reels);
@@ -275,19 +312,14 @@ function LaneReportPage() {
           <section className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-semibold">Lanes at a glance</h2>
-              <label className="flex items-center gap-2 text-sm text-muted-foreground print:hidden">
-                Compare by
+              <div className="flex items-center gap-1 text-sm text-muted-foreground print:hidden">
+                <span className="mr-1">Compare by</span>
                 <Select
-                  value={metric}
-                  onValueChange={(value) =>
-                    void navigate({
-                      search: (prev) => ({ ...prev, metric: value as LaneMetric }),
-                      replace: true,
-                    })
-                  }
+                  value={chosen ?? ""}
+                  onValueChange={(value) => setMetric(value as LaneMetric)}
                 >
-                  <SelectTrigger className="h-9 w-40">
-                    <SelectValue />
+                  <SelectTrigger className="h-9 w-40" aria-label="Compare by">
+                    <SelectValue placeholder="All metrics" />
                   </SelectTrigger>
                   <SelectContent>
                     {LANE_METRICS.map((option) => (
@@ -297,7 +329,20 @@ function LaneReportPage() {
                     ))}
                   </SelectContent>
                 </Select>
-              </label>
+                {chosen ? (
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="size-9"
+                    onClick={() => setMetric(undefined)}
+                    aria-label="Clear Compare by and show every metric"
+                    title="Clear: show every metric"
+                  >
+                    <X className="size-4" aria-hidden />
+                  </Button>
+                ) : null}
+              </div>
             </div>
             <p className="text-sm">
               Compared by <span className="font-medium">{metricWord}</span>.{" "}
@@ -323,12 +368,11 @@ function LaneReportPage() {
                     <th className="px-3 py-2 text-right font-medium">
                       {unit[0]!.toUpperCase() + unit.slice(1)}s
                     </th>
-                    <th className="px-3 py-2 text-right font-medium">Share of output</th>
-                    <th className="px-3 py-2 text-right font-medium">Share of interactions</th>
-                    <th className="px-3 py-2 text-right font-medium">Median views</th>
-                    <th className="px-3 py-2 text-right font-medium">Median interactions</th>
-                    <th className="px-3 py-2 text-right font-medium">Median saves</th>
-                    <th className="px-3 py-2 text-right font-medium">Median watch</th>
+                    {columns.map((column) => (
+                      <th key={column} className="px-3 py-2 text-right font-medium">
+                        {COLUMN_LABEL[column]}
+                      </th>
+                    ))}
                     <th className="px-3 py-2 text-right font-medium">
                       vs median
                       <span className="block font-normal">({metricWord})</span>
@@ -357,18 +401,15 @@ function LaneReportPage() {
                           ) : null}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">{lane.postCount}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          {ratio(lane.reels.length, allReels.length, true)}
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          {ratio(laneInteractions, allInteractions, true)}
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums">{medianOf("views")}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          {medianOf("interactions")}
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums">{medianOf("saves")}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{medianOf("watch")}</td>
+                        {columns.map((column) => (
+                          <td key={column} className="px-3 py-2 text-right tabular-nums">
+                            {column === "output"
+                              ? ratio(lane.reels.length, allReels.length, true)
+                              : column === "interactionShare"
+                                ? ratio(laneInteractions, allInteractions, true)
+                                : medianOf(column)}
+                          </td>
+                        ))}
                         <td className="px-3 py-2 text-right">
                           {multiple(vsMedian(laneTypical, typical))}
                           {laneTypical !== null && typical ? (
