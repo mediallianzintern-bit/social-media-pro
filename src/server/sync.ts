@@ -389,7 +389,16 @@ async function runSyncOnce(
     }
 
     try {
-      outcomes.push(await SYNCERS[platform](trigger));
+      const outcome = await SYNCERS[platform](trigger);
+      // A Sync someone pressed also files the new posts into the existing
+      // content lanes, so the lanes panel counts them. The unattended pass
+      // does not: it calls no model, and the next press catches up.
+      if (trigger === "manual" && outcome.status === "ok") {
+        const { labelNewPosts } = await import("./ai/lanes");
+        const labelled = await labelNewPosts(platform);
+        if (labelled) outcome.lanesAssigned = labelled;
+      }
+      outcomes.push(outcome);
       // Fresh metrics are now stored, so this is the moment any matured
       // suggestion can be frozen. Deterministic, and never fatal.
       await captureOutcomes(platform);

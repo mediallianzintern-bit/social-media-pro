@@ -1,4 +1,5 @@
-import { AlertTriangle, ExternalLink, Eye, Heart, Info, Send, Users } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { AlertTriangle, ExternalLink, Eye, FileText, Heart, Info, Send, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { AiPanel } from "@/components/dashboard/ai-panel";
@@ -19,6 +20,7 @@ import { TopicCards } from "@/components/dashboard/topic-cards";
 import { CollapseToggle } from "@/components/dashboard/collapse-toggle";
 import { SectionHeading } from "@/components/dashboard/section-heading";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { compactNumber, fullNumber, percent, shortDate } from "@/lib/format";
 import { PLATFORM_META } from "@/lib/platform-meta";
@@ -34,7 +36,7 @@ import {
   type PlatformData,
   viewsOf,
 } from "@/lib/analytics-types";
-import type { ResolvedRange } from "@/lib/date-range";
+import { toInputValue, type ResolvedRange } from "@/lib/date-range";
 
 /** Sections from the original spec that public data cannot fill, per platform. */
 const LOCKED = {
@@ -374,7 +376,32 @@ export function PlatformView({ data, range }: { data: PlatformData; range: Resol
           <SectionHeading
             title="Content lanes"
             note={`${range.label} · what this account published, scored against its own median`}
-            action={<DeriveLanes platform={data.platform} mode="refresh" />}
+            action={
+              <div className="flex flex-wrap items-baseline gap-1">
+                <Button
+                  asChild
+                  size="sm"
+                  variant="ghost"
+                  className="h-auto gap-1.5 px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  {/* The report opens on the dates being viewed here; it has
+                      its own date picker for any other window. */}
+                  <Link
+                    to="/lane-report"
+                    search={{
+                      platform: data.platform,
+                      from: toInputValue(range.from) || "2015-01-01",
+                      to: toInputValue(range.to ? new Date(range.to.getTime() - 1) : new Date()),
+                    }}
+                    title="Every reel in each lane, with its metrics and dates, as a page you can save as a PDF"
+                  >
+                    <FileText className="size-3" aria-hidden />
+                    Lane report
+                  </Link>
+                </Button>
+                <DeriveLanes platform={data.platform} mode="refresh" />
+              </div>
+            }
           />
           <LearningPanel learning={data.learning} />
         </>

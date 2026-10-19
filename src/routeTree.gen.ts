@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as LaneReportRouteImport } from './routes/lane-report'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ReportRouteImport } from './routes/report'
@@ -31,6 +32,11 @@ const AppRoute = AppRouteImport.update({
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LaneReportRoute = LaneReportRouteImport.update({
+  id: '/lane-report',
+  path: '/lane-report',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -97,6 +103,7 @@ const AppWorkspaceRoute = AppWorkspaceRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/lane-report': typeof LaneReportRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/report': typeof ReportRoute
@@ -111,6 +118,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
+  '/lane-report': typeof LaneReportRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/report': typeof ReportRoute
@@ -128,6 +136,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/forgot-password': typeof ForgotPasswordRoute
+  '/lane-report': typeof LaneReportRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/report': typeof ReportRoute
@@ -146,6 +155,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/forgot-password'
+    | '/lane-report'
     | '/login'
     | '/privacy'
     | '/report'
@@ -160,6 +170,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/forgot-password'
+    | '/lane-report'
     | '/login'
     | '/privacy'
     | '/report'
@@ -176,6 +187,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_app'
     | '/forgot-password'
+    | '/lane-report'
     | '/login'
     | '/privacy'
     | '/report'
@@ -193,6 +205,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   ForgotPasswordRoute: typeof ForgotPasswordRoute
+  LaneReportRoute: typeof LaneReportRoute
   LoginRoute: typeof LoginRoute
   PrivacyRoute: typeof PrivacyRoute
   ReportRoute: typeof ReportRoute
@@ -214,6 +227,13 @@ declare module '@tanstack/react-router' {
       path: '/forgot-password'
       fullPath: '/forgot-password'
       preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lane-report': {
+      id: '/lane-report'
+      path: '/lane-report'
+      fullPath: '/lane-report'
+      preLoaderRoute: typeof LaneReportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -328,6 +348,7 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   ForgotPasswordRoute: ForgotPasswordRoute,
+  LaneReportRoute: LaneReportRoute,
   LoginRoute: LoginRoute,
   PrivacyRoute: PrivacyRoute,
   ReportRoute: ReportRoute,

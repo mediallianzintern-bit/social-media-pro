@@ -440,6 +440,8 @@ export interface SyncOutcome {
   reason?: string;
   followers?: number;
   postsIngested?: number;
+  /** Newly synced posts filed into a content lane on this pass. */
+  lanesAssigned?: number;
 }
 
 export interface SyncResult {

@@ -297,3 +297,31 @@ export async function deriveLanesForOwner(
         reason: "The classifier returned no lanes. Check the server log and try again.",
       };
 }
+
+/**
+ * Files the account's newly synced posts into the lanes it already has.
+ *
+ * A sync stored new reels and never labelled them: classification only ran
+ * inside a full analysis, so every reel published after the last one sat with
+ * no lane and the content-lanes panel stopped counting them. Ten reels in a
+ * row went missing that way.
+ *
+ * So a Sync someone presses labels whatever has no lane yet, against the
+ * stored vocabulary only. It never derives or rebuilds the lanes (that stays
+ * the explicit button), and it calls the model only when there is something
+ * unlabelled: one call per 25 new posts, usually none. Never throws.
+ */
+export async function labelNewPosts(platform: PlatformId): Promise<number> {
+  if (!hasOpenAi()) return 0;
+  const handle = OWNER_ACCOUNTS[platform].handle;
+  try {
+    const lanes = await readTaxonomy(platform, handle);
+    if (!lanes?.length) return 0;
+    const posts = await readPosts(platform, handle, 1000);
+    if (!posts.some((post) => !post.contentLane)) return 0;
+    return await classifyPosts(platform, lanes, posts);
+  } catch (error) {
+    console.error(`[lanes:${platform}/${handle}] new posts left unlabelled:`, error);
+    return 0;
+  }
+}
