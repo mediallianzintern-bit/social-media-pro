@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import type { FollowerChange, LaneReport } from "@/lib/lane-report";
+import type { LaneReport } from "@/lib/lane-report";
 import { requireStaff } from "@/lib/require-staff";
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -23,36 +23,21 @@ export type LaneReportInput = z.infer<typeof laneReportInput>;
 export const getLaneReport = createServerFn({ method: "GET" })
   .middleware([requireStaff])
   .validator((input: unknown) => laneReportInput.parse(input))
-  .handler(
-    async ({
-      data,
-    }): Promise<
-      LaneReport & { handle: string; generatedAt: string; followers: FollowerChange | null }
-    > => {
-      const [{ readPosts, growthSeries }, { OWNER_ACCOUNTS }, { laneReport, followerChange }] =
-        await Promise.all([
-          import("@/server/store"),
-          import("@/server/apify/accounts"),
-          import("@/lib/lane-report"),
-        ]);
-      const handle = OWNER_ACCOUNTS[data.platform].handle;
-      // The whole back catalogue: the window may reach past the default page.
-      const posts = await readPosts(data.platform, handle, 1000);
-      // Far enough back to find the count going into the dates, plus a margin.
-      const days = Math.ceil((Date.now() - Date.parse(`${data.from}T00:00:00Z`)) / 86_400_000) + 14;
-      const growth = await growthSeries(
-        data.platform,
-        handle,
-        Math.min(Math.max(days, 14), 3650),
-      ).catch(() => []);
-      return {
-        ...laneReport(posts, data.from, data.to),
-        handle,
-        generatedAt: new Date().toISOString(),
-        followers: followerChange(growth, data.from, data.to),
-      };
-    },
-  );
+  .handler(async ({ data }): Promise<LaneReport & { handle: string; generatedAt: string }> => {
+    const [{ readPosts }, { OWNER_ACCOUNTS }, { laneReport }] = await Promise.all([
+      import("@/server/store"),
+      import("@/server/apify/accounts"),
+      import("@/lib/lane-report"),
+    ]);
+    const handle = OWNER_ACCOUNTS[data.platform].handle;
+    // The whole back catalogue: the window may reach past the default page.
+    const posts = await readPosts(data.platform, handle, 1000);
+    return {
+      ...laneReport(posts, data.from, data.to),
+      handle,
+      generatedAt: new Date().toISOString(),
+    };
+  });
 
 export const laneReportQueryOptions = (input: LaneReportInput) => ({
   queryKey: ["lane-report", input.platform, input.from, input.to] as const,
