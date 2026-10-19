@@ -30,6 +30,7 @@ import {
   metricMedian,
   metricOf,
   vsMedian,
+  type FollowerChange,
   type LaneMetric,
   type LaneReportLane,
   type LaneReportReel,
@@ -158,6 +159,7 @@ const COLUMN_LABEL: Record<GlanceColumn, string> = {
   output: "Share of output",
   interactionShare: "Share of interactions",
   views: "Median views",
+  reach: "Median reach",
   interactions: "Median interactions",
   saves: "Median saves",
   watch: "Median watch",
@@ -168,6 +170,7 @@ const ALL_COLUMNS: GlanceColumn[] = [
   "output",
   "interactionShare",
   "views",
+  "reach",
   "interactions",
   "saves",
   "watch",
@@ -176,6 +179,7 @@ const ALL_COLUMNS: GlanceColumn[] = [
 /** A metric picked: only the columns that belong with it. */
 const FOCUS_COLUMNS: Record<LaneMetric, GlanceColumn[]> = {
   views: ["output", "views", "watch"],
+  reach: ["output", "reach", "views"],
   interactions: ["output", "interactionShare", "interactions"],
   saves: ["output", "saves"],
   watch: ["output", "watch", "views"],
@@ -307,6 +311,8 @@ function LaneReportPage() {
         ) : null}
       </header>
 
+      {data.followers ? <FollowersSection followers={data.followers} /> : null}
+
       {data.lanes.length ? (
         <>
           <section className="space-y-3">
@@ -351,7 +357,11 @@ function LaneReportPage() {
                   The typical {unit} in these dates has{" "}
                   <span className="font-medium tabular-nums">
                     {metricValue(typical, metric)}
-                    {metric === "watch" ? " of watch time" : ` ${metricWord}`}
+                    {metric === "watch"
+                      ? " of watch time"
+                      : metric === "reach"
+                        ? " accounts reached"
+                        : ` ${metricWord}`}
                   </span>
                   , so &ldquo;vs median&rdquo; is each lane&rsquo;s typical {unit} ÷{" "}
                   {metricValue(typical, metric)}.
@@ -586,5 +596,92 @@ function ReelRow({
         {multiple(vsMedian(metricOf(reel, metric) ?? null, typical))}
       </td>
     </tr>
+  );
+}
+
+/**
+ * Followers across the dates, for the whole account.
+ *
+ * Instagram does not say how many follows a reel brought (it reports that for
+ * feed posts only), so followers cannot be credited to a reel or a lane. What
+ * is recorded is the follower count at every sync, and that is shown here.
+ */
+function FollowersSection({ followers }: { followers: FollowerChange }) {
+  const { start, end, change, points } = followers;
+  const sign = change > 0 ? "+" : "";
+  const tone =
+    change > 0
+      ? "text-emerald-700 dark:text-emerald-400"
+      : change < 0
+        ? "text-rose-700 dark:text-rose-400"
+        : "";
+  // Day-to-day changes between the syncs inside the dates, oldest first.
+  const series = [start, ...points.filter((point) => point.at !== start.at)];
+  return (
+    <section className="space-y-3">
+      <h2 className="text-lg font-semibold">Followers</h2>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border p-4">
+          <p className="text-xs text-muted-foreground">At the start</p>
+          <p className="text-2xl font-bold tabular-nums">{fullNumber(start.followers)}</p>
+          <p className="text-xs text-muted-foreground">synced {dateTime(start.at)}</p>
+        </div>
+        <div className="rounded-lg border p-4">
+          <p className="text-xs text-muted-foreground">At the end</p>
+          <p className="text-2xl font-bold tabular-nums">{fullNumber(end.followers)}</p>
+          <p className="text-xs text-muted-foreground">synced {dateTime(end.at)}</p>
+        </div>
+        <div className="rounded-lg border p-4">
+          <p className="text-xs text-muted-foreground">Change</p>
+          <p className={`text-2xl font-bold tabular-nums ${tone}`}>
+            {sign}
+            {fullNumber(change)}
+          </p>
+          <p className="text-xs tabular-nums text-muted-foreground">
+            {fullNumber(end.followers)} − {fullNumber(start.followers)}
+            {start.followers > 0
+              ? ` · ${sign}${((change / start.followers) * 100).toFixed(2)}%`
+              : ""}
+          </p>
+        </div>
+      </div>
+      {series.length > 1 ? (
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full min-w-[420px] text-sm">
+            <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2 font-medium">Synced</th>
+                <th className="px-3 py-2 text-right font-medium">Followers</th>
+                <th className="px-3 py-2 text-right font-medium">Change since the sync before</th>
+              </tr>
+            </thead>
+            <tbody>
+              {series.map((point, index) => {
+                const previous = series[index - 1];
+                const delta = previous ? point.followers - previous.followers : null;
+                return (
+                  <tr key={point.at} className="border-t [break-inside:avoid]">
+                    <td className="px-3 py-2 tabular-nums text-muted-foreground">
+                      {dateTime(point.at)}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {fullNumber(point.followers)}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {delta === null ? dash : `${delta > 0 ? "+" : ""}${fullNumber(delta)}`}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        The whole account&rsquo;s follower count, as each sync recorded it. &ldquo;At the
+        start&rdquo; is the last count before these dates begin. Instagram does not report how many
+        follows a reel brought, so followers cannot be split by reel or by lane.
+      </p>
+    </section>
   );
 }

@@ -9,6 +9,7 @@
 // Pure and client-safe. No model call, no network: it reads stored posts only.
 import {
   engagementsOf,
+  type GrowthPoint,
   lanePerformance,
   median,
   organicPosts,
@@ -128,11 +129,12 @@ export function laneReport(allPosts: PostRecord[], from: string, to: string): La
 }
 
 /** The figures a lane can be compared on in the report. */
-export const LANE_METRICS = ["views", "interactions", "saves", "watch"] as const;
+export const LANE_METRICS = ["views", "reach", "interactions", "saves", "watch"] as const;
 export type LaneMetric = (typeof LANE_METRICS)[number];
 
 export const LANE_METRIC_LABEL: Record<LaneMetric, string> = {
   views: "Views",
+  reach: "Reach",
   interactions: "Interactions",
   saves: "Saves",
   watch: "Watch time",
@@ -148,6 +150,8 @@ export function metricOf(reel: LaneReportReel, metric: LaneMetric): number | und
   switch (metric) {
     case "views":
       return reel.views;
+    case "reach":
+      return reel.reach;
     case "interactions":
       return reel.likes + reel.comments + reel.shares;
     case "saves":
@@ -174,4 +178,51 @@ export function metricMedian(reels: LaneReportReel[], metric: LaneMetric): numbe
 export function vsMedian(value: number | null, typical: number | null): number | null {
   if (value === null || typical === null || typical <= 0) return null;
   return value / typical;
+}
+
+/** One follower count, as a sync recorded it. */
+export interface FollowerPoint {
+  at: string;
+  followers: number;
+}
+
+export interface FollowerChange {
+  /** The count going into the dates: the last sync before they start, else the first inside. */
+  start: FollowerPoint;
+  /** The last count recorded by the end of the dates. */
+  end: FollowerPoint;
+  /** end − start. Negative when followers were lost. */
+  change: number;
+  /** Every sync's count inside the dates, oldest first. */
+  points: FollowerPoint[];
+}
+
+/**
+ * Followers over the report's dates, from the counts each sync recorded.
+ *
+ * This is the whole account, not a lane: Instagram does not report how many
+ * follows a reel brought (it gives that figure for feed posts only), so a
+ * follower can never be credited to one reel or lane. Null when no sync
+ * recorded a count by the end of the dates.
+ */
+export function followerChange(
+  growth: GrowthPoint[],
+  from: string,
+  to: string,
+): FollowerChange | null {
+  const start = Date.parse(`${from}T00:00:00+05:30`);
+  const end = Date.parse(`${to}T23:59:59.999+05:30`);
+  const points = growth
+    .map((point) => ({ at: point.capturedAt, followers: point.followers }))
+    .filter((point) => Number.isFinite(Date.parse(point.at)) && point.followers > 0)
+    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  const before = points.filter((point) => Date.parse(point.at) < start);
+  const inside = points.filter((point) => {
+    const at = Date.parse(point.at);
+    return at >= start && at <= end;
+  });
+  const first = before.at(-1) ?? inside[0];
+  const last = inside.at(-1) ?? before.at(-1);
+  if (!first || !last) return null;
+  return { start: first, end: last, change: last.followers - first.followers, points: inside };
 }
