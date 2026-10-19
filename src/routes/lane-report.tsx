@@ -32,6 +32,7 @@ function daysAgo(days: number): string {
 const ALL_TIME = "2015-01-01";
 
 const PRESETS = [
+  { label: "Last 7 days", days: 7 },
   { label: "Last 30 days", days: 30 },
   { label: "Last 90 days", days: 90 },
   { label: "All time", days: null },
@@ -44,8 +45,8 @@ export const Route = createFileRoute("/lane-report")({
     from: z
       .string()
       .regex(DAY)
-      .catch(() => daysAgo(30))
-      .default(() => daysAgo(30)),
+      .catch(() => daysAgo(29))
+      .default(() => daysAgo(29)),
     to: z
       .string()
       .regex(DAY)
@@ -133,7 +134,8 @@ function LaneReportPage() {
               className="inline-flex items-center gap-1 rounded-lg border bg-card p-1"
             >
               {PRESETS.map((preset) => {
-                const from = preset.days === null ? ALL_TIME : daysAgo(preset.days);
+                // Today counts, as on the dashboard: 7 days is today and the 6 before.
+                const from = preset.days === null ? ALL_TIME : daysAgo(preset.days - 1);
                 const active = search.from === from && search.to === daysAgo(0);
                 return (
                   <Button
