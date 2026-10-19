@@ -17,6 +17,7 @@ import {
 import { useMemo, useState } from "react";
 
 import { ReactionPanel } from "@/components/dashboard/reaction-panel";
+import { SaveTopicButton } from "@/components/dashboard/save-topic-button";
 import { VoteButtons } from "@/components/dashboard/vote-buttons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -473,20 +474,25 @@ export function AiIdeaCards({
                     script are actually read before anyone judges them. What
                     is learned from is the hook, the angle and the trait it
                     reproduces — the topic and the tone together. */}
-                {open.id ? (
-                  <div className="flex items-center gap-2 pt-1">
-                    <span className="text-xs text-muted-foreground">
-                      Want more ideas like this?
-                    </span>
-                    <VoteButtons
-                      platform={platform}
-                      kind="idea"
-                      itemId={open.id}
-                      text={[open.hook, open.angle, open.winningTrait].filter(Boolean).join(" · ")}
-                      lane={open.contentLane ?? null}
-                    />
-                  </div>
-                ) : null}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  {open.id ? (
+                    <>
+                      <span className="text-xs text-muted-foreground">
+                        Want more ideas like this?
+                      </span>
+                      <VoteButtons
+                        platform={platform}
+                        kind="idea"
+                        itemId={open.id}
+                        text={[open.hook, open.angle, open.winningTrait]
+                          .filter(Boolean)
+                          .join(" · ")}
+                        lane={open.contentLane ?? null}
+                      />
+                    </>
+                  ) : null}
+                  <SaveScript idea={open} platform={platform} />
+                </div>
               </SheetHeader>
 
               <div className="flex-1 space-y-7 overflow-y-auto p-6">
@@ -816,6 +822,51 @@ export function AiIdeaCards({
       </Dialog>
     </>
   );
+}
+
+/**
+ * Save, for a script already written: puts what it was written from on the
+ * shared Saved screen, where "View script" opens this same script again.
+ *
+ * What is saved is the script's origin, the same item the Save buttons on the
+ * topic lists save, so a story saved from the inbox and the script written
+ * from it are one entry, never two. A news script saves its story; a
+ * reaction-hook script saves the reel it reacts to, by its link, which is how
+ * the Saved screen finds that reel's script. An idea with neither has nothing
+ * the Saved screen could reopen it by, so it shows no button.
+ */
+function SaveScript({ idea, platform }: { idea: ContentIdea; platform: PlatformId }) {
+  if (idea.source?.sourceId) {
+    return (
+      <SaveTopicButton
+        platform={platform}
+        kind="source"
+        itemId={idea.source.sourceId}
+        title={idea.source.headline || idea.title}
+        url={idea.source.url ?? null}
+        sourceLabel={idea.source.publisher ?? null}
+        lane={idea.contentLane ?? null}
+        className="ml-auto"
+      />
+    );
+  }
+  if (idea.reaction?.sourceUrl) {
+    return (
+      <SaveTopicButton
+        platform={platform}
+        kind="trend"
+        itemId={idea.reaction.sourceUrl}
+        title={idea.reaction.claim || idea.title}
+        url={idea.reaction.sourceUrl}
+        sourceLabel={
+          idea.reaction.sourceCreatorHandle ? `@${idea.reaction.sourceCreatorHandle}` : null
+        }
+        lane={idea.contentLane ?? null}
+        className="ml-auto"
+      />
+    );
+  }
+  return null;
 }
 
 /**
