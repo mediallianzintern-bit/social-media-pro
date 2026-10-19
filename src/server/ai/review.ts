@@ -234,11 +234,13 @@ function reviewUser(
   idea: RawIdea,
   sources: SourceItem[],
   feedback: { previous: ReviewResult; problems: string[] } | null,
+  lessons = "",
 ): string {
   const lane = typeof idea.contentLane === "string" ? idea.contentLane : null;
   return [
     INSTAGRAM_REVIEW_PROMPT,
     sourceBlock(idea, sources),
+    lessons,
     LENGTH_GUIDANCE,
     lane && isAiToolWorkflowLane(lane) ? WORKFLOW_GUIDANCE : "",
     // The team's call to action for this lane — the "when a call to action is
@@ -367,6 +369,8 @@ export async function reviewDrafts(
   platform: PlatformId,
   data: unknown,
   sources: SourceItem[],
+  /** What filmed reels taught, so the rewrite does not undo a lesson. */
+  lessons = "",
 ): Promise<{ data: unknown; cost: GenerationCost | undefined; reviewed: number; failed: number }> {
   const ideas = (data as { ideas?: unknown })?.ideas;
   if (platform !== "instagram" || !reviewEnabled() || !Array.isArray(ideas)) {
@@ -391,7 +395,7 @@ export async function reviewDrafts(
         for (let round = 0; round < REVIEW_ROUNDS; round += 1) {
           const result = await completeJson<unknown>({
             system: reviewSystem(lane),
-            user: reviewUser(idea, sources, feedback),
+            user: reviewUser(idea, sources, feedback, lessons),
             schemaName: "reel_review",
             schema: reviewSchema as unknown as Record<string, unknown>,
             model: reviewModel(),

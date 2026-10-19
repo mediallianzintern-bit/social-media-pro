@@ -16,6 +16,7 @@ import { currentNiche, recordPredictions } from "../predict";
 import { hasOpenAi, openAiKeyIsPlaceholder } from "./client";
 import { workflowLaneForSource } from "./tool-workflow";
 import { discoverCompetitors, type DiscoveryResult } from "./discover";
+import { filmedLessonsBlock } from "../reel-learning/lessons";
 import { classifyPosts, ensureLanes } from "./lanes";
 import { nicheLanes, suggestionFeedback } from "./feedback";
 import { buildPreferenceModel, learnedSummary } from "@/lib/preferences";
@@ -420,7 +421,14 @@ export async function runAnalysis(
       platform,
       ownerBrief,
       rivalBriefs,
-      { analyst, competitive: competitors, reflection, trends, questions },
+      {
+        analyst,
+        competitive: competitors,
+        reflection,
+        trends,
+        questions,
+        filmed: await filmedLessonsBlock(platform).catch(() => ""),
+      },
       3,
       sources,
     );
@@ -647,6 +655,7 @@ export async function generateMore(
       analyst: cached?.analyst ?? null,
       competitive: cached?.competitors ?? null,
       reflection: cached?.reflection ?? null,
+      filmed: await filmedLessonsBlock(platform).catch(() => ""),
     },
     options.fresh ? 3 : 1,
     sources,

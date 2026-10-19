@@ -399,6 +399,13 @@ async function runSyncOnce(
         if (labelled) outcome.lanesAssigned = labelled;
       }
       outcomes.push(outcome);
+      // Filmed ideas whose reel has now gone live are linked to it by topic.
+      // Free: it reads the posts just stored. Before the outcome capture, so
+      // a reel linked today is scored on the same pass once it is old enough.
+      if (outcome.status === "ok") {
+        const { linkFilmedReels } = await import("./reel-learning/match");
+        await linkFilmedReels(platform);
+      }
       // Fresh metrics are now stored, so this is the moment any matured
       // suggestion can be frozen. Deterministic, and never fatal.
       await captureOutcomes(platform);

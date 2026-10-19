@@ -577,6 +577,8 @@ export interface IdeaReads {
   reflection?: ReflectionRead | null;
   trends?: FeedRead | null;
   questions?: FeedRead | null;
+  /** What filmed reels taught (reel-learning/lessons.ts), ready to quote. */
+  filmed?: string | null;
 }
 
 export interface IdeaRequest {
@@ -611,6 +613,7 @@ export function buildIdeaRequest(
     reflection = null,
     trends = null,
     questions = null,
+    filmed = null,
   } = reads;
   const formats = owner.byFormat
     .map((entry) => `${entry.format} (${entry.count} posts, median ${entry.medianViews} views)`)
@@ -1080,14 +1083,19 @@ ${JSON.stringify(reflection, null, 2)}
     : ""
 }
 ${
-  trends?.picks.length
-    ? `TRENDS — rising search terms from a live feed, selected for this account. Every term here is
+  filmed
+    ? `${filmed}
+`
+    : ""
+}${
+    trends?.picks.length
+      ? `TRENDS — rising search terms from a live feed, selected for this account. Every term here is
 copied verbatim from real feed data; none was recalled from memory. Timeliness only — these say
 nothing about what this account's own audience rewards:
 ${JSON.stringify(trends.picks, null, 2)}
 `
-    : ""
-}
+      : ""
+  }
 ${
   questions?.picks.length
     ? `AUDIENCE QUESTIONS — real questions people ask in this niche, from a live feed. Demonstrated
@@ -1382,7 +1390,7 @@ export async function generateIdeas(
   // Pritesh's own review-and-rewrite prompt, on a small request to a stronger
   // model, before anything is checked or saved — see review.ts. Instagram
   // reels only; any failure keeps the draft as it was.
-  const review = await reviewDrafts(platform, result.data, sources);
+  const review = await reviewDrafts(platform, result.data, sources, reads.filmed ?? "");
   if (review.reviewed || review.failed) {
     console.info(
       `[ai:${platform}] reviewed ${review.reviewed} draft(s), ${review.failed} kept as drafted`,

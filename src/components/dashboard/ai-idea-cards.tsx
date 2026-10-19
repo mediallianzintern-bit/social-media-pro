@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   Check,
@@ -14,24 +14,15 @@ import {
   Target,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { ReactionPanel } from "@/components/dashboard/reaction-panel";
+import { FilmedPanel } from "@/components/dashboard/filmed-panel";
 import { SaveTopicButton } from "@/components/dashboard/save-topic-button";
 import { VoteButtons } from "@/components/dashboard/vote-buttons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardContent } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
@@ -47,9 +38,9 @@ import {
   getMoreHooks,
   dismissIdea,
   generateOneIdea,
-  markIdeaUsed,
   topicInboxQueryOptions,
 } from "@/lib/analytics.functions";
+import { markFilmed, reelLearningQueryOptions } from "@/lib/reel-learning.functions";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import type { Prediction } from "@/lib/prediction";
 import {
@@ -301,8 +292,6 @@ export function AiIdeaCards({
   // makes the drawer show "filmed" the moment it lands, without a page reload.
   const [openId, setOpenId] = useState<string | null>(initialOpenId ?? null);
   const [copied, setCopied] = useState(false);
-  const [linking, setLinking] = useState(false);
-  const [permalink, setPermalink] = useState("");
   const accent = PLATFORM_META[platform].color;
   const queryClient = useQueryClient();
 
@@ -330,14 +319,25 @@ export function AiIdeaCards({
     );
   }
 
-  const useThis = useMutation({
-    mutationFn: (vars: { ideaId: string; permalink: string }) => markIdeaUsed({ data: vars }),
-    onSuccess: (result, vars) => {
-      patchIdea(vars.ideaId, { status: "used", publishedShortcode: result.shortcode });
-      setLinking(false);
-      setPermalink("");
-    },
+  // "I filmed this": one click, nothing to paste (Pritesh, 19 Oct). The live
+  // reel is then found by its topic among the synced posts, for free; see
+  // reel-learning/match.ts and the After filming section in the drawer.
+  const { data: learning } = useQuery({
+    ...reelLearningQueryOptions(open?.id ?? ""),
+    enabled: Boolean(open?.id),
   });
+  const filmed = useMutation({
+    mutationFn: (ideaId: string) => markFilmed({ data: { ideaId, platform } }),
+    onSuccess: (result, ideaId) =>
+      queryClient.setQueryData(reelLearningQueryOptions(ideaId).queryKey, result),
+  });
+  // Once the reel is found the idea is published; show it that way here too.
+  useEffect(() => {
+    if (open && learning?.shortcode && open.status !== "used") {
+      patchIdea(open.id, { status: "used", publishedShortcode: learning.shortcode });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [learning?.shortcode, open?.id, open?.status]);
 
   const dismiss = useMutation({
     mutationFn: (ideaId: string) => dismissIdea({ data: { ideaId } }),
@@ -452,7 +452,6 @@ export function AiIdeaCards({
         onOpenChange={(next) => {
           if (!next) {
             setOpenId(null);
-            setLinking(false);
             onClose?.();
           }
         }}
@@ -496,6 +495,7 @@ export function AiIdeaCards({
               </SheetHeader>
 
               <div className="flex-1 space-y-7 overflow-y-auto p-6">
+                {open.id ? <FilmedPanel idea={open} /> : null}
                 {open.reaction ? <ReactionPanel idea={open} /> : null}
                 <section>
                   <SectionLabel>Why this, from your data</SectionLabel>
@@ -707,19 +707,39 @@ export function AiIdeaCards({
                   {copied ? "Copied" : "Copy handover doc"}
                 </Button>
 
-                {/* The feedback loop: every idea is kept permanently once
-                    generated, and this is the only way one gets linked to what
-                    was actually filmed. Auto-matching by caption text was
-                    explicitly ruled out — it misattributes and is unfixable
-                    once wrong, so a person has to say it themselves. */}
-                {!open.status || open.status === "suggested" ? (
+                {/* The feedback loop. One click: the person says it was filmed,
+                    and the system finds the live reel by its TOPIC, the one
+                    thing the team keeps when they rewrite the rest. Matching
+                    on the topic's names (not the script, which may change) is
+                    what makes this safe; a wrong match can be relinked by hand
+                    in the After filming section. */}
+                {filmed.error ? (
+                  <p className="text-xs text-destructive">
+                    {filmed.error instanceof Error
+                      ? filmed.error.message
+                      : "Couldn't mark it filmed. Try again."}
+                  </p>
+                ) : null}
+                {learning && !learning.shortcode ? (
+                  <p className="flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">
+                    <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-600" aria-hidden />
+                    Marked filmed. The live reel is found by its topic on the next Sync after it is
+                    posted; nothing else to do.
+                  </p>
+                ) : !open.status || open.status === "suggested" ? (
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
                       className="flex-1 gap-2"
-                      onClick={() => setLinking(true)}
+                      disabled={filmed.isPending || !open.id}
+                      onClick={() => filmed.mutate(open.id)}
                     >
-                      <Clapperboard className="size-4" aria-hidden />I filmed this
+                      {filmed.isPending ? (
+                        <Loader2 className="size-4 animate-spin" aria-hidden />
+                      ) : (
+                        <Clapperboard className="size-4" aria-hidden />
+                      )}
+                      I filmed this
                     </Button>
                     <Button
                       variant="ghost"
@@ -735,8 +755,8 @@ export function AiIdeaCards({
                   <div className="space-y-2.5">
                     <p className="flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">
                       <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-600" aria-hidden />
-                      Linked to the post you published. Once it has run for a week, how it did on
-                      the goal metric is scored and feeds which ideas get suggested next.
+                      Linked to the reel you published. Analyse it above to see what was used, and
+                      review it after a week to see what worked and why.
                     </p>
                     <Button
                       variant="outline"
@@ -771,55 +791,6 @@ export function AiIdeaCards({
           ) : null}
         </SheetContent>
       </Sheet>
-
-      <Dialog
-        open={linking}
-        onOpenChange={(next) => {
-          setLinking(next);
-          if (!next) setPermalink("");
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Link the post you filmed</DialogTitle>
-            <DialogDescription>
-              {platform === "linkedin"
-                ? "Paste the LinkedIn post link. Once linked, how the post actually performs feeds back into which ideas get suggested next."
-                : "Paste the Instagram permalink. Once linked, how this post actually performs — saves, shares, watch time — feeds back into which ideas get suggested next."}
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            autoFocus
-            placeholder={
-              platform === "linkedin"
-                ? "https://www.linkedin.com/posts/..."
-                : "https://www.instagram.com/reel/..."
-            }
-            value={permalink}
-            onChange={(event) => setPermalink(event.target.value)}
-          />
-          {useThis.error ? (
-            <p className="text-xs text-destructive">
-              {useThis.error instanceof Error
-                ? useThis.error.message
-                : "Couldn't link that post — try the permalink again."}
-            </p>
-          ) : null}
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="ghost">Cancel</Button>
-            </DialogClose>
-            <Button
-              disabled={!permalink.trim() || useThis.isPending || !open}
-              onClick={() =>
-                open && useThis.mutate({ ideaId: open.id, permalink: permalink.trim() })
-              }
-            >
-              {useThis.isPending ? "Linking…" : "Link post"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
