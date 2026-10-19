@@ -18,6 +18,7 @@ import { Route as ReportRouteImport } from './routes/report'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppFilmedRouteImport } from './routes/_app/filmed'
 import { Route as AppInstagramRouteImport } from './routes/_app/instagram'
 import { Route as AppLinkedinRouteImport } from './routes/_app/linkedin'
 import { Route as AppReactionsRouteImport } from './routes/_app/reactions'
@@ -69,6 +70,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppFilmedRoute = AppFilmedRouteImport.update({
+  id: '/filmed',
+  path: '/filmed',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppInstagramRoute = AppInstagramRouteImport.update({
   id: '/instagram',
   path: '/instagram',
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/report': typeof ReportRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
+  '/filmed': typeof AppFilmedRoute
   '/instagram': typeof AppInstagramRoute
   '/linkedin': typeof AppLinkedinRoute
   '/reactions': typeof AppReactionsRoute
@@ -124,6 +131,7 @@ export interface FileRoutesByTo {
   '/report': typeof ReportRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
+  '/filmed': typeof AppFilmedRoute
   '/instagram': typeof AppInstagramRoute
   '/linkedin': typeof AppLinkedinRoute
   '/reactions': typeof AppReactionsRoute
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/report': typeof ReportRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
+  '/_app/filmed': typeof AppFilmedRoute
   '/_app/instagram': typeof AppInstagramRoute
   '/_app/linkedin': typeof AppLinkedinRoute
   '/_app/reactions': typeof AppReactionsRoute
@@ -161,6 +170,7 @@ export interface FileRouteTypes {
     | '/report'
     | '/reset-password'
     | '/signup'
+    | '/filmed'
     | '/instagram'
     | '/linkedin'
     | '/reactions'
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
     | '/report'
     | '/reset-password'
     | '/signup'
+    | '/filmed'
     | '/instagram'
     | '/linkedin'
     | '/reactions'
@@ -193,6 +204,7 @@ export interface FileRouteTypes {
     | '/report'
     | '/reset-password'
     | '/signup'
+    | '/_app/filmed'
     | '/_app/instagram'
     | '/_app/linkedin'
     | '/_app/reactions'
@@ -278,6 +290,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/filmed': {
+      id: '/_app/filmed'
+      path: '/filmed'
+      fullPath: '/filmed'
+      preLoaderRoute: typeof AppFilmedRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/instagram': {
       id: '/_app/instagram'
       path: '/instagram'
@@ -324,6 +343,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppFilmedRoute: typeof AppFilmedRoute
   AppInstagramRoute: typeof AppInstagramRoute
   AppLinkedinRoute: typeof AppLinkedinRoute
   AppReactionsRoute: typeof AppReactionsRoute
@@ -334,6 +354,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppFilmedRoute: AppFilmedRoute,
   AppInstagramRoute: AppInstagramRoute,
   AppLinkedinRoute: AppLinkedinRoute,
   AppReactionsRoute: AppReactionsRoute,

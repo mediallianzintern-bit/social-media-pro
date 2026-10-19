@@ -496,7 +496,7 @@ function Review({ learning }: { learning: ReelLearning }) {
 }
 
 /** What every reviewed reel adds up to so far, counted in code. */
-function Patterns({ platform }: { platform: "instagram" | "linkedin" }) {
+export function Patterns({ platform }: { platform: "instagram" | "linkedin" }) {
   const { data: patterns } = useQuery(reelPatternsQueryOptions(platform));
   if (!patterns?.length) return null;
   return (

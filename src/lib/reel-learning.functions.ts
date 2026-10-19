@@ -102,6 +102,21 @@ export const reelPatternsQueryOptions = (platform: "instagram" | "linkedin") => 
   staleTime: 60 * 1000,
 });
 
+/** Every filmed idea with its stage, for the Filmed reels page. Free. */
+export const getFilmedReels = createServerFn({ method: "GET" })
+  .middleware([requireStaff])
+  .validator((input: unknown) => z.enum(["instagram", "linkedin"]).parse(input))
+  .handler(async ({ data }) => {
+    const { listFilmed } = await import("@/server/reel-learning/list");
+    return listFilmed(data);
+  });
+
+export const filmedReelsQueryOptions = (platform: "instagram" | "linkedin") => ({
+  queryKey: ["filmed-reels", platform] as const,
+  queryFn: () => getFilmedReels({ data: platform }),
+  staleTime: 30 * 1000,
+});
+
 export const reelLearningQueryOptions = (ideaId: string) => ({
   queryKey: ["reel-learning", ideaId] as const,
   queryFn: () => getReelLearning({ data: { ideaId } }),
