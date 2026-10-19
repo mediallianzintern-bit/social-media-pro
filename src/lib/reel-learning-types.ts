@@ -6,6 +6,9 @@
 //   analysed  transcript + comparison: what was kept, changed or replaced (paid)
 //   reviewed  once it has run a week: did it work, and why (paid)
 
+/** A reel this many times the typical reel's views or more is called viral. */
+export const VIRAL_RATIO = 3;
+
 export type ReelUsage = "as_written" | "partly" | "topic_only";
 
 export const REEL_USAGE_LABEL: Record<ReelUsage, string> = {
@@ -24,11 +27,37 @@ export const ELEMENT_VERDICT_LABEL: Record<ElementVerdict, string> = {
 };
 
 export interface ReelMatch {
-  /** "topic" when found by the story it covers; "manual" when a person linked it. */
-  by: "topic" | "manual";
+  /**
+   * How the reel was found, strongest first:
+   *   topic    its caption names the story (brand, product, campaign)
+   *   article  its caption shares names and facts with the source article
+   *   timing   the only new reel around the time it was filmed; a guess
+   *            until Analyse confirms the topic
+   *   manual   a person linked it
+   *   none     not linked (a wrong reel was unlinked; the search goes on)
+   */
+  by: "topic" | "article" | "timing" | "manual" | "none";
+  /** False only for a timing guess not yet confirmed by Analyse. */
+  confirmed: boolean;
   /** The distinctive words the reel's caption shared with the story. */
   words: string[];
   score: number;
+  /** Reels found to cover a different story: never matched to this idea again. */
+  rejected?: string[];
+}
+
+/** One measured pattern across every reviewed reel, counted in code. */
+export interface ReelPattern {
+  /** What is being grouped: "Hook style", "Script", "Lane"… */
+  dimension: string;
+  /** The group: "question", "team's own", "Marketing stunts"… */
+  value: string;
+  reels: number;
+  worked: number;
+  /** Median of views ÷ typical views across the group's reels. */
+  medianRatio: number;
+  /** Enough reels for the pattern to mean something (3 or more). */
+  strong: boolean;
 }
 
 export interface ReelComparison {

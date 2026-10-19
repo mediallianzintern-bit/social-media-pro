@@ -26,15 +26,33 @@ import { dateTime, fullNumber, shortDate } from "@/lib/format";
 import {
   ELEMENT_VERDICT_LABEL,
   REEL_USAGE_LABEL,
+  VIRAL_RATIO,
   type ElementVerdict,
   type ReelLearning,
+  type ReelMatch,
 } from "@/lib/reel-learning-types";
 import {
   analyseFilmed,
   linkFilmedByHand,
   reelLearningQueryOptions,
+  reelPatternsQueryOptions,
   reviewFilmed,
 } from "@/lib/reel-learning.functions";
+
+/** How the reel was found, in words. */
+function matchedBy(match: ReelMatch | null): string {
+  const words = match?.words.length ? `: ${match.words.join(", ")}` : "";
+  switch (match?.by) {
+    case "manual":
+      return "Linked by hand.";
+    case "article":
+      return `Matched on the source article${words}.`;
+    case "timing":
+      return "Matched by timing: the only reel posted around when it was filmed.";
+    default:
+      return `Matched on its topic${words}.`;
+  }
+}
 
 const VERDICT_TONE: Record<ElementVerdict, string> = {
   as_written: "border-emerald-300 text-emerald-800 dark:border-emerald-800 dark:text-emerald-300",
@@ -202,11 +220,15 @@ function Found({
             </a>
           ) : null}
         </p>
-        <p className="text-xs text-muted-foreground">
-          {learning.match?.by === "manual"
-            ? "Linked by hand."
-            : `Matched on its topic: ${learning.match?.words.join(", ") || "the story"}.`}
-        </p>
+        <p className="text-xs text-muted-foreground">{matchedBy(learning.match)}</p>
+        {learning.match && !learning.match.confirmed ? (
+          <p className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+            <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+            Probably this reel, but not confirmed. Analyse reads it and checks the topic: if it
+            covers a different story it is unlinked and the search goes on. It is not scored until
+            then.
+          </p>
+        ) : null}
         <LinkByHand idea={idea} label="Wrong reel? Link the right one" />
       </div>
 
@@ -250,6 +272,7 @@ function Found({
       ) : null}
 
       {learning.review ? <Review learning={learning} /> : null}
+      {learning.review ? <Patterns platform={learning.platform} /> : null}
     </div>
   );
 }
@@ -375,7 +398,11 @@ function Review({ learning }: { learning: ReelLearning }) {
     <div className="space-y-4 border-t pt-4">
       <div className="flex flex-wrap items-center gap-2">
         <Label>How it did</Label>
-        {learning.worked ? (
+        {review.primaryRatio >= VIRAL_RATIO ? (
+          <Badge className="gap-1 bg-violet-600 hover:bg-violet-600">
+            <TrendingUp className="size-3" aria-hidden /> Viral
+          </Badge>
+        ) : learning.worked ? (
           <Badge className="gap-1 bg-emerald-600 hover:bg-emerald-600">
             <CheckCircle2 className="size-3" aria-hidden /> Worked
           </Badge>
@@ -464,6 +491,53 @@ function Review({ learning }: { learning: ReelLearning }) {
           </ul>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/** What every reviewed reel adds up to so far, counted in code. */
+function Patterns({ platform }: { platform: "instagram" | "linkedin" }) {
+  const { data: patterns } = useQuery(reelPatternsQueryOptions(platform));
+  if (!patterns?.length) return null;
+  return (
+    <div className="space-y-2 border-t pt-4">
+      <Label>Across every reviewed reel so far</Label>
+      <div className="overflow-x-auto rounded-md border">
+        <table className="w-full text-xs">
+          <thead className="bg-muted/50 text-left text-muted-foreground">
+            <tr>
+              <th className="px-2 py-1.5 font-medium">Pattern</th>
+              <th className="px-2 py-1.5 text-right font-medium">Reels</th>
+              <th className="px-2 py-1.5 text-right font-medium">Worked</th>
+              <th className="px-2 py-1.5 text-right font-medium">Median vs typical</th>
+            </tr>
+          </thead>
+          <tbody>
+            {patterns.slice(0, 10).map((pattern) => (
+              <tr key={`${pattern.dimension}:${pattern.value}`} className="border-t">
+                <td className="px-2 py-1.5">
+                  <span className="text-muted-foreground">{pattern.dimension}: </span>
+                  {pattern.value}
+                  {pattern.strong ? (
+                    <Badge variant="outline" className="ml-1.5 font-normal">
+                      strong
+                    </Badge>
+                  ) : null}
+                </td>
+                <td className="px-2 py-1.5 text-right tabular-nums">{pattern.reels}</td>
+                <td className="px-2 py-1.5 text-right tabular-nums">{pattern.worked}</td>
+                <td className="px-2 py-1.5 text-right tabular-nums">
+                  {pattern.medianRatio.toFixed(2)}×
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        Counted from the figures, not judged. A pattern is strong with 3 or more reels behind it;
+        the writer weighs strong patterns above any single reel.
+      </p>
     </div>
   );
 }

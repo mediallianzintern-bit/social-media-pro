@@ -34,6 +34,9 @@ create table if not exists public.reel_learning (
   -- The words the reel and the story shared, and whether a person linked it
   -- by hand instead, so a wrong match can be seen and argued with.
   match jsonb,
+  -- The source article's names and distinctive words, read once when the
+  -- caption alone does not name the story, so later syncs do not re-read it.
+  source_words jsonb,
 
   -- Analyse (paid): what the reel says, and what was kept, changed or replaced.
   transcript text,
@@ -50,6 +53,9 @@ create table if not exists public.reel_learning (
   cost_usd numeric not null default 0,
   updated_at timestamptz not null default now()
 );
+
+-- For a database that ran an earlier copy of this file, before the column existed.
+alter table public.reel_learning add column if not exists source_words jsonb;
 
 create index if not exists reel_learning_platform_idx
   on public.reel_learning (platform, filmed_at desc);

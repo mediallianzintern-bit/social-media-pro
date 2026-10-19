@@ -16,10 +16,11 @@ async function view(ideaId: string): Promise<ReelLearning | null> {
     ]);
   let row = await readReelLearning(ideaId);
   if (!row) return null;
-  // Free: looks for the live reel among the synced posts.
-  if (!row.shortcode) row = await linkFilmedReel(row);
+  // Free: looks for the live reel among the synced posts (and keeps looking
+  // while a timing guess is unconfirmed, in case a clearer match appears).
+  row = await linkFilmedReel(row);
   const post = row.shortcode ? await linkedPost(row) : null;
-  const { costUsd: _cost, ...rest } = row;
+  const { costUsd: _cost, sourceWords: _words, ...rest } = row;
   return {
     ...rest,
     publishedAt: post?.publishedAt ?? null,
@@ -85,6 +86,21 @@ export const linkFilmedByHand = createServerFn({ method: "POST" })
     await linkReelByHand(data.ideaId, data.permalink);
     return view(data.ideaId);
   });
+
+/** Patterns across every reviewed reel, counted in code. Free. */
+export const getReelPatterns = createServerFn({ method: "GET" })
+  .middleware([requireStaff])
+  .validator((input: unknown) => z.enum(["instagram", "linkedin"]).parse(input))
+  .handler(async ({ data }) => {
+    const { filmedPatterns } = await import("@/server/reel-learning/lessons");
+    return filmedPatterns(data);
+  });
+
+export const reelPatternsQueryOptions = (platform: "instagram" | "linkedin") => ({
+  queryKey: ["reel-patterns", platform] as const,
+  queryFn: () => getReelPatterns({ data: platform }),
+  staleTime: 60 * 1000,
+});
 
 export const reelLearningQueryOptions = (ideaId: string) => ({
   queryKey: ["reel-learning", ideaId] as const,

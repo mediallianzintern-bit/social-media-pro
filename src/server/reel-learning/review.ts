@@ -18,6 +18,7 @@ import { scriptOf, shortcodeFromUrl } from "@/lib/reel-match";
 import { OWNER_ACCOUNTS } from "../apify/accounts";
 import { completeJson, hasOpenAi } from "../ai/client";
 import { reviewModel } from "../ai/review";
+import { fetchSkipRates } from "../graph/instagram";
 import { OUTCOME_MATURITY_DAYS } from "../outcomes";
 import { readIdeaById, readPosts } from "../store";
 import { readReelLearning, updateReelLearning, type ReelLearningRow } from "./store";
@@ -45,7 +46,21 @@ const METRICS: Metric[] = [
 ];
 
 /** This reel's figures against the typical reel of the 90 days before it. */
-function measure(reel: PostRecord, others: PostRecord[]): ReelReview["metrics"] {
+/** The figure Instagram calls reels_skip_rate; lower is better. */
+export const SKIP_RATE_LABEL = "Skip rate (%, lower is better)";
+
+function measure(
+  reel: PostRecord,
+  others: PostRecord[],
+  skipRates: Map<string, number>,
+): ReelReview["metrics"] {
+  const metrics: Metric[] = [
+    ...METRICS,
+    {
+      label: SKIP_RATE_LABEL,
+      of: (post) => skipRates.get(shortcodeFromUrl(post.url) ?? post.postId),
+    },
+  ];
   const start = Date.parse(reel.publishedAt) - 90 * DAY_MS;
   const before = others.filter((post) => {
     const at = Date.parse(post.publishedAt);
@@ -56,7 +71,7 @@ function measure(reel: PostRecord, others: PostRecord[]): ReelReview["metrics"] 
       at < Date.parse(reel.publishedAt)
     );
   });
-  return METRICS.flatMap((metric) => {
+  return metrics.flatMap((metric) => {
     const value = metric.of(reel);
     if (value === undefined) return [];
     const values = before.map(metric.of).filter((entry): entry is number => entry !== undefined);
@@ -146,7 +161,9 @@ const SYSTEM = `You review one Instagram reel after it has run for a week, for t
 Pritesh Patel's reels, so the next script is better.
 
 How to attribute, from the figures you are given:
-- HOOK: shows in average watch time. A low watch time against the typical reel means people left
+- HOOK: shows first in the skip rate (the share of viewers who swiped away in the first seconds;
+  LOWER is better, so a skip rate above typical means the opening lost people), then in average
+  watch time. A low watch time against the typical reel means people left
   early, which is the opening's job to prevent.
 - SCRIPT: shows in average watch time beyond the opening, and in shares and saves: a script worth
   keeping or sending is one that taught something.
@@ -184,9 +201,19 @@ export async function reviewFilmedReel(
     };
   }
 
+  // Skip rate is read live from Instagram for this account's recent reels.
+  // Free, and optional: without the Graph token the review runs without it.
+  const skipRates =
+    row.platform === "instagram"
+      ? await fetchSkipRates(100).catch((error: unknown) => {
+          console.warn("[reel-learning] skip rate unavailable:", error);
+          return new Map<string, number>();
+        })
+      : new Map<string, number>();
   const metrics = measure(
     reel,
     posts.filter((post) => post.format === reel.format),
+    skipRates,
   );
   const views = metrics.find((metric) => metric.label === "Views");
   const primaryRatio = views?.ratio ?? 0;

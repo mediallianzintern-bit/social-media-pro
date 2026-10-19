@@ -40,6 +40,7 @@ interface Row {
   reel_url: string | null;
   matched_at: string | null;
   match: ReelMatch | null;
+  source_words: SourceWords | null;
   transcript: string | null;
   comparison: ReelComparison | null;
   usage: ReelUsage | null;
@@ -50,8 +51,15 @@ interface Row {
   cost_usd: number | string | null;
 }
 
+/** The source article's names and distinctive words, kept for matching. */
+export interface SourceWords {
+  names: string[];
+  words: string[];
+}
+
 export type ReelLearningRow = Omit<ReelLearning, "publishedAt" | "reviewableAt"> & {
   costUsd: number;
+  sourceWords: SourceWords | null;
 };
 
 function fromRow(row: Row): ReelLearningRow {
@@ -64,6 +72,7 @@ function fromRow(row: Row): ReelLearningRow {
     reelUrl: row.reel_url,
     matchedAt: row.matched_at,
     match: row.match,
+    sourceWords: row.source_words ?? null,
     transcript: row.transcript,
     comparison: row.comparison,
     usage: row.usage,
@@ -126,6 +135,7 @@ export async function updateReelLearning(
     reel_url: string | null;
     matched_at: string | null;
     match: ReelMatch | null;
+    source_words: SourceWords | null;
     transcript: string | null;
     comparison: ReelComparison | null;
     usage: ReelUsage | null;
@@ -179,4 +189,21 @@ export async function ideaCreatedAt(ideaId: string): Promise<string | null> {
     .eq("id", ideaId)
     .maybeSingle();
   return (data as { created_at?: string } | null)?.created_at ?? null;
+}
+
+/**
+ * Undoes the older link on an idea when its reel turns out to be the wrong
+ * one, so the outcome capture does not score a reel about a different story.
+ */
+export async function unlinkIdea(ideaId: string): Promise<void> {
+  if (!hasDurableStore()) return;
+  const { error } = await db()
+    .from("suggested_ideas")
+    .update({
+      status: "suggested",
+      published_shortcode: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", ideaId);
+  if (error) throw new Error(`suggested_ideas unlink failed: ${error.message}`);
 }

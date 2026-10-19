@@ -517,3 +517,39 @@ export async function fetchOwnerFromGraph(capturedAt: string): Promise<{
 
   return { snapshot, posts };
 }
+
+/**
+ * Each reel's skip rate, keyed by shortcode: the share of plays swiped away in
+ * the first seconds, as Instagram reports it. The clearest measure there is of
+ * whether a hook held. Read live, only by a reel's Review, for the reels of
+ * the last few months; never on a sync, so a sync makes no extra requests.
+ * A reel Instagram has no figure for is simply absent.
+ */
+export async function fetchSkipRates(limit = MEDIA_LIMIT): Promise<Map<string, number>> {
+  const igId = igAccountId();
+  const rates = new Map<string, number>();
+  if (!igId) return rates;
+  const media = await graph<{ data?: GraphMedia[] }>(`${igId}/media`, {
+    fields: "id,permalink,media_product_type",
+    limit: String(limit),
+  });
+  const reels = (media.data ?? []).filter(
+    (item) => item.media_product_type === "REELS" && shortcodeOf(item.permalink),
+  );
+  const BATCH = 6;
+  for (let index = 0; index < reels.length; index += BATCH) {
+    const batch = reels.slice(index, index + BATCH);
+    const results = await Promise.all(
+      batch.map((item) =>
+        graphOptional<InsightResponse>(`${item.id}/insights`, { metric: "reels_skip_rate" }),
+      ),
+    );
+    batch.forEach((item, offset) => {
+      const value = results[offset]?.data?.find((entry) => entry.name === "reels_skip_rate")
+        ?.values?.[0]?.value;
+      const code = shortcodeOf(item.permalink);
+      if (code && typeof value === "number") rates.set(code, value);
+    });
+  }
+  return rates;
+}

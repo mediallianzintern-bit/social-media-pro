@@ -35,7 +35,7 @@ const COMMON_IN_CAPTIONS = new Set(
   ).split(" "),
 );
 
-function distinctive(text: string): Set<string> {
+export function distinctive(text: string): Set<string> {
   return new Set(
     [...subjectWords(text)].filter((word) => word.length >= 3 && !COMMON_IN_CAPTIONS.has(word)),
   );
@@ -198,4 +198,76 @@ export function closestHook(
 export function scriptOf(idea: ContentIdea): string {
   const spoken = (idea.shots ?? []).map((shot) => shot.voiceover).filter(Boolean);
   return spoken.length ? spoken.join(" ") : (idea.post?.body ?? idea.hook);
+}
+
+/**
+ * The second way to find a reel: against the source ARTICLE, not just its
+ * headline. A caption often names a detail the headline does not ("X Lift"
+ * for a story headlined "X launches an AI ad tool"). The article has far more
+ * names and facts, so the bar is higher: at least two shared names, and this
+ * much evidence in all (a name counts double). One shared name was not enough
+ * on real data: an article about Gemini 4 and a reel about Google's Auto
+ * Browse share "Google", and a story about Liner mentions Claude.
+ */
+export const MIN_ARTICLE_SCORE = 5;
+export const MIN_ARTICLE_NAMES = 2;
+
+export function findReelByArticle(
+  article: { names: string[]; words: string[] },
+  posts: PostRecord[],
+  options: { createdAt: string; filmedAt: string; taken: Set<string> },
+): ReelCandidate | null {
+  const names = new Set(article.names);
+  const words = new Set(article.words);
+  if (!names.size) return null;
+  const earliest = Date.parse(options.createdAt) - 86_400_000;
+  const latest = Date.parse(options.filmedAt) + 30 * 86_400_000;
+  const filmed = Date.parse(options.filmedAt);
+  const candidates: ReelCandidate[] = [];
+  for (const post of posts) {
+    if (post.pinned) continue;
+    const shortcode = shortcodeFromUrl(post.url) ?? post.postId;
+    if (options.taken.has(shortcode)) continue;
+    const at = Date.parse(post.publishedAt);
+    if (!Number.isFinite(at) || at < earliest || at > latest) continue;
+    const sharedNames = [...namesIn(post.caption)].filter((name) => names.has(name));
+    if (sharedNames.length < MIN_ARTICLE_NAMES) continue;
+    const others = [...distinctive(post.caption)].filter(
+      (word) => words.has(word) && !sharedNames.includes(word),
+    );
+    const score = sharedNames.length * 2 + others.length;
+    if (score < MIN_ARTICLE_SCORE) continue;
+    candidates.push({ post, shortcode, words: [...sharedNames, ...others], score });
+  }
+  candidates.sort(
+    (a, b) =>
+      b.score - a.score ||
+      Math.abs(Date.parse(a.post.publishedAt) - filmed) -
+        Math.abs(Date.parse(b.post.publishedAt) - filmed),
+  );
+  return candidates[0] ?? null;
+}
+
+/**
+ * The last way: timing. When exactly one unlinked reel went live from a day
+ * before "I filmed this" to a week after, it is very probably the one. Still a
+ * guess, so it is held as unconfirmed until Analyse reads the reel and checks
+ * the topic, and is not scored before then. Two or more candidates is no
+ * answer at all: it never picks between them.
+ */
+export function findReelByTiming(
+  posts: PostRecord[],
+  options: { filmedAt: string; taken: Set<string> },
+): ReelCandidate | null {
+  const filmed = Date.parse(options.filmedAt);
+  const inWindow = posts.filter((post) => {
+    if (post.pinned) return false;
+    const shortcode = shortcodeFromUrl(post.url) ?? post.postId;
+    if (options.taken.has(shortcode)) return false;
+    const at = Date.parse(post.publishedAt);
+    return Number.isFinite(at) && at >= filmed - 86_400_000 && at <= filmed + 7 * 86_400_000;
+  });
+  if (inWindow.length !== 1) return null;
+  const post = inWindow[0]!;
+  return { post, shortcode: shortcodeFromUrl(post.url) ?? post.postId, words: [], score: 0 };
 }

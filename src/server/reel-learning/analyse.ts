@@ -19,7 +19,7 @@ import { fetchReelTranscript } from "../apify/reels";
 import { completeJson, hasOpenAi } from "../ai/client";
 import { reviewModel } from "../ai/review";
 import { readIdeaById } from "../store";
-import { linkedPost } from "./match";
+import { confirmMatch, linkedPost, rejectMatch } from "./match";
 import { readReelLearning, updateReelLearning, type ReelLearningRow } from "./store";
 
 /** Rough cost of one transcript run, for the row's running total. Apify caps it at 5¢. */
@@ -191,6 +191,19 @@ ${post.caption}`,
     return { reason: "The comparison could not be read. Try again." };
   }
   const answer = model.data;
+
+  // The topic is the anchor. A reel about a different story is the wrong reel:
+  // unlinked and never matched to this idea again, and the search goes on.
+  // (Never for a reel a person linked by hand: their word stands.)
+  if (!answer.topicSame && row.match?.by !== "manual") {
+    if (cost) await updateReelLearning(ideaId, {}, cost);
+    await rejectMatch((await readReelLearning(ideaId))!);
+    return {
+      reason: `That reel covers a different story (${answer.topicNote}), so it was unlinked. The right one is found on the next Sync, or link it yourself.`,
+    };
+  }
+  // A timing guess is now confirmed, and scored from here on.
+  await confirmMatch(row);
 
   // The numbers, from the texts themselves.
   const hook = closestHook(idea, answer.spokenHook);
