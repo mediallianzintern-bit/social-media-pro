@@ -16,8 +16,24 @@ import { BackButton } from "@/components/nav/back-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { compactNumber, dateTime, fullNumber, TIME_ZONE } from "@/lib/format";
-import type { LaneReportLane, LaneReportReel } from "@/lib/lane-report";
+import {
+  LANE_METRIC_LABEL,
+  LANE_METRICS,
+  metricMedian,
+  metricOf,
+  vsMedian,
+  type LaneMetric,
+  type LaneReportLane,
+  type LaneReportReel,
+} from "@/lib/lane-report";
 import { laneReportQueryOptions } from "@/lib/lane-report.functions";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import { currentStaffEmail } from "@/lib/session";
@@ -56,12 +72,14 @@ export const Route = createFileRoute("/lane-report")({
       .regex(DAY)
       .catch(() => daysAgo(0))
       .default(() => daysAgo(0)),
+    /** What "vs median" compares on. In the URL, so a shared link keeps it. */
+    metric: z.enum(LANE_METRICS).catch("views").default("views"),
   }),
   beforeLoad: async ({ location }) => ({
     staffEmail: await currentStaffEmail(),
     returnTo: location.href,
   }),
-  loaderDeps: ({ search }) => search,
+  loaderDeps: ({ search }) => ({ platform: search.platform, from: search.from, to: search.to }),
   component: LaneReportGate,
   loader: ({ context, deps }) =>
     context.staffEmail ? context.queryClient.ensureQueryData(laneReportQueryOptions(deps)) : null,
@@ -89,7 +107,14 @@ function day(iso: string): string {
 
 const dash = <span className="text-muted-foreground">–</span>;
 
-function multiple(value: number) {
+/** A metric's value as the reader sees it in a "÷" sum. */
+function metricValue(value: number, metric: LaneMetric): string {
+  if (metric === "watch") return `${value.toFixed(1)}s`;
+  return Number.isInteger(value) ? fullNumber(value) : value.toFixed(1);
+}
+
+function multiple(value: number | null) {
+  if (value === null) return dash;
   const tone =
     value >= 1.5
       ? "text-emerald-700 dark:text-emerald-400"
@@ -102,7 +127,16 @@ function multiple(value: number) {
 function LaneReportPage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: "/lane-report" });
-  const { data } = useSuspenseQuery(laneReportQueryOptions(search));
+  const { data } = useSuspenseQuery(
+    laneReportQueryOptions({ platform: search.platform, from: search.from, to: search.to }),
+  );
+  const metric = search.metric;
+  // The typical reel across every lane in these dates, on the chosen metric:
+  // the one number every "vs median" below is divided by.
+  const typical = metricMedian(
+    data.lanes.flatMap((lane) => lane.reels),
+    metric,
+  );
   const meta = PLATFORM_META[search.platform];
   const unit = search.platform === "instagram" ? "reel" : "post";
 
@@ -128,7 +162,7 @@ function LaneReportPage() {
   const setDates = (from: string, to: string) =>
     void navigate({ search: (prev) => ({ ...prev, from, to }) });
 
-  const measuredLabel = data.measuredBy === "views" ? "views" : "interactions";
+  const metricWord = LANE_METRIC_LABEL[metric].toLowerCase();
 
   return (
     <main data-report className="mx-auto max-w-5xl space-y-10 px-4 py-10 sm:py-14 print:py-0">
@@ -211,7 +245,48 @@ function LaneReportPage() {
       {data.lanes.length ? (
         <>
           <section className="space-y-3">
-            <h2 className="text-lg font-semibold">Lanes at a glance</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold">Lanes at a glance</h2>
+              <label className="flex items-center gap-2 text-sm text-muted-foreground print:hidden">
+                Compare by
+                <Select
+                  value={metric}
+                  onValueChange={(value) =>
+                    void navigate({
+                      search: (prev) => ({ ...prev, metric: value as LaneMetric }),
+                      replace: true,
+                    })
+                  }
+                >
+                  <SelectTrigger className="h-9 w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LANE_METRICS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {LANE_METRIC_LABEL[option]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+            </div>
+            <p className="text-sm">
+              Compared by <span className="font-medium">{metricWord}</span>.{" "}
+              {typical !== null ? (
+                <>
+                  The typical {unit} in these dates has{" "}
+                  <span className="font-medium tabular-nums">
+                    {metricValue(typical, metric)}
+                    {metric === "watch" ? " of watch time" : ` ${metricWord}`}
+                  </span>
+                  , so &ldquo;vs median&rdquo; is each lane&rsquo;s typical {unit} ÷{" "}
+                  {metricValue(typical, metric)}.
+                </>
+              ) : (
+                <>No {unit} in these dates has this measured, so there is nothing to compare.</>
+              )}
+            </p>
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full min-w-[720px] text-sm">
                 <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
@@ -226,57 +301,76 @@ function LaneReportPage() {
                     <th className="px-3 py-2 text-right font-medium">Median interactions</th>
                     <th className="px-3 py-2 text-right font-medium">Median saves</th>
                     <th className="px-3 py-2 text-right font-medium">Median watch</th>
-                    <th className="px-3 py-2 text-right font-medium">vs median</th>
+                    <th className="px-3 py-2 text-right font-medium">
+                      vs median
+                      <span className="block font-normal">({metricWord})</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.lanes.map((lane) => (
-                    <tr key={lane.lane} className="border-t">
-                      <td className="px-3 py-2 font-medium capitalize">
-                        {lane.lane}
-                        {lane.directional ? (
-                          <Badge variant="outline" className="ml-2 font-normal">
-                            few {unit}s
-                          </Badge>
-                        ) : null}
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums">{lane.postCount}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">
-                        {lane.shareOfOutputPct}%
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums">
-                        {lane.shareOfPerformancePct}%
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums">
-                        {compactNumber(lane.medianViews)}
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums">
-                        {compactNumber(lane.medianInteractions)}
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums">
-                        {lane.medianSaves !== undefined ? compactNumber(lane.medianSaves) : dash}
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums">
-                        {lane.medianWatchSeconds !== undefined
-                          ? `${lane.medianWatchSeconds}s`
-                          : dash}
-                      </td>
-                      <td className="px-3 py-2 text-right">{multiple(lane.medianVsMedian)}</td>
-                    </tr>
-                  ))}
+                  {data.lanes.map((lane) => {
+                    const laneTypical = metricMedian(lane.reels, metric);
+                    return (
+                      <tr key={lane.lane} className="border-t">
+                        <td className="px-3 py-2 font-medium capitalize">
+                          {lane.lane}
+                          {lane.directional ? (
+                            <Badge variant="outline" className="ml-2 font-normal">
+                              few {unit}s
+                            </Badge>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">{lane.postCount}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {lane.shareOfOutputPct}%
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {lane.shareOfPerformancePct}%
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {compactNumber(lane.medianViews)}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {compactNumber(lane.medianInteractions)}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {lane.medianSaves !== undefined ? compactNumber(lane.medianSaves) : dash}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {lane.medianWatchSeconds !== undefined
+                            ? `${lane.medianWatchSeconds}s`
+                            : dash}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {multiple(vsMedian(laneTypical, typical))}
+                          {laneTypical !== null && typical ? (
+                            <span className="block text-xs tabular-nums text-muted-foreground">
+                              {metricValue(laneTypical, metric)} ÷ {metricValue(typical, metric)}
+                            </span>
+                          ) : null}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              &ldquo;vs median&rdquo; compares a lane&rsquo;s typical {unit} with the typical {unit}{" "}
-              in these dates, by {measuredLabel}: 1.0× is typical, 2.0× is twice as good. Saves and
-              watch time come from Instagram&rsquo;s own figures and are only shown where they were
-              measured.
+              &ldquo;Typical&rdquo; is the median: the middle {unit} when they are put in order, or
+              the average of the middle two. 1.0× is typical, 2.0× is twice the typical {unit}.
+              Interactions are likes + comments + shares. Saves and watch time come from
+              Instagram&rsquo;s own figures and only count the {unit}s they were measured on.
             </p>
           </section>
 
           {data.lanes.map((lane) => (
-            <LaneSection key={lane.lane} lane={lane} unit={unit} />
+            <LaneSection
+              key={lane.lane}
+              lane={lane}
+              unit={unit}
+              metric={metric}
+              typical={typical}
+            />
           ))}
         </>
       ) : (
@@ -296,7 +390,18 @@ function LaneReportPage() {
   );
 }
 
-function LaneSection({ lane, unit }: { lane: LaneReportLane; unit: string }) {
+function LaneSection({
+  lane,
+  unit,
+  metric,
+  typical,
+}: {
+  lane: LaneReportLane;
+  unit: string;
+  metric: LaneMetric;
+  typical: number | null;
+}) {
+  const laneVs = vsMedian(metricMedian(lane.reels, metric), typical);
   const hasSaves = lane.reels.some((reel) => reel.saves !== undefined);
   const hasReach = lane.reels.some((reel) => reel.reach !== undefined);
   const hasWatch = lane.reels.some((reel) => reel.avgWatchSeconds !== undefined);
@@ -307,8 +412,10 @@ function LaneSection({ lane, unit }: { lane: LaneReportLane; unit: string }) {
         <span className="text-sm text-muted-foreground">
           {lane.postCount} {unit}
           {lane.postCount === 1 ? "" : "s"} · {compactNumber(lane.totalViews)} views ·{" "}
-          {compactNumber(lane.totalInteractions)} interactions · typical {unit}{" "}
-          {lane.medianVsMedian.toFixed(1)}× median
+          {compactNumber(lane.totalInteractions)} interactions
+          {laneVs !== null
+            ? ` · typical ${unit} ${laneVs.toFixed(1)}× median ${LANE_METRIC_LABEL[metric].toLowerCase()}`
+            : ""}
         </span>
       </div>
       <div className="overflow-x-auto rounded-lg border">
@@ -324,7 +431,12 @@ function LaneSection({ lane, unit }: { lane: LaneReportLane; unit: string }) {
               {hasSaves ? <th className="px-3 py-2 text-right font-medium">Saves</th> : null}
               {hasReach ? <th className="px-3 py-2 text-right font-medium">Reach</th> : null}
               {hasWatch ? <th className="px-3 py-2 text-right font-medium">Avg watch</th> : null}
-              <th className="px-3 py-2 text-right font-medium">vs median</th>
+              <th className="px-3 py-2 text-right font-medium">
+                vs median
+                <span className="block font-normal">
+                  ({LANE_METRIC_LABEL[metric].toLowerCase()})
+                </span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -332,6 +444,8 @@ function LaneSection({ lane, unit }: { lane: LaneReportLane; unit: string }) {
               <ReelRow
                 key={reel.postId}
                 reel={reel}
+                metric={metric}
+                typical={typical}
                 hasSaves={hasSaves}
                 hasReach={hasReach}
                 hasWatch={hasWatch}
@@ -346,11 +460,15 @@ function LaneSection({ lane, unit }: { lane: LaneReportLane; unit: string }) {
 
 function ReelRow({
   reel,
+  metric,
+  typical,
   hasSaves,
   hasReach,
   hasWatch,
 }: {
   reel: LaneReportReel;
+  metric: LaneMetric;
+  typical: number | null;
   hasSaves: boolean;
   hasReach: boolean;
   hasWatch: boolean;
@@ -395,7 +513,9 @@ function ReelRow({
           {reel.avgWatchSeconds !== undefined ? `${reel.avgWatchSeconds}s` : dash}
         </td>
       ) : null}
-      <td className="px-3 py-2 text-right">{multiple(reel.vsMedian)}</td>
+      <td className="px-3 py-2 text-right">
+        {multiple(vsMedian(metricOf(reel, metric) ?? null, typical))}
+      </td>
     </tr>
   );
 }

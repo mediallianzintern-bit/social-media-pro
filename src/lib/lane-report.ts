@@ -125,3 +125,52 @@ export function laneReport(allPosts: PostRecord[], from: string, to: string): La
     lanes,
   };
 }
+
+/** The figures a lane can be compared on in the report. */
+export const LANE_METRICS = ["views", "interactions", "saves", "watch"] as const;
+export type LaneMetric = (typeof LANE_METRICS)[number];
+
+export const LANE_METRIC_LABEL: Record<LaneMetric, string> = {
+  views: "Views",
+  interactions: "Interactions",
+  saves: "Saves",
+  watch: "Watch time",
+};
+
+/**
+ * One reel's figure for a metric, or undefined where it was not measured.
+ * Interactions are likes + comments + shares, as everywhere in the report.
+ * Saves and watch time exist only where Instagram measured them, and a reel
+ * without them is left out of that comparison rather than counted as zero.
+ */
+export function metricOf(reel: LaneReportReel, metric: LaneMetric): number | undefined {
+  switch (metric) {
+    case "views":
+      return reel.views;
+    case "interactions":
+      return reel.likes + reel.comments + reel.shares;
+    case "saves":
+      return reel.saves;
+    case "watch":
+      return reel.avgWatchSeconds;
+  }
+}
+
+/** The middle value of a metric across some reels, or null when none measured it. */
+export function metricMedian(reels: LaneReportReel[], metric: LaneMetric): number | null {
+  const values = reels
+    .map((reel) => metricOf(reel, metric))
+    .filter((value): value is number => value !== undefined);
+  return values.length ? median(values) : null;
+}
+
+/**
+ * "vs median", kept to one division: the lane's typical reel ÷ the typical
+ * reel across every lane in the dates, on the chosen metric. Null when either
+ * side is missing or the typical reel scored zero, where no ratio means
+ * anything.
+ */
+export function vsMedian(value: number | null, typical: number | null): number | null {
+  if (value === null || typical === null || typical <= 0) return null;
+  return value / typical;
+}
