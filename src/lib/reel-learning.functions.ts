@@ -8,17 +8,18 @@ const ideaInput = z.object({ ideaId: z.string().uuid() });
 
 /** A stored row as the drawer shows it, with the reel's publish time and review date. */
 async function view(ideaId: string): Promise<ReelLearning | null> {
-  const [{ readReelLearning }, { linkFilmedReel, linkedPost }, { reviewableAt }] =
+  const [{ readReelLearning }, { linkFilmedReels, linkedPost }, { reviewableAt }] =
     await Promise.all([
       import("@/server/reel-learning/store"),
       import("@/server/reel-learning/match"),
       import("@/server/reel-learning/review"),
     ]);
-  let row = await readReelLearning(ideaId);
-  if (!row) return null;
-  // Free: looks for the live reel among the synced posts (and keeps looking
-  // while a timing guess is unconfirmed, in case a clearer match appears).
-  row = await linkFilmedReel(row);
+  const first = await readReelLearning(ideaId);
+  if (!first) return null;
+  // Free: links every waiting idea on the platform together, strong matches
+  // first, so one idea's guess can never take another idea's reel.
+  await linkFilmedReels(first.platform);
+  const row = (await readReelLearning(ideaId)) ?? first;
   const post = row.shortcode ? await linkedPost(row) : null;
   const { costUsd: _cost, sourceWords: _words, ...rest } = row;
   return {

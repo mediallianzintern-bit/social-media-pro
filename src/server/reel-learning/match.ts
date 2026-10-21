@@ -61,41 +61,28 @@ async function sourceWordsFor(row: ReelLearningRow, sourceId: string | undefined
   return words;
 }
 
-/** Links one filmed idea to its reel when one is now clear. Returns the row as it stands. */
-export async function linkFilmedReel(
-  row: ReelLearningRow,
-  context?: { posts: PostRecord[]; taken: Set<string> },
-): Promise<ReelLearningRow> {
-  // Settled: a confirmed link, or one a person made. A timing guess keeps
-  // being re-checked, so a clearer match that appears later replaces it.
-  const guessing = row.match?.by === "timing" && !row.match.confirmed;
-  if (row.shortcode && !guessing) return row;
+/** A timing guess not yet confirmed by Analyse. It never blocks a stronger match. */
+const isGuess = (row: ReelLearningRow) => row.match?.by === "timing" && !row.match.confirmed;
 
+/** The topic or source-article match for one idea, ignoring `taken` reels. */
+async function strongMatch(
+  row: ReelLearningRow,
+  posts: PostRecord[],
+  taken: Set<string>,
+): Promise<{ found: ReelCandidate; by: ReelMatch["by"] } | null> {
   const idea = await readIdeaById(row.ideaId);
-  if (!idea) return row;
-  const posts = context?.posts ?? (await ownerReels(row.platform));
-  const taken = new Set(context?.taken ?? (await linkedShortcodes(row.platform)));
-  for (const code of row.match?.rejected ?? []) taken.add(code);
-  // The guess itself must not block a better match for the same idea.
-  if (guessing && row.shortcode) taken.delete(row.shortcode);
+  if (!idea) return null;
   const createdAt = (await ideaCreatedAt(row.ideaId)) ?? row.filmedAt;
   const window = { createdAt, filmedAt: row.filmedAt, taken };
+  const byTopic = findReelForIdea(idea, posts, window);
+  if (byTopic) return { found: byTopic, by: "topic" };
+  const article = await sourceWordsFor(row, idea.source?.sourceId);
+  const byArticle = findReelByArticle(article, posts, window);
+  return byArticle ? { found: byArticle, by: "article" } : null;
+}
 
-  let found: ReelCandidate | null = findReelForIdea(idea, posts, window);
-  let by: ReelMatch["by"] = "topic";
-  if (!found) {
-    const article = await sourceWordsFor(row, idea.source?.sourceId);
-    found = findReelByArticle(article, posts, window);
-    by = "article";
-  }
-  if (!found && !guessing) {
-    found = findReelByTiming(posts, { filmedAt: row.filmedAt, taken });
-    by = "timing";
-  }
-  if (!found || found.shortcode === row.shortcode) return row;
-
+async function setLink(row: ReelLearningRow, found: ReelCandidate, by: ReelMatch["by"]) {
   const confirmed = by !== "timing";
-  const matchedAt = new Date().toISOString();
   const match: ReelMatch = {
     by,
     confirmed,
@@ -106,13 +93,82 @@ export async function linkFilmedReel(
   await updateReelLearning(row.ideaId, {
     shortcode: found.shortcode,
     reel_url: found.post.url ?? null,
-    matched_at: matchedAt,
+    matched_at: new Date().toISOString(),
     match,
   });
   // Only a confirmed reel is scored by the outcome capture.
   if (confirmed) await markIdeaUsed(row.ideaId, found.shortcode);
-  context?.taken.add(found.shortcode);
-  return (await readReelLearning(row.ideaId)) ?? row;
+}
+
+/**
+ * Links every filmed idea still waiting for its reel, for one platform. Free.
+ *
+ * Done for all waiting ideas together, in two passes, because a reel can only
+ * belong to one idea and a weak claim must never beat a strong one. This went
+ * wrong on 21 October: an idea with no reel posted yet (Reflection AI's Beam)
+ * guessed by timing and took the Disney reel, and the Disney idea, whose reel
+ * names Disney, Hulu and Canada, then found it taken.
+ *
+ *   1. Strong matches first, for every waiting idea: the story's names in the
+ *      caption, then the source article. A reel held only by another idea's
+ *      timing guess is not taken: the strong match wins and the guess is
+ *      released, with that reel remembered as not its own.
+ *   2. Timing last, only for ideas still without a reel, and only from reels
+ *      no idea has claimed in any way.
+ */
+export async function linkFilmedReels(platform: PlatformId): Promise<number> {
+  try {
+    const rows = await readAllReelLearning(platform);
+    const waiting = rows.filter((row) => !row.shortcode || isGuess(row)).reverse(); // oldest first
+    if (!waiting.length) return 0;
+    const posts = await ownerReels(platform);
+    const taken = await linkedShortcodes(platform);
+    // Guesses do not block strong matches: who holds which reel by guessing.
+    const guessHeld = new Map<string, ReelLearningRow>();
+    for (const row of rows) if (isGuess(row) && row.shortcode) guessHeld.set(row.shortcode, row);
+    for (const code of guessHeld.keys()) taken.delete(code);
+
+    let linked = 0;
+    const unmatched: ReelLearningRow[] = [];
+    for (const row of waiting) {
+      const own = new Set([...taken, ...(row.match?.rejected ?? [])]);
+      const strong = await strongMatch(row, posts, own);
+      if (!strong) {
+        unmatched.push(row);
+        continue;
+      }
+      const code = strong.found.shortcode;
+      const holder = guessHeld.get(code);
+      if (holder && holder.ideaId !== row.ideaId) {
+        await rejectMatch(holder);
+        guessHeld.delete(code);
+      }
+      if (!(row.shortcode === code && row.match?.by === strong.by)) {
+        await setLink(row, strong.found, strong.by);
+        linked += 1;
+      }
+      taken.add(code);
+    }
+
+    for (const stale of unmatched) {
+      const row = (await readReelLearning(stale.ideaId)) ?? stale;
+      if (row.shortcode) {
+        // A guess that kept its reel: still held, still unconfirmed.
+        taken.add(row.shortcode);
+        continue;
+      }
+      const blocked = new Set([...taken, ...guessHeld.keys(), ...(row.match?.rejected ?? [])]);
+      const guess = findReelByTiming(posts, { filmedAt: row.filmedAt, taken: blocked });
+      if (!guess) continue;
+      await setLink(row, guess, "timing");
+      guessHeld.set(guess.shortcode, row);
+      linked += 1;
+    }
+    return linked;
+  } catch (error) {
+    console.error(`[reel-learning:${platform}] linking filmed reels skipped:`, error);
+    return 0;
+  }
 }
 
 /** Analyse found the reel matches the story: a timing guess becomes a link. */
@@ -188,28 +244,6 @@ export async function linkReelByHand(ideaId: string, permalink: string): Promise
   });
   await markIdeaUsed(ideaId, shortcode);
   return (await readReelLearning(ideaId))!;
-}
-
-/** After a sync: links every filmed idea still waiting for its reel. Never throws. */
-export async function linkFilmedReels(platform: PlatformId): Promise<number> {
-  try {
-    const waiting = (await readAllReelLearning(platform)).filter(
-      (row) => !row.shortcode || (row.match?.by === "timing" && !row.match.confirmed),
-    );
-    if (!waiting.length) return 0;
-    const posts = await ownerReels(platform);
-    const taken = await linkedShortcodes(platform);
-    let linked = 0;
-    // Oldest first, so the earlier filming claims the earlier reel.
-    for (const row of waiting.reverse()) {
-      const after = await linkFilmedReel(row, { posts, taken });
-      if (after.shortcode && after.shortcode !== row.shortcode) linked += 1;
-    }
-    return linked;
-  } catch (error) {
-    console.error(`[reel-learning:${platform}] linking filmed reels skipped:`, error);
-    return 0;
-  }
 }
 
 /** The synced post a row is linked to, for its publish time and metrics. */

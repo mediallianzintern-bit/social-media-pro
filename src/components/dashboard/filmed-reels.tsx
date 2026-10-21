@@ -198,7 +198,9 @@ export function FilmedReels() {
                         {stage === "waiting" ? (
                           <Search className="mr-1 size-3" aria-hidden />
                         ) : null}
-                        {STAGE_LABEL[stage]}
+                        {learning.match?.by === "timing" && !learning.match.confirmed
+                          ? "Probably this reel (by timing) · Analyse to confirm"
+                          : STAGE_LABEL[stage]}
                         {stage === "analysed" && learning.reviewableAt
                           ? ` (${shortDate(learning.reviewableAt)})`
                           : ""}
