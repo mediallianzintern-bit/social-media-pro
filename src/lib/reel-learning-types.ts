@@ -152,7 +152,18 @@ export interface ReelReview {
   }>;
   lessons: ReelLesson[];
   suggestions: string[];
+  /**
+   * Set when the review was asked for before the reel had run a full week
+   * ("Get results now"): how many days it had run. Its figures were still
+   * growing, so it is shown but never counted in patterns, rules or lessons,
+   * and the 7-day review replaces it.
+   */
+  early?: { days: number };
 }
+
+/** A review that counts: run once the reel had its full week. */
+export const isFinalReview = (learning: { review: ReelReview | null }): boolean =>
+  Boolean(learning.review && !learning.review.early);
 
 export interface ReelLearning {
   ideaId: string;

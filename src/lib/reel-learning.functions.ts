@@ -65,13 +65,17 @@ export const analyseFilmed = createServerFn({ method: "POST" })
     return { learning: await view(data.ideaId) };
   });
 
-/** Review (paid, ~2¢, after a week): did it work, and why, element by element. */
+/**
+ * Review (paid, ~2¢): did it work, and why, element by element. After a week it
+ * is the result; with `early` it can run sooner, as an early check that is shown
+ * but not learned from until the 7-day review replaces it.
+ */
 export const reviewFilmed = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .validator((input: unknown) => ideaInput.parse(input))
+  .validator((input: unknown) => ideaInput.extend({ early: z.boolean().optional() }).parse(input))
   .handler(async ({ data }): Promise<{ learning: ReelLearning | null; reason?: string }> => {
     const { reviewFilmedReel } = await import("@/server/reel-learning/review");
-    const result = await reviewFilmedReel(data.ideaId);
+    const result = await reviewFilmedReel(data.ideaId, { early: data.early ?? false });
     if ("reason" in result) return { learning: await view(data.ideaId), reason: result.reason };
     return { learning: await view(data.ideaId) };
   });

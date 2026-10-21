@@ -12,6 +12,7 @@ import {
   Loader2,
   Microscope,
   Search,
+  Timer,
   TrendingDown,
   TrendingUp,
   XCircle,
@@ -26,6 +27,7 @@ import { CTA_TYPE_LABEL, HOOK_TYPE_LABEL } from "@/lib/reel-parts";
 import { dateTime, fullNumber, shortDate } from "@/lib/format";
 import {
   ELEMENT_VERDICT_LABEL,
+  isFinalReview,
   REEL_USAGE_LABEL,
   VIRAL_RATIO,
   type ElementVerdict,
@@ -136,7 +138,7 @@ export function FilmedPanel({ idea }: { idea: ContentIdea }) {
     onSuccess: (result) => queryClient.setQueryData(key, result.learning),
   });
   const review = useMutation({
-    mutationFn: () => reviewFilmed({ data: { ideaId: idea.id } }),
+    mutationFn: (early: boolean) => reviewFilmed({ data: { ideaId: idea.id, early } }),
     onSuccess: (result) => queryClient.setQueryData(key, result.learning),
   });
 
@@ -170,8 +172,8 @@ export function FilmedPanel({ idea }: { idea: ContentIdea }) {
           analysing={analyse.isPending}
           onAnalyse={() => analyse.mutate()}
           analyseNote={analyse.data?.reason ?? (analyse.error ? String(analyse.error) : null)}
-          reviewing={review.isPending}
-          onReview={() => review.mutate()}
+          reviewing={review.isPending ? (review.variables ? "early" : "final") : null}
+          onReview={(early) => review.mutate(early)}
           reviewNote={review.data?.reason ?? (review.error ? String(review.error) : null)}
         />
       )}
@@ -194,8 +196,8 @@ function Found({
   analysing: boolean;
   onAnalyse: () => void;
   analyseNote: string | null;
-  reviewing: boolean;
-  onReview: () => void;
+  reviewing: "early" | "final" | null;
+  onReview: (early: boolean) => void;
   reviewNote: string | null;
 }) {
   const comparison = learning.comparison;
@@ -249,31 +251,52 @@ function Found({
         <Comparison learning={learning} analysing={analysing} onAnalyse={onAnalyse} />
       )}
 
-      {comparison && !learning.review ? (
+      {comparison && !isFinalReview(learning) ? (
         <div className="space-y-2 border-t pt-4">
-          <Button
-            variant={reviewReady ? "default" : "outline"}
-            className="w-full gap-2"
-            disabled={!reviewReady || reviewing}
-            onClick={onReview}
-          >
-            {reviewing ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-            {reviewing
-              ? "Reviewing…"
-              : reviewReady
-                ? "Review how it did"
-                : `Results ready ${learning.reviewableAt ? shortDate(learning.reviewableAt) : "after a week"}`}
-          </Button>
+          {reviewReady ? (
+            <Button
+              className="w-full gap-2"
+              disabled={reviewing !== null}
+              onClick={() => onReview(false)}
+            >
+              {reviewing ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
+              {reviewing ? "Reviewing…" : "Review how it did"}
+            </Button>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button
+                className="gap-2"
+                disabled={reviewing !== null}
+                onClick={() => onReview(true)}
+              >
+                {reviewing === "early" ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                ) : (
+                  <Timer className="size-4" aria-hidden />
+                )}
+                {reviewing === "early"
+                  ? "Checking…"
+                  : learning.review
+                    ? "Check again now"
+                    : "Get results now"}
+              </Button>
+              <Button variant="outline" disabled>
+                Results ready{" "}
+                {learning.reviewableAt ? shortDate(learning.reviewableAt) : "after a week"}
+              </Button>
+            </div>
+          )}
           <p className="text-center text-[10px] text-muted-foreground">
-            About 2¢, one AI call, once the reel has run 7 days. Whether it worked is measured
-            against your typical reel; the AI explains why.
+            {reviewReady
+              ? `About 2¢, one AI call. Whether it worked is measured against your typical reel; the AI explains why.${learning.review ? " Replaces the early check." : ""}`
+              : `Get results now: about 2¢, an early check of the figures so far. It is shown here but not learned from; the full result${learning.reviewableAt ? ` on ${shortDate(learning.reviewableAt)}` : ""} replaces it and is what the system learns from.`}
           </p>
           {reviewNote ? <p className="text-xs text-destructive">{reviewNote}</p> : null}
         </div>
       ) : null}
 
       {learning.review ? <Review learning={learning} /> : null}
-      {learning.review ? <Patterns platform={learning.platform} /> : null}
+      {isFinalReview(learning) ? <Patterns platform={learning.platform} /> : null}
     </div>
   );
 }
@@ -505,8 +528,15 @@ function Review({ learning }: { learning: ReelLearning }) {
   return (
     <div className="space-y-4 border-t pt-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Label>How it did</Label>
-        {review.primaryRatio >= VIRAL_RATIO ? (
+        <Label>{review.early ? "How it is doing so far" : "How it did"}</Label>
+        {review.early ? (
+          <Badge
+            variant="outline"
+            className="gap-1 border-amber-300 font-normal text-amber-800 dark:border-amber-800 dark:text-amber-300"
+          >
+            <Timer className="size-3" aria-hidden /> Early check · day {review.early.days} of 7
+          </Badge>
+        ) : review.primaryRatio >= VIRAL_RATIO ? (
           <Badge className="gap-1 bg-violet-600 hover:bg-violet-600">
             <TrendingUp className="size-3" aria-hidden /> Viral
           </Badge>
@@ -521,8 +551,17 @@ function Review({ learning }: { learning: ReelLearning }) {
         )}
         <span className="text-xs text-muted-foreground">
           {review.primaryRatio.toFixed(2)}× your typical reel&rsquo;s views
+          {review.early ? " so far" : ""}
         </span>
       </div>
+      {review.early ? (
+        <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+          An early check, after {review.early.days} day{review.early.days === 1 ? "" : "s"}: this
+          reel&rsquo;s figures are still growing while the typical reel&rsquo;s are final, so views,
+          reach, saves and shares will rise. Skip rate and watch time already mean something. Not
+          counted in patterns or rules until the full result after 7 days.
+        </p>
+      ) : null}
       <p className="text-sm leading-relaxed">{review.summary}</p>
 
       <div className="overflow-x-auto rounded-md border">

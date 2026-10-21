@@ -5,7 +5,15 @@
 // live. This page spends nothing: it reads stored rows and synced posts, and
 // gives any reel still waiting one more free look.
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { CheckCircle2, ExternalLink, Loader2, Search, TrendingUp, XCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  ExternalLink,
+  Loader2,
+  Search,
+  Timer,
+  TrendingUp,
+  XCircle,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { AiIdeaCards } from "@/components/dashboard/ai-idea-cards";
@@ -18,7 +26,12 @@ import type { ContentIdea } from "@/lib/ai-types";
 import type { PlatformId } from "@/lib/analytics-types";
 import { dateTime, shortDate } from "@/lib/format";
 import { PLATFORM_META } from "@/lib/platform-meta";
-import { REEL_USAGE_LABEL, VIRAL_RATIO, type ReelLearning } from "@/lib/reel-learning-types";
+import {
+  isFinalReview,
+  REEL_USAGE_LABEL,
+  VIRAL_RATIO,
+  type ReelLearning,
+} from "@/lib/reel-learning-types";
 import {
   filmedReelsQueryOptions,
   learnedRulesQueryOptions,
@@ -31,7 +44,7 @@ const PLATFORMS: PlatformId[] = ["instagram", "linkedin"];
 type Stage = "waiting" | "found" | "analysed" | "review_ready" | "reviewed";
 
 function stageOf(learning: ReelLearning): Stage {
-  if (learning.review) return "reviewed";
+  if (isFinalReview(learning)) return "reviewed";
   if (!learning.shortcode) return "waiting";
   if (!learning.comparison) return "found";
   const ready = learning.reviewableAt ? Date.now() >= Date.parse(learning.reviewableAt) : false;
@@ -57,6 +70,17 @@ const STAGE_TONE: Record<Stage, string> = {
 function Result({ learning }: { learning: ReelLearning }) {
   if (!learning.review) return null;
   const ratio = learning.review.primaryRatio;
+  if (learning.review.early) {
+    return (
+      <Badge
+        variant="outline"
+        className="gap-1 border-amber-300 font-normal text-amber-800 dark:border-amber-800 dark:text-amber-300"
+      >
+        <Timer className="size-3" aria-hidden /> Early check (day {learning.review.early.days}) ·{" "}
+        {ratio.toFixed(2)}× so far
+      </Badge>
+    );
+  }
   if (ratio >= VIRAL_RATIO) {
     return (
       <Badge className="gap-1 bg-violet-600 hover:bg-violet-600">
@@ -91,21 +115,21 @@ export function FilmedReels() {
   const [viewing, setViewing] = useState<{ idea: ContentIdea; platform: PlatformId } | null>(null);
 
   const viralItems = items
-    .filter((item) => (item.learning.review?.primaryRatio ?? 0) >= VIRAL_RATIO)
+    .filter(
+      (item) => isFinalReview(item.learning) && item.learning.review!.primaryRatio >= VIRAL_RATIO,
+    )
     .sort((a, b) => b.learning.review!.primaryRatio - a.learning.review!.primaryRatio);
 
   const count = (stage: Stage) => items.filter((item) => stageOf(item.learning) === stage).length;
   const worked = items.filter((item) => item.learning.worked).length;
-  const viral = items.filter(
-    (item) => (item.learning.review?.primaryRatio ?? 0) >= VIRAL_RATIO,
-  ).length;
+  const viral = viralItems.length;
 
   return (
     <div className="space-y-6">
       <p className="max-w-3xl text-sm text-muted-foreground">
         Every script the team marked filmed. The live reel is found by its topic on each Sync; open
-        one to Analyse what was used and, after a week, Review how it did. What the reviews teach
-        goes into every new script.
+        one to Analyse what was used, Get results now for an early check, and after a week Review
+        how it did. What the reviews teach goes into every new script.
       </p>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">

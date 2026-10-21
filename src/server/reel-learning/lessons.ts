@@ -17,6 +17,7 @@
 // Read-only and free. Empty until something has been reviewed.
 import type { PlatformId } from "@/lib/analytics-types";
 import {
+  isFinalReview,
   NO_RULES,
   REEL_USAGE_LABEL,
   VIRAL_RATIO,
@@ -37,28 +38,26 @@ const MAX_STYLE_NOTES = 6;
 
 async function reviewedReels(rows: ReelLearningRow[]): Promise<ReviewedReel[]> {
   return Promise.all(
-    rows
-      .filter((row) => row.review)
-      .map(async (row) => {
-        const comparison = row.comparison;
-        return {
-          lane: (await readIdeaById(row.ideaId).catch(() => null))?.contentLane ?? null,
-          hookStyle: comparison?.hook.style ?? null,
-          hookVerdict: comparison?.hook.verdict ?? null,
-          scriptVerdict: comparison?.script.verdict ?? null,
-          captionVerdict: comparison?.caption.verdict ?? null,
-          usage: row.usage,
-          hookType: comparison?.hookType ?? null,
-          ctaType: comparison?.cta?.type ?? null,
-          bodyShape: comparison?.body?.shape ?? null,
-          exampleType: comparison?.body?.exampleType ?? null,
-          seconds: comparison?.reel?.seconds ?? null,
-          captionWords: comparison?.captionStats?.words ?? null,
-          hashtags: comparison ? [...comparison.hashtags.used, ...comparison.hashtags.added] : null,
-          ratio: row.review!.primaryRatio,
-          worked: Boolean(row.worked),
-        };
-      }),
+    rows.filter(isFinalReview).map(async (row) => {
+      const comparison = row.comparison;
+      return {
+        lane: (await readIdeaById(row.ideaId).catch(() => null))?.contentLane ?? null,
+        hookStyle: comparison?.hook.style ?? null,
+        hookVerdict: comparison?.hook.verdict ?? null,
+        scriptVerdict: comparison?.script.verdict ?? null,
+        captionVerdict: comparison?.caption.verdict ?? null,
+        usage: row.usage,
+        hookType: comparison?.hookType ?? null,
+        ctaType: comparison?.cta?.type ?? null,
+        bodyShape: comparison?.body?.shape ?? null,
+        exampleType: comparison?.body?.exampleType ?? null,
+        seconds: comparison?.reel?.seconds ?? null,
+        captionWords: comparison?.captionStats?.words ?? null,
+        hashtags: comparison ? [...comparison.hashtags.used, ...comparison.hashtags.added] : null,
+        ratio: row.review!.primaryRatio,
+        worked: Boolean(row.worked),
+      };
+    }),
   );
 }
 
@@ -93,7 +92,8 @@ function anatomy(row: ReelLearningRow): string[] {
 
 export async function filmedLessonsBlock(platform: PlatformId): Promise<string> {
   const rows = await readAllReelLearning(platform).catch(() => []);
-  const reviewed = rows.filter((row) => row.review);
+  // Early checks are not learned from: their figures were still growing.
+  const reviewed = rows.filter(isFinalReview);
   if (!reviewed.length) return "";
   const patterns = reelPatterns(await reviewedReels(rows));
   const rules = deriveRules(patterns);

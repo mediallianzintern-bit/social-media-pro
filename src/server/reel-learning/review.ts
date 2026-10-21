@@ -1,5 +1,10 @@
 // Review (paid, from a button, once the reel has run a week): did it work, and why.
 //
+// "Get results now" runs the same review earlier, as an EARLY CHECK: the reel's
+// figures are still growing while the typical reel's are final, so it is marked
+// early, never decides worked or not, and is never counted in patterns, rules or
+// lessons. The 7-day review replaces it.
+//
 // Whether it worked is decided in code, never by the model: its views against
 // this account's typical reel over the 90 days before it, the same yardstick
 // the rest of the dashboard uses. "The layer that grades the advice must not
@@ -188,6 +193,7 @@ Rules:
 /** Runs the review for one filmed idea and stores it. */
 export async function reviewFilmedReel(
   ideaId: string,
+  options: { early?: boolean } = {},
 ): Promise<{ row: ReelLearningRow } | { reason: string }> {
   if (!hasOpenAi()) return { reason: "OPENAI_API_KEY is not set." };
   const row = await readReelLearning(ideaId);
@@ -201,7 +207,9 @@ export async function reviewFilmedReel(
   const reel = posts.find((post) => (shortcodeFromUrl(post.url) ?? post.postId) === row.shortcode);
   if (!reel) return { reason: "The reel isn't in the synced posts. Press Sync, then try again." };
   const ready = reviewableAt(reel.publishedAt);
-  if (Date.now() < Date.parse(ready)) {
+  // Once the week is up, every review is the real one, however it was asked for.
+  const early = Date.now() < Date.parse(ready);
+  if (early && !options.early) {
     return {
       reason: `It has not run a full ${OUTCOME_MATURITY_DAYS} days yet. Review it after ${new Date(ready).toDateString()}.`,
     };
@@ -224,10 +232,17 @@ export async function reviewFilmedReel(
   const views = metrics.find((metric) => metric.label === "Views");
   const primaryRatio = views?.ratio ?? 0;
   const worked = primaryRatio >= 1;
+  const daysRun = Math.max(0, Math.floor((Date.now() - Date.parse(reel.publishedAt)) / DAY_MS));
+  const resultLine = early
+    ? `EARLY CHECK, not the result: this reel has run ${daysRun} of ${OUTCOME_MATURITY_DAYS} days. So far it has ${primaryRatio.toFixed(2)}x the typical reel's views.
+Its figures are still growing while the typical reel's are final, so views, reach, saves and
+shares will rise; skip rate and average watch time are already meaningful. Do not say whether it
+worked: say what the early figures show, and mark every lesson as provisional.`
+    : `RESULT (decided by the figures): this reel ${primaryRatio >= VIRAL_RATIO ? "WENT VIRAL" : worked ? "WORKED" : "DID NOT WORK"}: ${primaryRatio.toFixed(2)}x the typical reel's views.`;
 
   const reply = await completeJson<unknown>({
     system: SYSTEM,
-    user: `RESULT (decided by the figures): this reel ${primaryRatio >= VIRAL_RATIO ? "WENT VIRAL" : worked ? "WORKED" : "DID NOT WORK"}: ${primaryRatio.toFixed(2)}x the typical reel's views.
+    user: `${resultLine}
 
 FIGURES (this reel vs the typical reel of the 90 days before it):
 ${metrics
@@ -267,7 +282,13 @@ ${row.transcript ? `Transcript: ${row.transcript}\n` : ""}Caption: ${reel.captio
     elements: answer.data.elements,
     lessons: answer.data.lessons.slice(0, 4) as ReelLesson[],
     suggestions: answer.data.suggestions.slice(0, 4),
+    ...(early ? { early: { days: daysRun } } : {}),
   };
-  await updateReelLearning(ideaId, { review, worked, reviewed_at: new Date().toISOString() }, cost);
+  // An early check never decides whether it worked: that waits for the week.
+  await updateReelLearning(
+    ideaId,
+    { review, worked: early ? null : worked, reviewed_at: new Date().toISOString() },
+    cost,
+  );
   return { row: (await readReelLearning(ideaId))! };
 }
