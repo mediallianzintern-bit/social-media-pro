@@ -97,24 +97,61 @@ export function shortcodeFromUrl(url: string | undefined): string | null {
 export const MIN_MATCH_SCORE = 3;
 
 /**
+ * How many of the account's reels name each name. A name in only one or two
+ * captions ("Beam", "Hulu") is strong evidence on its own; one the account
+ * names all the time ("Google" in 17 reels) is not.
+ */
+export function nameFrequency(posts: PostRecord[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const post of posts) {
+    for (const name of namesIn(post.caption)) counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/** A name this rare across the account's captions counts for more. */
+export const RARE_NAME_REELS = 2;
+
+/**
+ * The earliest a reel about this idea's story can have gone out: the story's
+ * own publish date (nothing can be made about news before it breaks), else
+ * two weeks before the idea was written. Not the idea's creation date: the
+ * team often writes or regenerates the script AFTER posting the reel, which
+ * is how the Beam reel, posted on 19 October for a script written on the
+ * 21st, was missed.
+ */
+export function earliestReelFor(idea: ContentIdea, createdAt: string): number {
+  const created = Date.parse(createdAt);
+  const story = Date.parse(idea.source?.publishedAt ?? "");
+  const floor = Number.isFinite(story) ? Math.min(story, created) : created - 14 * 86_400_000;
+  return floor - 86_400_000;
+}
+
+/**
  * The live reel a filmed idea became, or null when none is clear yet.
  *
- * Candidates are the account's own reels published from the day before the
- * idea was written (a team can film from a draft) until 30 days after it was
- * marked filmed, that are not already linked to another idea. The one sharing
- * the most distinctive words with the story wins; a tie goes to the reel
+ * Candidates are the account's own reels published from the story's own date
+ * (earliestReelFor) until 30 days after the idea was marked filmed, that are
+ * not already linked to another idea. Evidence: each shared name counts 2, a
+ * rare name (in RARE_NAME_REELS captions or fewer) counts 3, and any other
+ * distinctive shared word 1. The most evidence wins; a tie goes to the reel
  * published closest to the filming.
  */
 export function findReelForIdea(
   idea: ContentIdea,
   posts: PostRecord[],
-  options: { createdAt: string; filmedAt: string; taken: Set<string> },
+  options: {
+    createdAt: string;
+    filmedAt: string;
+    taken: Set<string>;
+    nameFreq?: Map<string, number>;
+  },
 ): ReelCandidate | null {
   const text = anchorText(idea);
   const anchor = distinctive(text);
   const anchorNames = namesIn(text);
   if (!anchorNames.size) return null;
-  const earliest = Date.parse(options.createdAt) - 86_400_000;
+  const earliest = earliestReelFor(idea, options.createdAt);
   const latest = Date.parse(options.filmedAt) + 30 * 86_400_000;
   const filmed = Date.parse(options.filmedAt);
 
@@ -130,7 +167,11 @@ export function findReelForIdea(
     const others = [...distinctive(post.caption)].filter(
       (word) => anchor.has(word) && !names.includes(word),
     );
-    const score = names.length * 2 + others.length;
+    const nameScore = names.reduce(
+      (sum, name) => sum + ((options.nameFreq?.get(name) ?? 99) <= RARE_NAME_REELS ? 3 : 2),
+      0,
+    );
+    const score = nameScore + others.length;
     if (score < MIN_MATCH_SCORE) continue;
     candidates.push({ post, shortcode, words: [...names, ...others], score });
   }
@@ -215,12 +256,12 @@ export const MIN_ARTICLE_NAMES = 2;
 export function findReelByArticle(
   article: { names: string[]; words: string[] },
   posts: PostRecord[],
-  options: { createdAt: string; filmedAt: string; taken: Set<string> },
+  options: { createdAt: string; filmedAt: string; taken: Set<string>; earliest?: number },
 ): ReelCandidate | null {
   const names = new Set(article.names);
   const words = new Set(article.words);
   if (!names.size) return null;
-  const earliest = Date.parse(options.createdAt) - 86_400_000;
+  const earliest = options.earliest ?? Date.parse(options.createdAt) - 14 * 86_400_000;
   const latest = Date.parse(options.filmedAt) + 30 * 86_400_000;
   const filmed = Date.parse(options.filmedAt);
   const candidates: ReelCandidate[] = [];
@@ -257,15 +298,31 @@ export function findReelByArticle(
  */
 export function findReelByTiming(
   posts: PostRecord[],
-  options: { filmedAt: string; taken: Set<string> },
+  options: {
+    filmedAt: string;
+    taken: Set<string>;
+    /**
+     * Other recent ideas' stories. A reel whose caption names any of them
+     * belongs to that story, even if nobody marked it filmed, so it is never
+     * a guess for this one. Without this, a script with no reel posted yet
+     * (Beam, 21 October) guessed the Disney reel.
+     */
+    otherStories?: ContentIdea[];
+  },
 ): ReelCandidate | null {
   const filmed = Date.parse(options.filmedAt);
+  const others = (options.otherStories ?? []).map((idea) => namesIn(anchorText(idea)));
   const inWindow = posts.filter((post) => {
     if (post.pinned) return false;
     const shortcode = shortcodeFromUrl(post.url) ?? post.postId;
     if (options.taken.has(shortcode)) return false;
     const at = Date.parse(post.publishedAt);
-    return Number.isFinite(at) && at >= filmed - 86_400_000 && at <= filmed + 7 * 86_400_000;
+    if (!Number.isFinite(at) || at < filmed - 3 * 86_400_000 || at > filmed + 7 * 86_400_000) {
+      return false;
+    }
+    const names = namesIn(post.caption);
+    // Two shared names with another story is that story's reel.
+    return !others.some((story) => [...names].filter((name) => story.has(name)).length >= 2);
   });
   if (inWindow.length !== 1) return null;
   const post = inWindow[0]!;

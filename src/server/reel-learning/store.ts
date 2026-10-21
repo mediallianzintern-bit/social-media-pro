@@ -13,6 +13,7 @@ import type {
   ReelUsage,
 } from "@/lib/reel-learning-types";
 import type { PlatformId } from "@/lib/analytics-types";
+import type { ContentIdea } from "@/lib/ai-types";
 
 import { hasDurableStore } from "../store";
 
@@ -206,4 +207,23 @@ export async function unlinkIdea(ideaId: string): Promise<void> {
     })
     .eq("id", ideaId);
   if (error) throw new Error(`suggested_ideas unlink failed: ${error.message}`);
+}
+
+/**
+ * Every idea written for a platform in the last `days`, as stored. Used to keep
+ * a timing guess off reels that name some other story. Free: one read.
+ */
+export async function recentIdeas(platform: PlatformId, days = 60): Promise<ContentIdea[]> {
+  if (!hasDurableStore()) return [];
+  const since = new Date(Date.now() - days * 86_400_000).toISOString();
+  const { data, error } = await db()
+    .from("suggested_ideas")
+    .select("id,payload")
+    .eq("platform", platform)
+    .gte("created_at", since)
+    .limit(1000);
+  if (error) return [];
+  return ((data ?? []) as Array<{ id: string; payload: ContentIdea | null }>)
+    .filter((row) => row.payload?.hook)
+    .map((row) => ({ ...row.payload!, id: row.id }));
 }

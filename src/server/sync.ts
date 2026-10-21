@@ -171,6 +171,14 @@ export async function syncInstagram(trigger: "manual" | "schedule"): Promise<Syn
     // the whole catalogue, for free. A slice per sync keeps one run short, and
     // the newest posts come first — so the wall fills in from the top.
     try {
+      const { backfillCaptions } = await import("./graph/instagram");
+      const fixed = await backfillCaptions(OWNER_ACCOUNTS.instagram.handle);
+      if (fixed) console.log(`[sync:instagram] full captions restored on ${fixed} posts.`);
+    } catch (error) {
+      console.error("[sync:instagram] caption backfill skipped:", error);
+    }
+
+    try {
       const { backfillThumbnails } = await import("./thumbnails");
       const covers = await backfillThumbnails(OWNER_ACCOUNTS.instagram.handle);
       if (covers.stored || covers.failed) {

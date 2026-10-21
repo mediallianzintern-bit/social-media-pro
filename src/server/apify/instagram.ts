@@ -71,7 +71,10 @@ export function toPostRecords(raw: IgPost[], limit: number): PostRecord[] {
       platform: "instagram" as const,
       postId: post.id,
       ...(post.url ? { url: post.url } : {}),
-      caption: (post.caption ?? "").replace(/\s+/g, " ").trim().slice(0, 300),
+      // The whole caption. It used to be cut at 300 characters, which dropped
+      // every caption's hashtags and most of its words, so a reel could not be
+      // matched to the story it names, nor its caption and hashtags learned.
+      caption: (post.caption ?? "").replace(/\s+/g, " ").trim(),
       format: formatOf(post),
       publishedAt: post.timestamp!,
       views: post.videoViewCount ?? 0,

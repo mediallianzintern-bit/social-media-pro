@@ -18,7 +18,9 @@ import {
   distinctive,
   findReelByArticle,
   findReelByTiming,
+  earliestReelFor,
   findReelForIdea,
+  nameFrequency,
   namesIn,
   shortcodeFromUrl,
   type ReelCandidate,
@@ -31,6 +33,7 @@ import {
   linkedShortcodes,
   readAllReelLearning,
   readReelLearning,
+  recentIdeas,
   unlinkIdea,
   updateReelLearning,
   type ReelLearningRow,
@@ -69,15 +72,19 @@ async function strongMatch(
   row: ReelLearningRow,
   posts: PostRecord[],
   taken: Set<string>,
+  nameFreq: Map<string, number>,
 ): Promise<{ found: ReelCandidate; by: ReelMatch["by"] } | null> {
   const idea = await readIdeaById(row.ideaId);
   if (!idea) return null;
   const createdAt = (await ideaCreatedAt(row.ideaId)) ?? row.filmedAt;
   const window = { createdAt, filmedAt: row.filmedAt, taken };
-  const byTopic = findReelForIdea(idea, posts, window);
+  const byTopic = findReelForIdea(idea, posts, { ...window, nameFreq });
   if (byTopic) return { found: byTopic, by: "topic" };
   const article = await sourceWordsFor(row, idea.source?.sourceId);
-  const byArticle = findReelByArticle(article, posts, window);
+  const byArticle = findReelByArticle(article, posts, {
+    ...window,
+    earliest: earliestReelFor(idea, createdAt),
+  });
   return byArticle ? { found: byArticle, by: "article" } : null;
 }
 
@@ -123,6 +130,7 @@ export async function linkFilmedReels(platform: PlatformId): Promise<number> {
     if (!waiting.length) return 0;
     const posts = await ownerReels(platform);
     const taken = await linkedShortcodes(platform);
+    const nameFreq = nameFrequency(posts);
     // Guesses do not block strong matches: who holds which reel by guessing.
     const guessHeld = new Map<string, ReelLearningRow>();
     for (const row of rows) if (isGuess(row) && row.shortcode) guessHeld.set(row.shortcode, row);
@@ -132,7 +140,7 @@ export async function linkFilmedReels(platform: PlatformId): Promise<number> {
     const unmatched: ReelLearningRow[] = [];
     for (const row of waiting) {
       const own = new Set([...taken, ...(row.match?.rejected ?? [])]);
-      const strong = await strongMatch(row, posts, own);
+      const strong = await strongMatch(row, posts, own, nameFreq);
       if (!strong) {
         unmatched.push(row);
         continue;
@@ -150,6 +158,8 @@ export async function linkFilmedReels(platform: PlatformId): Promise<number> {
       taken.add(code);
     }
 
+    // Every recent idea's story, so a guess never lands on a reel about another one.
+    const stories = unmatched.length ? await recentIdeas(platform) : [];
     for (const stale of unmatched) {
       const row = (await readReelLearning(stale.ideaId)) ?? stale;
       if (row.shortcode) {
@@ -158,7 +168,11 @@ export async function linkFilmedReels(platform: PlatformId): Promise<number> {
         continue;
       }
       const blocked = new Set([...taken, ...guessHeld.keys(), ...(row.match?.rejected ?? [])]);
-      const guess = findReelByTiming(posts, { filmedAt: row.filmedAt, taken: blocked });
+      const guess = findReelByTiming(posts, {
+        filmedAt: row.filmedAt,
+        taken: blocked,
+        otherStories: stories.filter((idea) => idea.id !== row.ideaId),
+      });
       if (!guess) continue;
       await setLink(row, guess, "timing");
       guessHeld.set(guess.shortcode, row);

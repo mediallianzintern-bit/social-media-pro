@@ -500,7 +500,7 @@ export async function fetchOwnerFromGraph(capturedAt: string): Promise<{
       platform: "instagram",
       postId,
       ...(item.permalink ? { url: item.permalink } : {}),
-      caption: (item.caption ?? "").replace(/\s+/g, " ").trim().slice(0, 300),
+      caption: (item.caption ?? "").replace(/\s+/g, " ").trim(),
       format: graphFormat(item),
       publishedAt: new Date(item.timestamp).toISOString(),
       views: insight?.views ?? 0,
@@ -552,4 +552,53 @@ export async function fetchSkipRates(limit = MEDIA_LIMIT): Promise<Map<string, n
     });
   }
   return rates;
+}
+
+/** Every post's full caption, keyed by shortcode: the whole catalogue, free. */
+export async function fetchMediaCaptions(max = 1000): Promise<Map<string, string>> {
+  const igId = igAccountId();
+  if (!igId) return new Map();
+  const captions = new Map<string, string>();
+  let after: string | undefined;
+  while (captions.size < max) {
+    const page = await graph<{
+      data?: Array<GraphMedia & { caption?: string }>;
+      paging?: { cursors?: { after?: string } };
+    }>(`${igId}/media`, {
+      fields: "id,permalink,caption",
+      limit: "100",
+      ...(after ? { after } : {}),
+    });
+    const items = page.data ?? [];
+    for (const item of items) {
+      const code = shortcodeOf(item.permalink);
+      if (code && item.caption) captions.set(code, item.caption.replace(/\s+/g, " ").trim());
+    }
+    after = page.paging?.cursors?.after;
+    if (!after || !items.length) break;
+  }
+  return captions;
+}
+
+/**
+ * Puts back the full caption on every owner post stored with a shorter one.
+ *
+ * Captions were cut at 300 characters until 21 October 2026, and a sync only
+ * re-scrapes the newest posts, so older ones kept the cut copy. Instagram's
+ * own API has every caption in full, for free. Returns how many were fixed.
+ */
+export async function backfillCaptions(handle: string): Promise<number> {
+  const { readPosts, savePosts } = await import("../store");
+  const captions = await fetchMediaCaptions();
+  if (!captions.size) return 0;
+  const posts = await readPosts("instagram", handle, 1000);
+  const fixed = posts
+    .map((post) => {
+      const full = captions.get(shortcodeOf(post.url) ?? "");
+      return full && full.length > post.caption.length ? { ...post, caption: full } : null;
+    })
+    .filter((post): post is NonNullable<typeof post> => post !== null);
+  if (!fixed.length) return 0;
+  await savePosts(handle, fixed);
+  return fixed.length;
 }
