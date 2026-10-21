@@ -40,7 +40,11 @@ import {
   generateOneIdea,
   topicInboxQueryOptions,
 } from "@/lib/analytics.functions";
-import { markFilmed, reelLearningQueryOptions } from "@/lib/reel-learning.functions";
+import {
+  learnedRulesQueryOptions,
+  markFilmed,
+  reelLearningQueryOptions,
+} from "@/lib/reel-learning.functions";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import type { Prediction } from "@/lib/prediction";
 import {
@@ -1167,7 +1171,14 @@ function HookChoice({
  * LinkedIn script to rules it was never given would flag it unfairly.
  */
 function VoiceFlags({ idea }: { idea: ContentIdea }) {
-  const flags = useMemo(() => voiceFlags(idea), [idea]);
+  // A rule filmed reels have lifted (hypothetical hooks that proved they work)
+  // is no longer flagged here either.
+  const { data: rules } = useQuery(learnedRulesQueryOptions("instagram"));
+  const allowHypotheticalHooks = Boolean(rules?.allowHypotheticalHooks);
+  const flags = useMemo(
+    () => voiceFlags(idea, { allowHypotheticalHooks }),
+    [idea, allowHypotheticalHooks],
+  );
   if (!flags.length) return null;
   return (
     <section className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">

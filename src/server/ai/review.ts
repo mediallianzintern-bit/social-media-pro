@@ -30,6 +30,8 @@ import { ctaRule } from "@/lib/script-families";
 import { isAiToolWorkflowLane, toolWorkflowIssues, toolWorkflowPrompt } from "./tool-workflow";
 import { workflowCtaIssue } from "@/lib/tool-workflow";
 import { hookIssue } from "@/lib/hook-check";
+import { NO_RULES, type LearnedRules } from "@/lib/reel-learning-types";
+import { HOOK_TYPE_LABEL, hookTypeOf } from "@/lib/reel-parts";
 import { DASHBOARD_HANDOVER, INSTAGRAM_MASTER_PROMPT, INSTAGRAM_REVIEW_PROMPT } from "./voice";
 
 const REVIEW_MODEL_DEFAULT = "gpt-4o";
@@ -285,7 +287,12 @@ const spokenWords = (review: ReviewResult) =>
  * The hard rules a rewrite can be held to in code. Judgement rules — voice,
  * one idea, a good example — are left to the model; these are counted.
  */
-function problemsOf(review: ReviewResult, lane: string | null, subject: string): string[] {
+function problemsOf(
+  review: ReviewResult,
+  lane: string | null,
+  subject: string,
+  rules: LearnedRules = NO_RULES,
+): string[] {
   const problems: string[] = [];
   const count = spokenWords(review);
   // The shots are what the editor cuts from, so they are what is counted. A
@@ -306,8 +313,17 @@ function problemsOf(review: ReviewResult, lane: string | null, subject: string):
   }
   if (count > 115) problems.push(`${count} spoken words; the maximum is 115`);
   for (const hook of [review.hook, ...review.altHooks]) {
-    const issue = hookIssue(hook, subject);
+    const issue = hookIssue(hook, subject, {
+      allowHypothetical: Boolean(rules.allowHypotheticalHooks),
+    });
     if (issue) problems.push(issue);
+    // A kind of hook that has kept losing on filmed reels is not written again.
+    const blocked = rules.blockedHookTypes.find((rule) => rule.type === hookTypeOf(hook));
+    if (blocked) {
+      problems.push(
+        `the hook "${hook}" is a ${HOOK_TYPE_LABEL[blocked.type].toLowerCase()} opening, which lost on ${blocked.reels} filmed reels (median ${blocked.medianRatio.toFixed(2)}x typical views); use a different kind of opening`,
+      );
+    }
   }
   const said = [review.hook, ...review.altHooks, ...review.shots.map((shot) => shot.voiceover)];
   if (said.some((line) => line.includes("!"))) {
@@ -371,6 +387,8 @@ export async function reviewDrafts(
   sources: SourceItem[],
   /** What filmed reels taught, so the rewrite does not undo a lesson. */
   lessons = "",
+  /** Rules learned from filmed reels, enforced in the checks below. */
+  rules: LearnedRules = NO_RULES,
 ): Promise<{ data: unknown; cost: GenerationCost | undefined; reviewed: number; failed: number }> {
   const ideas = (data as { ideas?: unknown })?.ideas;
   if (platform !== "instagram" || !reviewEnabled() || !Array.isArray(ideas)) {
@@ -413,6 +431,7 @@ export async function reviewDrafts(
             parsed.data,
             lane,
             `${String(idea["title"] ?? "")} ${String(idea["angle"] ?? "")}`,
+            rules,
           );
           console.info(
             `[ai:review] "${String(idea["title"])}" round ${round + 1}: ` +

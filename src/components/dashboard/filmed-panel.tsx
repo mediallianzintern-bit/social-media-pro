@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ContentIdea } from "@/lib/ai-types";
+import { CTA_TYPE_LABEL, HOOK_TYPE_LABEL } from "@/lib/reel-parts";
 import { dateTime, fullNumber, shortDate } from "@/lib/format";
 import {
   ELEMENT_VERDICT_LABEL,
@@ -245,7 +246,7 @@ function Found({
           {analyseNote ? <p className="text-xs text-destructive">{analyseNote}</p> : null}
         </div>
       ) : (
-        <Comparison learning={learning} />
+        <Comparison learning={learning} analysing={analysing} onAnalyse={onAnalyse} />
       )}
 
       {comparison && !learning.review ? (
@@ -277,7 +278,15 @@ function Found({
   );
 }
 
-function Comparison({ learning }: { learning: ReelLearning }) {
+function Comparison({
+  learning,
+  analysing,
+  onAnalyse,
+}: {
+  learning: ReelLearning;
+  analysing: boolean;
+  onAnalyse: () => void;
+}) {
   const comparison = learning.comparison!;
   return (
     <div className="space-y-4">
@@ -285,6 +294,24 @@ function Comparison({ learning }: { learning: ReelLearning }) {
         <Label>What was used</Label>
         {learning.usage ? <Badge>{REEL_USAGE_LABEL[learning.usage]}</Badge> : null}
       </div>
+
+      {!comparison.parts ? (
+        <p className="flex flex-wrap items-center gap-2 rounded-md border bg-background p-2 text-xs">
+          Analysed before the hook, body and CTA breakdown existed.
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7"
+            disabled={analysing}
+            onClick={onAnalyse}
+          >
+            {analysing ? <Loader2 className="size-3 animate-spin" aria-hidden /> : null}
+            Analyse again (about 1¢)
+          </Button>
+        </p>
+      ) : (
+        <Parts learning={learning} />
+      )}
 
       {!comparison.topic.same ? (
         <p className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
@@ -358,6 +385,87 @@ function Comparison({ learning }: { learning: ReelLearning }) {
           {comparison.teamStyle}
         </p>
       ) : null}
+    </div>
+  );
+}
+
+/** Hook, main body and CTA, ours against the team's, with the reel's shape. */
+function Parts({ learning }: { learning: ReelLearning }) {
+  const c = learning.comparison!;
+  const parts = c.parts!;
+  const rows: Array<[string, (typeof parts)["hook"], string | null]> = [
+    ["Hook", parts.hook, c.hookType ? HOOK_TYPE_LABEL[c.hookType] : null],
+    ["Main body", parts.body, c.body ? `${c.body.shape} · example: ${c.body.exampleType}` : null],
+    ["CTA", parts.cta, c.cta ? CTA_TYPE_LABEL[c.cta.type] : null],
+  ];
+  return (
+    <div className="space-y-2">
+      <div className="overflow-x-auto rounded-md border">
+        <table className="w-full text-xs">
+          <thead className="bg-muted/50 text-left text-muted-foreground">
+            <tr>
+              <th className="px-2 py-1.5 font-medium">Part</th>
+              <th className="px-2 py-1.5 font-medium">Ours</th>
+              <th className="px-2 py-1.5 font-medium">What the reel said</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(([name, part, kind]) => (
+              <tr key={name} className="border-t align-top">
+                <td className="w-28 px-2 py-1.5">
+                  <span className="font-medium">{name}</span>
+                  <span className="mt-1 block">
+                    <Verdict verdict={part.verdict} />
+                  </span>
+                  <span className="mt-1 block text-muted-foreground">
+                    {percent(part.overlap)} kept
+                  </span>
+                </td>
+                <td className="px-2 py-1.5 text-muted-foreground">
+                  {part.ours || "–"}
+                  <span className="mt-1 block text-[10px]">{part.oursWords} words</span>
+                </td>
+                <td className="px-2 py-1.5">
+                  {part.theirs || "–"}
+                  <span className="mt-1 block text-[10px] text-muted-foreground">
+                    {part.theirsWords} words{kind ? ` · ${kind}` : ""}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        {c.cta ? (
+          <span
+            className={
+              c.cta.usedLaneCta
+                ? "text-emerald-700 dark:text-emerald-400"
+                : "text-amber-700 dark:text-amber-400"
+            }
+          >
+            {c.cta.usedLaneCta
+              ? "Ended on the lane's CTA"
+              : c.cta.expected
+                ? "Did not end on the lane's CTA"
+                : "This lane has no fixed CTA"}
+          </span>
+        ) : null}
+        {c.reel?.seconds ? (
+          <span>
+            Reel length: {c.reel.measured ? "" : "about "}
+            {c.reel.seconds} s, {c.reel.words} words
+          </span>
+        ) : null}
+        {c.captionStats ? (
+          <span>
+            Caption: {c.captionStats.words} words
+            {c.captionStats.asksQuestion ? ", asks a question" : ""}
+            {c.captionStats.hasCta ? ", has an ask" : ""} · {c.captionStats.hashtags} hashtags
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }

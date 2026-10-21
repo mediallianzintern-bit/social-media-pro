@@ -11,11 +11,14 @@ import { z } from "zod";
 import type { ContentIdea, HookStyle } from "@/lib/ai-types";
 import { hookIssue } from "@/lib/hook-check";
 import { voiceFlags } from "@/lib/voice-check";
+import { hookTypeOf } from "@/lib/reel-parts";
+import { NO_RULES } from "@/lib/reel-learning-types";
 
 import { completeJson, hasOpenAi } from "./client";
 import { reviewModel } from "./review";
 import { INSTAGRAM_MASTER_PROMPT } from "./voice";
 import { addIdeaHooks } from "../store";
+import { learnedRules } from "../reel-learning/lessons";
 
 /** How many hooks one press asks for. */
 const PER_REQUEST = 3;
@@ -86,6 +89,10 @@ export async function moreHooks(
   if (!hasOpenAi()) return { idea: null, added: 0, reason: "OPENAI_API_KEY is not set." };
 
   const existing = [idea.hook, ...(idea.altHooks ?? [])].filter(Boolean);
+  // What filmed reels have proved: losing hook types are dropped below, and
+  // hypothetical openers are allowed again once they have proved they work.
+  const rules = await learnedRules("instagram").catch(() => NO_RULES);
+  const allowHypothetical = Boolean(rules.allowHypotheticalHooks);
   if (existing.length >= MAX_HOOKS) {
     return {
       idea: null,
@@ -146,7 +153,9 @@ ${scriptText(idea)}`;
       if (!hook || seen.has(hook.toLowerCase())) return false;
       if (hook.split(/\s+/).length > 18) return false;
       if (CLICHES.test(hook)) return false;
-      if (hookIssue(hook, `${idea.title} ${idea.angle}`)) return false;
+      if (hookIssue(hook, `${idea.title} ${idea.angle}`, { allowHypothetical })) return false;
+      // A kind of hook filmed reels proved losing is not offered again.
+      if (rules.blockedHookTypes.some((rule) => rule.type === hookTypeOf(hook))) return false;
       // The same checks the script itself is held to, applied to the line alone.
       const probe = {
         ...idea,
@@ -158,7 +167,12 @@ ${scriptText(idea)}`;
           { mark: "", shotType: "", visual: "", voiceover: hook, onScreenText: "", transition: "" },
         ],
       } as unknown as ContentIdea;
-      if (voiceFlags(probe).some((flag) => !/words of voice over/.test(flag))) return false;
+      if (
+        voiceFlags(probe, { allowHypotheticalHooks: allowHypothetical }).some(
+          (flag) => !/words of voice over/.test(flag),
+        )
+      )
+        return false;
       seen.add(hook.toLowerCase());
       return true;
     })

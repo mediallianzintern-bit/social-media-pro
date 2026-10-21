@@ -12,7 +12,7 @@ import { z } from "zod";
 import { costOf } from "@/lib/ai-cost";
 import { engagementsOf, median, viewsOf, type PostRecord } from "@/lib/analytics-types";
 import type { ReelLesson, ReelReview } from "@/lib/reel-learning-types";
-import { REEL_USAGE_LABEL } from "@/lib/reel-learning-types";
+import { REEL_USAGE_LABEL, VIRAL_RATIO } from "@/lib/reel-learning-types";
 import { scriptOf, shortcodeFromUrl } from "@/lib/reel-match";
 
 import { OWNER_ACCOUNTS } from "../apify/accounts";
@@ -80,7 +80,7 @@ function measure(
   });
 }
 
-const ELEMENTS = ["topic", "hook", "script", "caption", "hashtags"] as const;
+const ELEMENTS = ["topic", "hook", "script", "cta", "caption", "hashtags"] as const;
 
 const schema = {
   type: "object",
@@ -93,7 +93,8 @@ const schema = {
     },
     elements: {
       type: "array",
-      description: "Exactly one entry for each of topic, hook, script, caption, hashtags.",
+      description:
+        "Exactly one entry for each of topic, hook, script (the main body), cta, caption, hashtags.",
       items: {
         type: "object",
         additionalProperties: false,
@@ -169,6 +170,8 @@ How to attribute, from the figures you are given:
   keeping or sending is one that taught something.
 - TOPIC: shows in views and reach against the typical reel: whether the story was one this audience
   wanted at all.
+- CTA: shows in comments (for a "comment" ask) and in shares and saves (for a save or share
+  ask). A follow ask cannot be measured per reel: say "unclear" unless comments clearly respond.
 - CAPTION and HASHTAGS: weak signals on Instagram. Say "unclear" unless the figures clearly point
   at them. Never blame hashtags by default.
 
@@ -177,6 +180,9 @@ Rules:
 - One reel is thin evidence. Every lesson names the figure it rests on. Do not invent figures.
 - Where the team changed the dashboard's script, say whether the change helped or hurt: that is
   how the writer learns what the team knows that it does not.
+- A VIRAL reel (3x the typical views or more) is the most valuable result there is: say exactly
+  which parts made it spread (the kind of hook, the shape of the body, the example, the length,
+  the ending), as REPEAT lessons a writer can follow.
 - Plain words, no hype.`;
 
 /** Runs the review for one filmed idea and stores it. */
@@ -221,7 +227,7 @@ export async function reviewFilmedReel(
 
   const reply = await completeJson<unknown>({
     system: SYSTEM,
-    user: `RESULT (decided by the figures): this reel ${worked ? "WORKED" : "DID NOT WORK"}: ${primaryRatio.toFixed(2)}x the typical reel's views.
+    user: `RESULT (decided by the figures): this reel ${primaryRatio >= VIRAL_RATIO ? "WENT VIRAL" : worked ? "WORKED" : "DID NOT WORK"}: ${primaryRatio.toFixed(2)}x the typical reel's views.
 
 FIGURES (this reel vs the typical reel of the 90 days before it):
 ${metrics

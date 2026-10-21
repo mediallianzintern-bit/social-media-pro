@@ -1,4 +1,5 @@
 // Learning from filmed reels — the shapes shared by the server and the drawer.
+import type { BodyShape, CaptionStats, CtaType, ExampleType, HookType } from "@/lib/reel-parts";
 //
 // One filmed idea moves through four stages, each visible on its own:
 //   filmed    the team pressed "I filmed this"; the reel is not live yet
@@ -97,14 +98,41 @@ export interface ReelComparison {
   };
   /** What the team does when they change a script, for the writer to learn. */
   teamStyle: string;
+  /**
+   * The reel split into the same three parts as our script: ours against the
+   * team's, with word counts and the share of ours that was said. Absent on
+   * reels analysed before 21 October.
+   */
+  parts?: { hook: PartComparison; body: PartComparison; cta: PartComparison };
+  /** The reel's opening, sorted by code into a kind a rule can be enforced on. */
+  hookType?: HookType;
+  /** How the reel ended, against the lane's agreed CTA. Checked in code. */
+  cta?: { expected: string | null; spoken: string; type: CtaType; usedLaneCta: boolean };
+  /** The main body's shape and the kind of example it used. */
+  body?: { shape: BodyShape; exampleType: ExampleType };
+  /** How long the reel runs: from the transcript's timestamps when it has them. */
+  reel?: { seconds: number | null; measured: boolean; words: number };
+  /** The posted caption's shape. */
+  captionStats?: CaptionStats;
   /** False when the reel has no speech to transcribe; the caption stands in. */
   hadTranscript: boolean;
+}
+
+/** One part of the reel, ours against the team's. */
+export interface PartComparison {
+  ours: string;
+  theirs: string;
+  oursWords: number;
+  theirsWords: number;
+  /** Share of our words the team said, in order, 0-1. */
+  overlap: number;
+  verdict: ElementVerdict;
 }
 
 export type ElementEffect = "helped" | "hurt" | "unclear";
 
 export interface ReelLesson {
-  element: "topic" | "hook" | "script" | "caption" | "hashtags";
+  element: "topic" | "hook" | "script" | "cta" | "caption" | "hashtags";
   kind: "repeat" | "avoid";
   lesson: string;
   /** The measured figure the lesson rests on. */
@@ -147,3 +175,22 @@ export interface ReelLearning {
   /** When the review can run: the reel's publish time + the maturity window. */
   reviewableAt: string | null;
 }
+
+/**
+ * Rules the loop has learned from results, and enforces in code where it can.
+ * A rule needs a strong pattern behind it (3+ reviewed reels), never one reel.
+ */
+export interface LearnedRules {
+  /** Kinds of hook that keep losing: rewritten by the Reviewer, dropped from Get more hooks. */
+  blockedHookTypes: Array<{ type: HookType; reels: number; medianRatio: number }>;
+  /** Hypothetical openers ("Imagine…") proved to work, so the rule against them is lifted. */
+  allowHypotheticalHooks: { reels: number; medianRatio: number } | null;
+  /** Hashtags that keep turning up on reels that lose: removed from new scripts. */
+  blockedHashtags: Array<{ tag: string; reels: number; medianRatio: number }>;
+}
+
+export const NO_RULES: LearnedRules = {
+  blockedHookTypes: [],
+  allowHypotheticalHooks: null,
+  blockedHashtags: [],
+};

@@ -44,7 +44,7 @@ export const subjectWords = (text: string): Set<string> =>
  * rather than the subject: "Imagine…", "Picture…", "Let's say you run…",
  * "What if…", "Suppose…", "Ever…".
  */
-const HYPOTHETICAL_OPENER =
+export const HYPOTHETICAL_OPENER =
   /^\s*["“']?(imagine|picture|let'?s say|say you|what if|suppose|pretend|ever (wish|wonder|feel|notice|struggle|spend)|you know (when|that feeling))\b/i;
 
 /**
@@ -54,10 +54,15 @@ const HYPOTHETICAL_OPENER =
  * itself, and share at least one word with it, so it names the thing the reel
  * is about rather than a situation the viewer might be in.
  */
-export function hookIssue(hook: string, subject: string): string | null {
+export function hookIssue(
+  hook: string,
+  subject: string,
+  /** Lifted when filmed reels prove hypothetical openers work (reel-patterns deriveRules). */
+  options: { allowHypothetical?: boolean } = {},
+): string | null {
   const line = hook.replace(/[‘’]/g, "'").trim();
   if (!line) return null;
-  if (HYPOTHETICAL_OPENER.test(line)) {
+  if (!options.allowHypothetical && HYPOTHETICAL_OPENER.test(line)) {
     return `the hook "${line}" opens on a hypothetical; open on what the reel is about, the example comes later`;
   }
   const about = subjectWords(subject);

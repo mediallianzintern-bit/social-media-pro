@@ -19,7 +19,12 @@ import type { PlatformId } from "@/lib/analytics-types";
 import { dateTime, shortDate } from "@/lib/format";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import { REEL_USAGE_LABEL, VIRAL_RATIO, type ReelLearning } from "@/lib/reel-learning-types";
-import { filmedReelsQueryOptions, reelPatternsQueryOptions } from "@/lib/reel-learning.functions";
+import {
+  filmedReelsQueryOptions,
+  learnedRulesQueryOptions,
+  reelPatternsQueryOptions,
+} from "@/lib/reel-learning.functions";
+import { CTA_TYPE_LABEL, HOOK_TYPE_LABEL } from "@/lib/reel-parts";
 
 const PLATFORMS: PlatformId[] = ["instagram", "linkedin"];
 
@@ -85,6 +90,10 @@ export function FilmedReels() {
   const { data: patterns } = useQuery(reelPatternsQueryOptions("instagram"));
   const [viewing, setViewing] = useState<{ idea: ContentIdea; platform: PlatformId } | null>(null);
 
+  const viralItems = items
+    .filter((item) => (item.learning.review?.primaryRatio ?? 0) >= VIRAL_RATIO)
+    .sort((a, b) => b.learning.review!.primaryRatio - a.learning.review!.primaryRatio);
+
   const count = (stage: Stage) => items.filter((item) => stageOf(item.learning) === stage).length;
   const worked = items.filter((item) => item.learning.worked).length;
   const viral = items.filter(
@@ -128,6 +137,28 @@ export function FilmedReels() {
           live. Each review adds to them.
         </p>
       )}
+
+      <RulesLearned />
+
+      {viralItems.length ? (
+        <>
+          <SectionHeading
+            title="Viral reels"
+            note={`${VIRAL_RATIO}x the typical reel's views or more`}
+          />
+          <Card>
+            <CardContent className="space-y-4 p-5">
+              {viralItems.map(({ learning, idea }) => (
+                <ViralReel key={learning.ideaId} learning={learning} title={idea?.title ?? ""} />
+              ))}
+              <p className="text-[10px] text-muted-foreground">
+                Every new script is shown these reels, part by part, as the clearest proof of what
+                this audience wants.
+              </p>
+            </CardContent>
+          </Card>
+        </>
+      ) : null}
 
       <SectionHeading
         title="Filmed reels"
@@ -224,6 +255,93 @@ export function FilmedReels() {
           onClose={() => setViewing(null)}
         />
       ) : null}
+    </div>
+  );
+}
+
+/** The rules strong patterns have produced, and what each one does. */
+function RulesLearned() {
+  const { data: rules } = useQuery(learnedRulesQueryOptions("instagram"));
+  const items = [
+    ...(rules?.blockedHookTypes ?? []).map(
+      (rule) =>
+        `Never open with a ${HOOK_TYPE_LABEL[rule.type].toLowerCase()} hook: lost on ${rule.reels} reels (median ${rule.medianRatio.toFixed(2)}×). New hooks of this kind are rewritten and never offered.`,
+    ),
+    ...(rules?.allowHypotheticalHooks
+      ? [
+          `Hypothetical hooks ("Imagine…") are allowed again: they worked on ${rules.allowHypotheticalHooks.reels} reels (median ${rules.allowHypotheticalHooks.medianRatio.toFixed(2)}×), as long as the same line names the subject.`,
+        ]
+      : []),
+    ...(rules?.blockedHashtags ?? []).map(
+      (rule) =>
+        `${rule.tag} is no longer suggested: it was on ${rule.reels} reels that lost (median ${rule.medianRatio.toFixed(2)}×).`,
+    ),
+  ];
+  return (
+    <>
+      <SectionHeading title="Rules learned from results" note="enforced in code" />
+      {items.length ? (
+        <Card>
+          <CardContent className="p-5">
+            <ul className="list-disc space-y-1.5 pl-4 text-sm">
+              {items.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          None yet. A rule needs 3 or more reviewed reels that agree: a kind of hook or a hashtag
+          that keeps losing is blocked, and a rule that keeps being beaten is lifted. One reel,
+          however good or bad, never makes a rule.
+        </p>
+      )}
+    </>
+  );
+}
+
+/** One viral reel, part by part. */
+function ViralReel({ learning, title }: { learning: ReelLearning; title: string }) {
+  const c = learning.comparison;
+  return (
+    <div className="space-y-1 border-b pb-3 last:border-0 last:pb-0">
+      <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+        <Badge className="gap-1 bg-violet-600 hover:bg-violet-600">
+          <TrendingUp className="size-3" aria-hidden /> {learning.review!.primaryRatio.toFixed(2)}×
+        </Badge>
+        {title}
+      </p>
+      {c ? (
+        <ul className="space-y-0.5 text-xs text-muted-foreground">
+          <li>
+            <span className="font-medium text-foreground">Hook</span>
+            {c.hookType ? ` (${HOOK_TYPE_LABEL[c.hookType]})` : ""}: &ldquo;{c.hook.spoken}&rdquo;
+          </li>
+          {c.body ? (
+            <li>
+              <span className="font-medium text-foreground">Body</span>: {c.body.shape}; example:{" "}
+              {c.body.exampleType}
+            </li>
+          ) : null}
+          {c.cta ? (
+            <li>
+              <span className="font-medium text-foreground">CTA</span> ({CTA_TYPE_LABEL[c.cta.type]}
+              ): {c.cta.spoken ? `“${c.cta.spoken}”` : "none"}
+            </li>
+          ) : null}
+          {c.reel?.seconds ? (
+            <li>
+              <span className="font-medium text-foreground">Length</span>: about {c.reel.seconds} s
+            </li>
+          ) : null}
+          <li>
+            <span className="font-medium text-foreground">Script</span>:{" "}
+            {learning.usage ? REEL_USAGE_LABEL[learning.usage].toLowerCase() : "unknown"}
+          </li>
+        </ul>
+      ) : null}
+      <p className="text-xs">{learning.review!.summary}</p>
     </div>
   );
 }

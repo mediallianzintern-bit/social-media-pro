@@ -117,6 +117,21 @@ export const filmedReelsQueryOptions = (platform: "instagram" | "linkedin") => (
   staleTime: 30 * 1000,
 });
 
+/** The rules filmed reels have proved, for the drawer's flags and the Filmed reels page. Free. */
+export const getLearnedRules = createServerFn({ method: "GET" })
+  .middleware([requireStaff])
+  .validator((input: unknown) => z.enum(["instagram", "linkedin"]).parse(input))
+  .handler(async ({ data }) => {
+    const { learnedRules } = await import("@/server/reel-learning/lessons");
+    return learnedRules(data);
+  });
+
+export const learnedRulesQueryOptions = (platform: "instagram" | "linkedin") => ({
+  queryKey: ["learned-rules", platform] as const,
+  queryFn: () => getLearnedRules({ data: platform }),
+  staleTime: 5 * 60 * 1000,
+});
+
 export const reelLearningQueryOptions = (ideaId: string) => ({
   queryKey: ["reel-learning", ideaId] as const,
   queryFn: () => getReelLearning({ data: { ideaId } }),

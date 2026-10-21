@@ -19,6 +19,7 @@ import {
 } from "./tool-workflow";
 import { costOf, type GenerationCost } from "@/lib/ai-cost";
 import { laneShapesBlock, withLaneCta } from "@/lib/script-families";
+import { NO_RULES, type LearnedRules } from "@/lib/reel-learning-types";
 import { coveredCampaignsBlock } from "@/lib/covered-campaigns";
 import { saveSuggestedIdeas } from "../store";
 import {
@@ -579,6 +580,8 @@ export interface IdeaReads {
   questions?: FeedRead | null;
   /** What filmed reels taught (reel-learning/lessons.ts), ready to quote. */
   filmed?: string | null;
+  /** The rules those lessons justify, enforced by the Reviewer and the final pass. */
+  filmedRules?: LearnedRules | null;
 }
 
 export interface IdeaRequest {
@@ -1236,6 +1239,8 @@ export function finalizeIdeas(
     blocked: BlockedPattern[];
     written: boolean;
     platform: PlatformId;
+    /** Hashtags filmed reels proved losing: removed from every new idea. */
+    blockedHashtags?: string[];
   },
 ): { ideas: ContentIdea[]; dropped: string[] } {
   const { sources, blocked, written } = options;
@@ -1307,7 +1312,12 @@ export function finalizeIdeas(
       // Instagram: exactly five, per the voice. Enforced here because a model
       // asked for five still returns eight; fewer is left alone rather than
       // padded with tags nobody chose.
-      hashtags: written ? raw.hashtags : raw.hashtags.slice(0, 5),
+      hashtags: (written ? raw.hashtags : raw.hashtags.slice(0, 5)).filter(
+        (tag) =>
+          !(options.blockedHashtags ?? []).includes(
+            (tag.startsWith("#") ? tag : `#${tag}`).toLowerCase(),
+          ),
+      ),
     };
 
     // The loop's blocks, enforced here rather than trusted to the prompt: a
@@ -1390,7 +1400,13 @@ export async function generateIdeas(
   // Pritesh's own review-and-rewrite prompt, on a small request to a stronger
   // model, before anything is checked or saved — see review.ts. Instagram
   // reels only; any failure keeps the draft as it was.
-  const review = await reviewDrafts(platform, result.data, sources, reads.filmed ?? "");
+  const review = await reviewDrafts(
+    platform,
+    result.data,
+    sources,
+    reads.filmed ?? "",
+    reads.filmedRules ?? NO_RULES,
+  );
   if (review.reviewed || review.failed) {
     console.info(
       `[ai:${platform}] reviewed ${review.reviewed} draft(s), ${review.failed} kept as drafted`,
@@ -1407,6 +1423,7 @@ export async function generateIdeas(
     blocked: request.blocked,
     written: request.written,
     platform,
+    blockedHashtags: (reads.filmedRules?.blockedHashtags ?? []).map((rule) => rule.tag),
   });
   if (dropped.length) console.warn(`[ai:${platform}] dropped idea(s):`, dropped);
 

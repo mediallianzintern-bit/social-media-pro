@@ -14,6 +14,18 @@ import { costOf } from "@/lib/ai-cost";
 import type { ContentIdea } from "@/lib/ai-types";
 import type { ElementVerdict, ReelComparison, ReelUsage } from "@/lib/reel-learning-types";
 import { closestHook, hashtagsIn, orderedOverlap, scriptOf } from "@/lib/reel-match";
+import {
+  BODY_SHAPES,
+  captionStats,
+  ctaTypeOf,
+  EXAMPLE_TYPES,
+  hookTypeOf,
+  ourParts,
+  reelSeconds,
+  spokenOnly,
+  wordCount,
+} from "@/lib/reel-parts";
+import { closingLineFor } from "@/lib/script-families";
 
 import { fetchReelTranscript } from "../apify/reels";
 import { completeJson, hasOpenAi } from "../ai/client";
@@ -55,6 +67,10 @@ const schema = {
     "structure",
     "captionNote",
     "teamStyle",
+    "theirBody",
+    "theirCta",
+    "bodyShape",
+    "exampleType",
   ],
   properties: {
     topicSame: {
@@ -104,6 +120,27 @@ const schema = {
       description:
         "Two sentences at most: what the team does when they change a script (their kind of opening, length, structure, tone), for a writer to imitate. Empty when nothing was changed.",
     },
+    theirBody: {
+      type: "string",
+      description:
+        "The reel's MAIN BODY, word for word from the transcript: everything after the opening line and before the closing call to action.",
+    },
+    theirCta: {
+      type: "string",
+      description:
+        'The reel\'s closing call to action, word for word ("Follow for…", "Comment…", a closing question). Empty string when the reel simply ends with no ask.',
+    },
+    bodyShape: {
+      type: "string",
+      enum: [...BODY_SHAPES],
+      description: "The shape of the reel's main body, the closest of these.",
+    },
+    exampleType: {
+      type: "string",
+      enum: [...EXAMPLE_TYPES],
+      description:
+        'The kind of example the reel uses: a real case (a named brand or event), a hypothetical ("Imagine…", "Let\'s say…"), a demo shown on screen, or none.',
+    },
   },
 } as const;
 
@@ -119,6 +156,10 @@ const parsed = z.object({
   structure: z.string(),
   captionNote: z.string(),
   teamStyle: z.string(),
+  theirBody: z.string(),
+  theirCta: z.string(),
+  bodyShape: z.enum(BODY_SHAPES).catch("other"),
+  exampleType: z.enum(EXAMPLE_TYPES).catch("none"),
 });
 
 function dashboardVersion(idea: ContentIdea): string {
@@ -163,13 +204,15 @@ export async function analyseFilmedReel(
     else console.warn(`[reel-learning] no transcript for ${row.shortcode}: ${result.reason}`);
   }
   const hadTranscript = Boolean(transcript?.trim());
-  const spokenText = hadTranscript ? transcript! : post.caption;
+  // Timestamps are not words: measured on the spoken text alone.
+  const spokenText = hadTranscript ? spokenOnly(transcript!) : post.caption;
 
   const reply = await completeJson<unknown>({
     system: `You compare a reel script a dashboard wrote with the reel that was actually posted.
 Be exact and literal. Quote the reel's real words. Never praise or judge quality here: only
 describe what was kept, dropped, added and changed. The topic is the anchor: say plainly
-whether the two cover the same story.`,
+whether the two cover the same story. Split the posted reel into its three parts, word for
+word: the opening line (the hook), the main body, and the closing call to action, if any.`,
     user: `THE DASHBOARD'S VERSION
 ${dashboardVersion(idea)}
 
@@ -214,6 +257,28 @@ ${post.caption}`,
   );
   const postedTags = hashtagsIn(post.caption);
 
+  // The three parts, ours against the team's, measured in code.
+  const ours = ourParts(idea);
+  const part = (mine: string, theirs: string) => {
+    const overlap = mine && theirs ? orderedOverlap(mine, theirs) : 0;
+    return {
+      ours: mine,
+      theirs,
+      oursWords: wordCount(mine),
+      theirsWords: wordCount(theirs),
+      overlap,
+      verdict: verdictFor(overlap),
+    };
+  };
+  // The closing ask: the analyst quotes it, code classifies it. Checked against
+  // the end of the transcript too, so a CTA the analyst missed is still seen.
+  const tail = spokenText.split(/\s+/).slice(-30).join(" ");
+  const expectedCta = closingLineFor(idea.contentLane, idea.title);
+  const closing =
+    answer.theirCta.trim() || (ctaTypeOf(tail, idea.contentLane) === "lane" ? tail : "");
+  const ctaType = ctaTypeOf(closing, idea.contentLane);
+  const seconds = hadTranscript ? reelSeconds(transcript) : null;
+
   const comparison: ReelComparison = {
     topic: { same: answer.topicSame, note: answer.topicNote },
     hook: {
@@ -244,6 +309,20 @@ ${post.caption}`,
     },
     teamStyle: answer.teamStyle,
     hadTranscript,
+    parts: {
+      hook: part(ours.hook, answer.spokenHook),
+      body: part(ours.body, answer.theirBody),
+      cta: part(ours.cta, closing),
+    },
+    hookType: hookTypeOf(answer.spokenHook),
+    cta: { expected: expectedCta, spoken: closing, type: ctaType, usedLaneCta: ctaType === "lane" },
+    body: { shape: answer.bodyShape, exampleType: answer.exampleType },
+    reel: {
+      seconds: seconds?.seconds ?? null,
+      measured: seconds?.measured ?? false,
+      words: wordCount(spokenText),
+    },
+    captionStats: captionStats(post.caption),
   };
 
   await updateReelLearning(

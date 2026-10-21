@@ -199,7 +199,11 @@ function spokenText(idea: ContentIdea): string {
  * Empty when it breaks none. Each phrase is reported once however many times
  * it appears — the point is what to fix, not a count.
  */
-export function voiceFlags(idea: ContentIdea): string[] {
+export function voiceFlags(
+  idea: ContentIdea,
+  /** Lifted when filmed reels prove hypothetical openers work. */
+  options: { allowHypotheticalHooks?: boolean } = {},
+): string[] {
   const text = spokenText(idea);
   const lower = text.toLowerCase();
   const flags: string[] = [];
@@ -239,7 +243,11 @@ export function voiceFlags(idea: ContentIdea): string[] {
   // Every hook opens on what the reel is about, in every lane.
   const subject = `${idea.title ?? ""} ${idea.angle ?? ""}`;
   const hooks = [...new Set([idea.hook, ...(idea.altHooks ?? [])].filter(Boolean))];
-  if (hooks.some((hook) => hookIssue(hook, subject))) {
+  if (
+    hooks.some((hook) =>
+      hookIssue(hook, subject, { allowHypothetical: Boolean(options.allowHypotheticalHooks) }),
+    )
+  ) {
     flags.push(
       "a hook opens on a hypothetical or never names the subject; open on what the reel is about",
     );
