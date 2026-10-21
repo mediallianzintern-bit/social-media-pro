@@ -75,7 +75,8 @@ const schema = {
   properties: {
     topicSame: {
       type: "boolean",
-      description: "True when the reel covers the same story as the dashboard's script.",
+      description:
+        "True when the reel is about the same news story: the same launch, campaign, product, company or event, even when the reel takes a different angle, adds its own advice or leaves parts out. False only when it is about a different story altogether.",
     },
     topicNote: { type: "string", description: "One sentence: the story each one covers." },
     spokenHook: {
@@ -235,10 +236,13 @@ ${post.caption}`,
   }
   const answer = model.data;
 
-  // The topic is the anchor. A reel about a different story is the wrong reel:
-  // unlinked and never matched to this idea again, and the search goes on.
-  // (Never for a reel a person linked by hand: their word stands.)
-  if (!answer.topicSame && row.match?.by !== "manual") {
+  // The topic is the anchor. Only a timing GUESS is unlinked when the analyst
+  // reads a different story: a reel matched on the story's own names (or
+  // linked by a person) stays, because a different angle on the same news is
+  // not a different reel. The Beam reel, matched on "Beam", was unlinked on
+  // 21 October because it discussed Beam's cost rather than its launch.
+  const guessed = row.match?.by === "timing" && !row.match.confirmed;
+  if (!answer.topicSame && guessed) {
     if (cost) await updateReelLearning(ideaId, {}, cost);
     await rejectMatch((await readReelLearning(ideaId))!);
     return {
@@ -252,9 +256,17 @@ ${post.caption}`,
   const hook = closestHook(idea, answer.spokenHook);
   const scriptOverlap = orderedOverlap(scriptOf(idea), spokenText);
   const captionOverlap = orderedOverlap(idea.caption ?? "", post.caption);
-  const offeredTags = (idea.hashtags ?? []).map((tag) =>
-    (tag.startsWith("#") ? tag : `#${tag}`).toLowerCase(),
-  );
+  // Stored hashtags come in several shapes ("#ai", "ai", "#ai #ml", ""): one
+  // clean list of "#tag", so an empty entry never reads as a dropped "#".
+  const offeredTags = [
+    ...new Set(
+      (idea.hashtags ?? [])
+        .flatMap((tag) => tag.split(/[\s,]+/))
+        .map((tag) => tag.replace(/^#+/, "").trim().toLowerCase())
+        .filter(Boolean)
+        .map((tag) => `#${tag}`),
+    ),
+  ];
   const postedTags = hashtagsIn(post.caption);
 
   // The three parts, ours against the team's, measured in code.
@@ -330,7 +342,7 @@ ${post.caption}`,
     {
       transcript: transcript ?? null,
       comparison,
-      usage: usageFor(scriptOverlap, answer.topicSame),
+      usage: usageFor(scriptOverlap, answer.topicSame || !guessed),
       analysed_at: new Date().toISOString(),
     },
     cost,
