@@ -6,7 +6,13 @@
 import { mergeCompetitors, OWNER_ACCOUNTS, trendSourcesFor } from "./apify/accounts";
 import { apifyToken } from "./apify/client";
 import { fetchInstagram, normalizeInstagram } from "./apify/instagram";
-import { fetchLinkedIn, normalizeLinkedInPosts, normalizeLinkedInProfile } from "./apify/linkedin";
+import {
+  fetchLinkedIn,
+  LINKEDIN_POSTS_ACTOR,
+  LINKEDIN_PROFILE_ACTOR,
+  normalizeLinkedInPosts,
+  normalizeLinkedInProfile,
+} from "./apify/linkedin";
 import { captureOutcomes } from "./outcomes";
 import { refitCurrentNiche } from "./predict";
 import { refreshSources } from "./sources";
@@ -214,7 +220,12 @@ export async function syncInstagram(trigger: "manual" | "schedule"): Promise<Syn
 export async function syncLinkedIn(trigger: "manual" | "schedule"): Promise<SyncOutcome> {
   const accounts = await trackedAccounts("linkedin");
   const capturedAt = new Date().toISOString();
-  const { runId, profiles, posts } = await fetchLinkedIn(accounts);
+  const { runId, profiles, posts, sources } = await fetchLinkedIn(accounts);
+  if (sources.profiles !== LINKEDIN_PROFILE_ACTOR || sources.posts !== LINKEDIN_POSTS_ACTOR) {
+    console.info(
+      `[sync:linkedin] backup scraper used: profiles from ${sources.profiles}, posts from ${sources.posts}`,
+    );
+  }
 
   const dbRunId = await recordRun("linkedin", trigger, runId);
   const byHandle = new Map(accounts.map((account) => [account.handle.toLowerCase(), account]));
@@ -294,7 +305,7 @@ function explain(error: unknown): string {
     normalised.includes("free users are limited to") ||
     normalised.includes("upgrade to a paid plan")
   ) {
-    return "The LinkedIn scraper only allows 50 runs on a free Apify plan, and this Apify account has used them — so LinkedIn was not updated and stays on its last sync. Upgrading the Apify plan, or switching to a different LinkedIn scraper, fixes it. Instagram is unaffected.";
+    return "The LinkedIn scraper only allows 50 runs on a free Apify plan, and this Apify account has used them. The backup scraper was tried as well and also failed, so LinkedIn was not updated and stays on its last sync. Press Sync again later; upgrading the Apify plan removes the limit. Instagram is unaffected.";
   }
   // Credentials are the other failure a person can act on immediately.
   if (
