@@ -3,6 +3,7 @@
 // Generation is explicit and cached. It is never triggered by a page load,
 // because every run costs money and the answer only changes when the underlying
 // posts change.
+import { trackedCompetitorSnapshots } from "../competitors";
 import { buildBrief, generateIdeas, type AccountBrief } from "./analyst";
 import {
   analystRead,
@@ -82,7 +83,7 @@ function unavailable(platform: PlatformId, error: string): AiAnalysis {
 }
 
 async function briefsFor(platform: PlatformId): Promise<AccountBrief[]> {
-  const rivals = await competitorSnapshots(platform);
+  const rivals = await trackedCompetitorSnapshots(platform);
   return Promise.all(
     rivals.map(async (rival) => {
       // Competitor captions are trimmed harder — they are context for the
@@ -142,7 +143,7 @@ async function prepareOwner(
   // makes the whole point of §5.2 ("this lane wins on 4 of 5 accounts")
   // impossible to compute. One shared vocabulary, owned by the account we are
   // advising, is what makes lanes comparable across accounts at all.
-  const rivals = await competitorSnapshots(platform).catch(() => []);
+  const rivals = await trackedCompetitorSnapshots(platform).catch(() => []);
   if (lanes.length && options.classify) {
     for (const rival of rivals) {
       const posts = await readPosts(platform, rival.handle).catch(() => []);

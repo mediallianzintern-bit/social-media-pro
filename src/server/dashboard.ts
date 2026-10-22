@@ -1,6 +1,7 @@
 // Read path: assembles the dashboard from stored snapshots. This never calls
 // Apify — the page must render instantly from history, and syncing is a
 // separate, explicit action.
+import { trackedCompetitorSnapshots } from "./competitors";
 import { mergeCompetitors, OWNER_ACCOUNTS } from "./apify/accounts";
 import { currentEra } from "@/lib/eras";
 import { apifyToken } from "./apify/client";
@@ -10,7 +11,6 @@ import { taxonomyLooksStale } from "./ai/lanes";
 import { DEFAULT_PRIMARY_METRIC, GOAL_LABEL, growthTrajectory } from "@/lib/growth";
 import { goalReadFor, laneExpectations } from "@/lib/prediction";
 import {
-  competitorSnapshots,
   growthSeries,
   hasDurableStore,
   lastSyncAt,
@@ -103,7 +103,7 @@ async function loadPlatform(platform: PlatformId): Promise<PlatformData> {
         resilient("latestSnapshot", () => latestSnapshot(platform, owner.handle)),
         resilient("growthSeries", () => growthSeries(platform, owner.handle)),
         resilient("readPosts", () => readPosts(platform, owner.handle)),
-        resilient("competitorSnapshots", () => competitorSnapshots(platform)),
+        resilient("competitorSnapshots", () => trackedCompetitorSnapshots(platform)),
         resilient("lastSyncAt", () => lastSyncAt(platform)),
         readWatchlist(platform).catch(() => [] as string[]),
         // Instagram-only, and never fatal: the owner-only panels degrade back to

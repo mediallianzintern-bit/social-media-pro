@@ -7,10 +7,10 @@
 // The honesty rule from Layer 4 carries through here unchanged. Where a niche
 // has not graduated, this returns the cold-start calibration report and the view
 // says plainly that accuracy improves as more posts are tracked.
+import { trackedCompetitorSnapshots } from "./competitors";
 import { OWNER_ACCOUNTS } from "./apify/accounts";
 import { calibrationReport, currentNiche } from "./predict";
 import {
-  competitorSnapshots,
   growthSeries,
   latestSnapshot,
   readClient,
@@ -166,7 +166,7 @@ export async function loadReport(period: ReportPeriod = "30d"): Promise<ClientRe
   // set is without naming anyone in it — those handles are the agency's
   // research, and a shareable link is the wrong place for them.
   const tracked = await Promise.all(
-    PLATFORM_IDS.map((platform) => competitorSnapshots(platform).catch(() => [])),
+    PLATFORM_IDS.map((platform) => trackedCompetitorSnapshots(platform).catch(() => [])),
   );
 
   return {
