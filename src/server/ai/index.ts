@@ -3,7 +3,7 @@
 // Generation is explicit and cached. It is never triggered by a page load,
 // because every run costs money and the answer only changes when the underlying
 // posts change.
-import { trackedCompetitorSnapshots } from "../competitors";
+import { trackedCompetitorSnapshots, withoutUntracked } from "../competitors";
 import { buildBrief, generateIdeas, type AccountBrief } from "./analyst";
 import {
   analystRead,
@@ -50,8 +50,16 @@ import { DEFAULT_PRIMARY_METRIC, DEFAULT_SECONDARY_METRICS, growthTrajectory } f
 import { goalScorecard } from "@/lib/goal-scorecard";
 
 export async function loadAnalysis(platform: PlatformId): Promise<AiAnalysis | null> {
-  const analysis = await readAnalysis(platform);
-  if (!analysis?.ideas.length) return analysis;
+  const stored = await readAnalysis(platform);
+  if (!stored) return stored;
+  // A competitor removed since this analysis was written is not shown.
+  const analysis = {
+    ...stored,
+    competitors: await withoutUntracked(platform, stored.competitors ?? null).catch(
+      () => stored.competitors ?? null,
+    ),
+  };
+  if (!analysis.ideas.length) return analysis;
 
   // T63 — the cached analysis is the batch as it was written; which hook the
   // team picked afterwards lives on the idea's own row. Merging it here is
