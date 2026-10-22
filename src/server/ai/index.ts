@@ -48,10 +48,13 @@ import type { AiAnalysis } from "@/lib/ai-types";
 import { PLATFORM_IDS, type PlatformId } from "@/lib/analytics-types";
 import { DEFAULT_PRIMARY_METRIC, DEFAULT_SECONDARY_METRICS, growthTrajectory } from "@/lib/growth";
 import { goalScorecard } from "@/lib/goal-scorecard";
+import { plainFiguresDeep } from "@/lib/plain-figures";
 
 export async function loadAnalysis(platform: PlatformId): Promise<AiAnalysis | null> {
-  const stored = await readAnalysis(platform);
-  if (!stored) return stored;
+  const saved = await readAnalysis(platform);
+  if (!saved) return saved;
+  // Field names the model wrote despite its rules, in plain words.
+  const stored = plainFiguresDeep(saved);
   // A competitor removed since this analysis was written is not shown.
   const analysis = {
     ...stored,
@@ -509,11 +512,12 @@ export async function runAnalysis(
     ...(failures.length ? { error: failures.join(" · ") } : {}),
   };
 
-  await saveAnalysis(platform, analysis).catch((error: unknown) => {
+  const shown = plainFiguresDeep(analysis);
+  await saveAnalysis(platform, shown).catch((error: unknown) => {
     console.error("[ai] could not cache analysis:", error);
   });
 
-  return analysis;
+  return shown;
 }
 
 export interface MoreResult {
@@ -709,14 +713,15 @@ export async function generateMore(
     // to an existing set does not make the set new.
     ...(options.fresh ? { generatedAt: new Date().toISOString(), model: result.model } : {}),
   };
+  const shown = plainFiguresDeep(analysis);
   if (idea) {
-    await saveAnalysis(platform, analysis).catch((error: unknown) =>
+    await saveAnalysis(platform, shown).catch((error: unknown) =>
       console.error(`[ai:${platform}] could not cache the new idea:`, error),
     );
   }
 
   return {
-    analysis: idea ? analysis : cached,
+    analysis: idea ? shown : cached && plainFiguresDeep(cached),
     idea,
     ...(idea
       ? {}
