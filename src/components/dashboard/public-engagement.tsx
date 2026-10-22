@@ -113,9 +113,10 @@ export function PublicEngagement({
         <CardHeader>
           <CardTitle className="text-base">Engagement</CardTitle>
           <CardDescription>
-            {fullNumber(now.posts)} post{now.posts === 1 ? "" : "s"} · {range.label}. Counted from
-            each public post; LinkedIn&rsquo;s own total also includes saves, so it can read a
-            little higher.
+            {fullNumber(now.posts)} post{now.posts === 1 ? "" : "s"} · {range.label}. Counts the
+            engagement on posts published in this window. LinkedIn&rsquo;s own screen counts the
+            engagement received in the window on any post, plus saves, so its total differs a
+            little; each post&rsquo;s own count matches.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
