@@ -18,7 +18,7 @@ import {
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { engagementsOf, organicPosts, type PostRecord } from "@/lib/analytics-types";
-import { withinRange, type ResolvedRange } from "@/lib/date-range";
+import { labelInSentence, withinRange, type ResolvedRange } from "@/lib/date-range";
 import { delta, fullNumber, shortDate, signedPercent } from "@/lib/format";
 
 const TOP_POSTS = 5;
@@ -159,8 +159,8 @@ export function PublicEngagement({
         <CardHeader>
           <CardTitle className="text-base">Top performing posts</CardTitle>
           <CardDescription>
-            By engagements in {range.label.toLowerCase()}. Ranking by impressions needs
-            Pritesh&rsquo;s own LinkedIn analytics.
+            By engagements in {labelInSentence(range)}. Ranking by impressions needs Pritesh&rsquo;s
+            own LinkedIn analytics.
           </CardDescription>
         </CardHeader>
         <CardContent>

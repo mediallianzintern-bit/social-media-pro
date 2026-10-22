@@ -6,6 +6,7 @@ import { GrowthChart } from "@/components/dashboard/growth-chart";
 import { KpiTile } from "@/components/dashboard/kpi-tile";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { labelInSentence } from "@/lib/date-range";
 import { compactNumber, fullNumber, percent } from "@/lib/format";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import { useFilteredDashboard } from "@/lib/use-dashboard";
@@ -148,7 +149,7 @@ function Overview() {
           label="Total audience"
           value={fullNumber(totalFollowers)}
           icon={Users}
-          hint={`across ${reporting.length} platform${reporting.length === 1 ? "" : "s"} · ${range.label.toLowerCase()}`}
+          hint={`across ${reporting.length} platform${reporting.length === 1 ? "" : "s"} · ${labelInSentence(range)}`}
         />
         {reporting.map((platform) => {
           const meta = PLATFORM_META[platform.platform];

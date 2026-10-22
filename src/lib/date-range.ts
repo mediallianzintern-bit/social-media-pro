@@ -58,6 +58,20 @@ function formatDay(date: Date): string {
 }
 
 /**
+ * "Last 30 days (Sep 23 – Oct 22)": a preset with the exact days it covers,
+ * today included. Shown because "30 days" alone left people comparing it with
+ * LinkedIn's own 30-day picker, which ends on a different day (22 Oct 2026).
+ */
+function lastDays(days: number, today: Date): string {
+  return `Last ${days} days (${formatDay(addDays(today, -(days - 1)))} – ${formatDay(today)})`;
+}
+
+/** A range label inside a sentence: first letter lower-cased, dates left as they are. */
+export function labelInSentence(range: { label: string }): string {
+  return range.label.charAt(0).toLowerCase() + range.label.slice(1);
+}
+
+/**
  * Ranges are resolved in the viewer's local timezone — "today" should mean the
  * day they are actually having, not a UTC day that may have already rolled over.
  */
@@ -71,17 +85,17 @@ export function resolveRange(key: RangeKey, from?: string, to?: string): Resolve
     case "era":
       return { key, from: null, to: null, label: "Since strategy change" };
     case "today":
-      return { key, from: today, to: addDays(today, 1), label: "Today" };
+      return { key, from: today, to: addDays(today, 1), label: `Today (${formatDay(today)})` };
     case "yesterday": {
       const start = addDays(today, -1);
-      return { key, from: start, to: today, label: "Yesterday" };
+      return { key, from: start, to: today, label: `Yesterday (${formatDay(start)})` };
     }
     case "7d":
-      return { key, from: addDays(today, -6), to: null, label: "Last 7 days" };
+      return { key, from: addDays(today, -6), to: null, label: lastDays(7, today) };
     case "30d":
-      return { key, from: addDays(today, -29), to: null, label: "Last 30 days" };
+      return { key, from: addDays(today, -29), to: null, label: lastDays(30, today) };
     case "90d":
-      return { key, from: addDays(today, -89), to: null, label: "Last 90 days" };
+      return { key, from: addDays(today, -89), to: null, label: lastDays(90, today) };
     case "all":
       return { key, from: null, to: null, label: "All time" };
     case "custom": {
@@ -103,7 +117,7 @@ export function resolveRange(key: RangeKey, from?: string, to?: string): Resolve
       };
     }
     default:
-      return { key: "30d", from: addDays(today, -29), to: null, label: "Last 30 days" };
+      return { key: "30d", from: addDays(today, -29), to: null, label: lastDays(30, today) };
   }
 }
 
@@ -140,8 +154,9 @@ export function eraWindow(
 ): ResolvedRange {
   if (range.key !== "era") return range;
   if (!era) {
-    const from = startOfDay(addDays(new Date(), -(ERA_FALLBACK_DAYS - 1)));
-    return { key: "era", from, to: null, label: "Last 30 days" };
+    const today = startOfDay(new Date());
+    const from = addDays(today, -(ERA_FALLBACK_DAYS - 1));
+    return { key: "era", from, to: null, label: lastDays(ERA_FALLBACK_DAYS, today) };
   }
   const from = startOfDay(new Date(`${era.startsAt}T00:00:00`));
   return { key: "era", from, to: null, label: `${era.label} · since ${formatDay(from)}` };
