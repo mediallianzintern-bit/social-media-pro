@@ -205,7 +205,6 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
   const discovery = analysis?.discovery;
   const competitors = normalizeCompetitors(analysis?.competitors ?? null);
   const analyst = analysis?.analyst ?? null;
-  const reflection = analysis?.reflection ?? null;
   const trends = analysis?.trends ?? null;
   const questions = analysis?.audienceQuestions ?? null;
   const error =
@@ -443,47 +442,6 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
                     ))}
                   </ul>
                 </div>
-              ) : null}
-            </CardContent>
-          </CollapsibleAnalysisCard>
-        ) : null}
-
-        {reflection ? (
-          <CollapsibleAnalysisCard
-            title="What past suggestions taught us"
-            preview={reflection.overall}
-          >
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <RefreshCw className="size-4" style={{ color: meta.color }} aria-hidden />
-                What past suggestions taught us
-              </CardTitle>
-              <CardDescription>
-                Drawn only from suggestions that were actually filmed and measured. Qualitative by
-                design — how confident to be is a separate, statistical question.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm leading-relaxed">{reflection.overall}</p>
-              {reflection.lessons?.length ? (
-                <ul className="space-y-3">
-                  {(reflection.lessons ?? []).map((lesson) => (
-                    <li key={lesson.lane} className="rounded-lg border bg-muted/40 p-3">
-                      <span className="flex flex-wrap items-baseline gap-2">
-                        <span className="text-sm font-medium capitalize">{lesson.lane}</span>
-                        {!lesson.confirmed ? (
-                          <Badge variant="secondary" className="bg-muted font-normal">
-                            one or two posts — a hint
-                          </Badge>
-                        ) : null}
-                      </span>
-                      <span className="mt-1 block text-sm leading-relaxed">{lesson.lesson}</span>
-                      <span className="mt-1 block text-xs text-muted-foreground">
-                        {lesson.evidence}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
               ) : null}
             </CardContent>
           </CollapsibleAnalysisCard>
