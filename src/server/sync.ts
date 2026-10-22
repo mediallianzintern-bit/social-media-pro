@@ -22,6 +22,7 @@ import { fetchInstagramInsights, fetchMediaInsights, shortcodeOf } from "./graph
 import {
   finishRun,
   lastSyncAt,
+  latestSnapshot,
   readWatchlist,
   recordFailedRun,
   recordRun,
@@ -32,6 +33,7 @@ import {
 import {
   PLATFORM_IDS,
   PLATFORM_SYNC_INTERVAL_MS,
+  type AccountSnapshot,
   type MediaInsight,
   type PlatformId,
   type SyncOutcome,
@@ -217,6 +219,20 @@ export async function syncInstagram(trigger: "manual" | "schedule"): Promise<Syn
   };
 }
 
+/** A snapshot with its missing headline (and, if asked, following count) taken from the last one stored. */
+async function withLastKnown(
+  snapshot: AccountSnapshot,
+  hasFollowing: boolean,
+): Promise<AccountSnapshot> {
+  const last = await latestSnapshot("linkedin", snapshot.handle).catch(() => null);
+  if (!last) return snapshot;
+  return {
+    ...snapshot,
+    ...(!snapshot.headline && last.headline ? { headline: last.headline } : {}),
+    ...(!hasFollowing && last.following ? { following: last.following } : {}),
+  };
+}
+
 export async function syncLinkedIn(trigger: "manual" | "schedule"): Promise<SyncOutcome> {
   const accounts = await trackedAccounts("linkedin");
   const capturedAt = new Date().toISOString();
@@ -238,8 +254,14 @@ export async function syncLinkedIn(trigger: "manual" | "schedule"): Promise<Sync
   let ownerFollowers: number | undefined;
 
   for (const profile of profiles) {
-    const snapshot = normalizeLinkedInProfile(profile, capturedAt);
-    if (!snapshot.handle) continue;
+    const fresh = normalizeLinkedInProfile(profile, capturedAt);
+    if (!fresh.handle) continue;
+    // The backup profile scraper has no headline and no real connection count.
+    // Keep the last known ones rather than storing a blank and a zero.
+    const snapshot =
+      fresh.headline && profile.connectionsCount != null
+        ? fresh
+        : await withLastKnown(fresh, profile.connectionsCount != null);
     const account = byHandle.get(snapshot.handle.toLowerCase());
     // account_snapshots constrains this column to owner/competitor, so a trend
     // source is stored as a competitor and told apart on read by handle.

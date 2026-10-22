@@ -43,8 +43,12 @@ describe("LinkedIn fallback scrapers", () => {
       handle: "digitalmarketingtrainer",
       displayName: "Dr. Pritesh Patel",
       followers: 8585,
-      following: 500,
     });
+  });
+
+  it('treats LinkedIn\'s capped "500+" as unknown, not as 500', () => {
+    expect(fromFallbackProfile(profile).connectionsCount).toBeUndefined();
+    expect(fromFallbackProfile({ ...profile, connections: 312 }).connectionsCount).toBe(312);
   });
 
   it("reads a fallback post with the same id harvestapi uses, and a clean link", () => {

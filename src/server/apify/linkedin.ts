@@ -139,10 +139,15 @@ const slugOf = (url: string | undefined) => /linkedin\.com\/in\/([^/?#]+)/i.exec
 
 /** A fallback profile in harvestapi's shape. The name comes as one string. */
 export function fromFallbackProfile(profile: FallbackProfile): LiProfile {
+  // LinkedIn shows "500+" on a public page, which is a cap, not a count: left
+  // out, so the last real count is kept (sync.ts) rather than replaced by 500.
+  const shown = String(profile.connections ?? "");
   const connections =
     typeof profile.connections === "number"
       ? profile.connections
-      : Number.parseInt(String(profile.connections ?? "").replace(/\D/g, ""), 10);
+      : shown.includes("+")
+        ? NaN
+        : Number.parseInt(shown.replace(/\D/g, ""), 10);
   const slug = slugOf(profile.url) ?? slugOf(profile.normalized_url) ?? slugOf(profile.input_url);
   return {
     ...(profile.name ? { firstName: profile.name } : {}),
