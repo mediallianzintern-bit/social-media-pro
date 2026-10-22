@@ -13,6 +13,7 @@ import { DeriveLanes } from "@/components/dashboard/derive-lanes";
 import { ErasPanel } from "@/components/dashboard/eras-panel";
 import { LearningPanel } from "@/components/dashboard/learning-panel";
 import { LockedPanel } from "@/components/dashboard/locked-panel";
+import { PublicEngagement } from "@/components/dashboard/public-engagement";
 import { MetricBars, type BarRow } from "@/components/dashboard/metric-bars";
 import { PostPerformanceChart } from "@/components/dashboard/post-performance-chart";
 import { PostsTable } from "@/components/dashboard/posts-table";
@@ -60,21 +61,30 @@ const LOCKED = {
     {
       title: "Impressions and members reached",
       description: "Per-post distribution figures",
-      rows: ["Impressions", "Members reached", "Unique view rate"],
+      rows: ["Impressions", "Members reached", "In-network vs out-of-network", "Saves and sends"],
       unlock:
-        "LinkedIn publishes no member-analytics API at any access tier, and impressions never appear on a public post. These are available only as a manual export from Pritesh's own LinkedIn analytics screen.",
+        "Never shown on a public post, so no scraper can read them. They come from the Export on Pritesh's own LinkedIn analytics screen, or from LinkedIn's Member Post Analytics API (free, once LinkedIn approves the app and Pritesh connects it).",
     },
     {
       title: "Who you reach vs who follows you",
       description: "Industry, seniority and top companies",
       rows: ["Industry breakdown", "Seniority breakdown", "Top companies in reach"],
       unlock:
-        "Owner-only, and unavailable via API for personal profiles. A LinkedIn company Page would expose these — a personal profile never does.",
+        "Owner-only: shown only in Pritesh's own LinkedIn audience analytics, never on a public profile.",
     },
   ],
 } as const;
 
-export function PlatformView({ data, range }: { data: PlatformData; range: ResolvedRange }) {
+export function PlatformView({
+  data,
+  range,
+  allPosts,
+}: {
+  data: PlatformData;
+  range: ResolvedRange;
+  /** Every stored post, unfiltered: for comparisons with the previous period. */
+  allPosts?: PlatformData["posts"];
+}) {
   // The post ledger is the longest thing on the page and the least often
   // read, so it can be folded away. Open by default, like every other
   // collapsible section here.
@@ -342,10 +352,25 @@ export function PlatformView({ data, range }: { data: PlatformData; range: Resol
         </>
       ) : null}
 
+      {/* ---- LinkedIn public engagement ----
+           What public posts show: reactions, comments, reposts, top posts. The
+           owner-only half (impressions and reach) stays locked below. */}
+      {!isInstagram ? (
+        <>
+          <SectionHeading title="Public engagement" note="From each public post, scraped" />
+          <PublicEngagement
+            posts={posts}
+            allPosts={allPosts ?? posts}
+            range={range}
+            color={color}
+          />
+        </>
+      ) : null}
+
       {/* ---- Owner-only sections ----
-           Unlocked on Instagram once a Meta Graph token is configured; still
-           locked on LinkedIn, which publishes no member-analytics API at any
-           access tier. */}
+           Unlocked on Instagram once a Meta Graph token is configured; locked
+           on LinkedIn until its export or Member Post Analytics API is
+           connected. */}
       {data.insights ? (
         <>
           <SectionHeading title="Owner-only metrics" note="Measured by Instagram, not scraped" />
