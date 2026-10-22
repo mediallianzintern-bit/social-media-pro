@@ -66,9 +66,9 @@ export const analyseFilmed = createServerFn({ method: "POST" })
   });
 
 /**
- * Review (paid, ~2¢): did it work, and why, element by element. After a week it
+ * Review (paid, ~2¢): did it work, and why, element by element. After 14 days it
  * is the result; with `early` it can run sooner, as an early check that is shown
- * but not learned from until the 7-day review replaces it.
+ * but not learned from until the full 14-day review replaces it.
  */
 export const reviewFilmed = createServerFn({ method: "POST" })
   .middleware([requireStaff])

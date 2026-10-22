@@ -760,7 +760,7 @@ export function AiIdeaCards({
                     <p className="flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">
                       <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-600" aria-hidden />
                       Linked to the reel you published. Analyse it above to see what was used, and
-                      review it after a week to see what worked and why.
+                      review it after 14 days to see what worked and why.
                     </p>
                     <Button
                       variant="outline"

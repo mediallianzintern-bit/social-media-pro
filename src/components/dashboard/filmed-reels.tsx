@@ -28,6 +28,7 @@ import { dateTime, shortDate } from "@/lib/format";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import {
   isFinalReview,
+  REEL_REVIEW_DAYS,
   REEL_USAGE_LABEL,
   VIRAL_RATIO,
   type ReelLearning,
@@ -54,7 +55,7 @@ function stageOf(learning: ReelLearning): Stage {
 const STAGE_LABEL: Record<Stage, string> = {
   waiting: "Waiting for the reel",
   found: "Reel found · Analyse next",
-  analysed: "Analysed · results after a week",
+  analysed: `Analysed · results after ${REEL_REVIEW_DAYS} days`,
   review_ready: "Ready to review",
   reviewed: "Reviewed",
 };
@@ -128,8 +129,9 @@ export function FilmedReels() {
     <div className="space-y-6">
       <p className="max-w-3xl text-sm text-muted-foreground">
         Every script the team marked filmed. The live reel is found by its topic on each Sync; open
-        one to Analyse what was used, Get results now for an early check, and after a week Review
-        how it did. What the reviews teach goes into every new script.
+        one to Analyse what was used, Get results now for an early check, and after{" "}
+        {REEL_REVIEW_DAYS} days Review how it did. What the reviews teach goes into every new
+        script.
       </p>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -157,8 +159,8 @@ export function FilmedReels() {
         </Card>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Nothing yet. Patterns appear once filmed reels have been reviewed, a week after they go
-          live. Each review adds to them.
+          Nothing yet. Patterns appear once filmed reels have been reviewed, {REEL_REVIEW_DAYS} days
+          after they go live. Each review adds to them.
         </p>
       )}
 

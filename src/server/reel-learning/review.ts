@@ -1,9 +1,9 @@
-// Review (paid, from a button, once the reel has run a week): did it work, and why.
+// Review (paid, from a button, once the reel has run 14 days): did it work, and why.
 //
 // "Get results now" runs the same review earlier, as an EARLY CHECK: the reel's
 // figures are still growing while the typical reel's are final, so it is marked
 // early, never decides worked or not, and is never counted in patterns, rules or
-// lessons. The 7-day review replaces it.
+// lessons. The full 14-day review replaces it.
 //
 // Whether it worked is decided in code, never by the model: its views against
 // this account's typical reel over the 90 days before it, the same yardstick
@@ -17,14 +17,13 @@ import { z } from "zod";
 import { costOf } from "@/lib/ai-cost";
 import { engagementsOf, median, viewsOf, type PostRecord } from "@/lib/analytics-types";
 import type { ReelLesson, ReelReview } from "@/lib/reel-learning-types";
-import { REEL_USAGE_LABEL, VIRAL_RATIO } from "@/lib/reel-learning-types";
+import { REEL_REVIEW_DAYS, REEL_USAGE_LABEL, VIRAL_RATIO } from "@/lib/reel-learning-types";
 import { scriptOf, shortcodeFromUrl } from "@/lib/reel-match";
 
 import { OWNER_ACCOUNTS } from "../apify/accounts";
 import { completeJson, hasOpenAi } from "../ai/client";
 import { reviewModel } from "../ai/review";
 import { fetchSkipRates } from "../graph/instagram";
-import { OUTCOME_MATURITY_DAYS } from "../outcomes";
 import { readIdeaById, readPosts } from "../store";
 import { readReelLearning, updateReelLearning, type ReelLearningRow } from "./store";
 
@@ -32,7 +31,7 @@ const DAY_MS = 86_400_000;
 
 /** When a reel published at `publishedAt` has run long enough to judge. */
 export function reviewableAt(publishedAt: string): string {
-  return new Date(Date.parse(publishedAt) + OUTCOME_MATURITY_DAYS * DAY_MS).toISOString();
+  return new Date(Date.parse(publishedAt) + REEL_REVIEW_DAYS * DAY_MS).toISOString();
 }
 
 type Metric = { label: string; of: (post: PostRecord) => number | undefined };
@@ -163,7 +162,7 @@ const parsed = z.object({
   suggestions: z.array(z.string()),
 });
 
-const SYSTEM = `You review one Instagram reel after it has run for a week, for the team that makes
+const SYSTEM = `You review one Instagram reel after it has run for two weeks, for the team that makes
 Pritesh Patel's reels, so the next script is better.
 
 How to attribute, from the figures you are given:
@@ -207,11 +206,11 @@ export async function reviewFilmedReel(
   const reel = posts.find((post) => (shortcodeFromUrl(post.url) ?? post.postId) === row.shortcode);
   if (!reel) return { reason: "The reel isn't in the synced posts. Press Sync, then try again." };
   const ready = reviewableAt(reel.publishedAt);
-  // Once the week is up, every review is the real one, however it was asked for.
+  // Once the 14 days are up, every review is the real one, however it was asked for.
   const early = Date.now() < Date.parse(ready);
   if (early && !options.early) {
     return {
-      reason: `It has not run a full ${OUTCOME_MATURITY_DAYS} days yet. Review it after ${new Date(ready).toDateString()}.`,
+      reason: `It has not run a full ${REEL_REVIEW_DAYS} days yet. Review it after ${new Date(ready).toDateString()}.`,
     };
   }
 
@@ -234,7 +233,7 @@ export async function reviewFilmedReel(
   const worked = primaryRatio >= 1;
   const daysRun = Math.max(0, Math.floor((Date.now() - Date.parse(reel.publishedAt)) / DAY_MS));
   const resultLine = early
-    ? `EARLY CHECK, not the result: this reel has run ${daysRun} of ${OUTCOME_MATURITY_DAYS} days. So far it has ${primaryRatio.toFixed(2)}x the typical reel's views.
+    ? `EARLY CHECK, not the result: this reel has run ${daysRun} of ${REEL_REVIEW_DAYS} days. So far it has ${primaryRatio.toFixed(2)}x the typical reel's views.
 Its figures are still growing while the typical reel's are final, so views, reach, saves and
 shares will rise; skip rate and average watch time are already meaningful. Do not say whether it
 worked: say what the early figures show, and mark every lesson as provisional.`
@@ -284,7 +283,7 @@ ${row.transcript ? `Transcript: ${row.transcript}\n` : ""}Caption: ${reel.captio
     suggestions: answer.data.suggestions.slice(0, 4),
     ...(early ? { early: { days: daysRun } } : {}),
   };
-  // An early check never decides whether it worked: that waits for the week.
+  // An early check never decides whether it worked: that waits for the full 14 days.
   await updateReelLearning(
     ideaId,
     { review, worked: early ? null : worked, reviewed_at: new Date().toISOString() },

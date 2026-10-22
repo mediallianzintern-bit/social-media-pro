@@ -1,5 +1,5 @@
 // What happened to a filmed idea: the live reel, what of the script it used,
-// and, after a week, whether it worked and why.
+// and, after 14 days, whether it worked and why.
 //
 // The team presses "I filmed this" and nothing else is asked of them (Pritesh,
 // 19 Oct). Finding the reel is free and automatic. The two paid steps,
@@ -28,6 +28,7 @@ import { dateTime, fullNumber, shortDate } from "@/lib/format";
 import {
   ELEMENT_VERDICT_LABEL,
   isFinalReview,
+  REEL_REVIEW_DAYS,
   REEL_USAGE_LABEL,
   VIRAL_RATIO,
   type ElementVerdict,
@@ -282,7 +283,9 @@ function Found({
               </Button>
               <Button variant="outline" disabled>
                 Results ready{" "}
-                {learning.reviewableAt ? shortDate(learning.reviewableAt) : "after a week"}
+                {learning.reviewableAt
+                  ? shortDate(learning.reviewableAt)
+                  : `after ${REEL_REVIEW_DAYS} days`}
               </Button>
             </div>
           )}
@@ -534,7 +537,8 @@ function Review({ learning }: { learning: ReelLearning }) {
             variant="outline"
             className="gap-1 border-amber-300 font-normal text-amber-800 dark:border-amber-800 dark:text-amber-300"
           >
-            <Timer className="size-3" aria-hidden /> Early check · day {review.early.days} of 7
+            <Timer className="size-3" aria-hidden /> Early check · day {review.early.days} of{" "}
+            {REEL_REVIEW_DAYS}
           </Badge>
         ) : review.primaryRatio >= VIRAL_RATIO ? (
           <Badge className="gap-1 bg-violet-600 hover:bg-violet-600">
@@ -559,7 +563,7 @@ function Review({ learning }: { learning: ReelLearning }) {
           An early check, after {review.early.days} day{review.early.days === 1 ? "" : "s"}: this
           reel&rsquo;s figures are still growing while the typical reel&rsquo;s are final, so views,
           reach, saves and shares will rise. Skip rate and watch time already mean something. Not
-          counted in patterns or rules until the full result after 7 days.
+          counted in patterns or rules until the full result after {REEL_REVIEW_DAYS} days.
         </p>
       ) : null}
       <p className="text-sm leading-relaxed">{review.summary}</p>

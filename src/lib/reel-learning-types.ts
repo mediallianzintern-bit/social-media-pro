@@ -5,7 +5,7 @@ import type { BodyShape, CaptionStats, CtaType, ExampleType, HookType } from "@/
 //   filmed    the team pressed "I filmed this"; the reel is not live yet
 //   found     the live reel was matched to the idea by its topic (free)
 //   analysed  transcript + comparison: what was kept, changed or replaced (paid)
-//   reviewed  once it has run a week: did it work, and why (paid)
+//   reviewed  once it has run 14 days: did it work, and why (paid)
 
 /** A reel this many times the typical reel's views or more is called viral. */
 export const VIRAL_RATIO = 3;
@@ -153,15 +153,22 @@ export interface ReelReview {
   lessons: ReelLesson[];
   suggestions: string[];
   /**
-   * Set when the review was asked for before the reel had run a full week
+   * Set when the review was asked for before the reel had run its full REEL_REVIEW_DAYS
    * ("Get results now"): how many days it had run. Its figures were still
    * growing, so it is shown but never counted in patterns, rules or lessons,
-   * and the 7-day review replaces it.
+   * and the full review replaces it.
    */
   early?: { days: number };
 }
 
-/** A review that counts: run once the reel had its full week. */
+/**
+ * How long a filmed reel runs before Review judges it. 14 days, not the 7 the
+ * outcome loop uses: reels keep collecting views in their second week, and the
+ * team wanted the result to reflect that (22 Oct).
+ */
+export const REEL_REVIEW_DAYS = 14;
+
+/** A review that counts: run once the reel had its full REEL_REVIEW_DAYS. */
 export const isFinalReview = (learning: { review: ReelReview | null }): boolean =>
   Boolean(learning.review && !learning.review.early);
 

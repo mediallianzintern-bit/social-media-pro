@@ -150,7 +150,7 @@ export async function filmedLessonsBlock(platform: PlatformId): Promise<string> 
     );
 
   return [
-    `WHAT FILMED REELS TAUGHT US — reels the team actually posted, measured after a week. Follow the
+    `WHAT FILMED REELS TAUGHT US — reels the team actually posted, measured after two weeks. Follow the
 RULES; copy what made the VIRAL reels work; trust a pattern marked STRONG (3+ reels) over any single
 result; follow REPEAT lessons and never repeat AVOID ones.`,
     ruleLines.length ? `RULES LEARNED FROM RESULTS:\n${ruleLines.join("\n")}` : "",
