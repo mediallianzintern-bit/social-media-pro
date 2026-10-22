@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Ban,
   Check,
   ExternalLink,
   FileText,
@@ -7,6 +8,7 @@ import {
   Loader2,
   Newspaper,
   RefreshCw,
+  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -31,6 +33,7 @@ import {
 } from "@/lib/analytics.functions";
 import { dateTime } from "@/lib/format";
 import { PLATFORM_META } from "@/lib/platform-meta";
+import { outletEvidence } from "@/lib/source-trust";
 import { ageDays, TRENDING_COVERAGE } from "@/lib/sources";
 import { cn } from "@/lib/utils";
 import type { PlatformId } from "@/lib/analytics-types";
@@ -148,7 +151,7 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                   {isLoading
                     ? "Loading stories…"
                     : items.length
-                      ? `${items.length} stories from the last two weeks${trending ? `, ${trending} carried by more than one outlet` : ""}.`
+                      ? `${items.length} stories from the last two weeks${trending ? `, ${trending} carried by more than one outlet` : ""}.${data?.repeatsMerged ? ` ${data.repeatsMerged} repeated reports of the same stories merged.` : ""}`
                       : "No stories stored yet."}
                   {data?.lastFetchedAt ? ` Last fetched ${dateTime(data.lastFetchedAt)}.` : ""}
                 </p>
@@ -177,6 +180,55 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                 <p className="text-xs text-destructive">
                   Some searches failed: {refresh.data.failures.join("; ")}
                 </p>
+              ) : null}
+
+              {!collapsed &&
+              data?.outlets &&
+              (data.outlets.trusted.length || data.outlets.avoided.length) ? (
+                <div className="space-y-2 rounded-md border bg-muted/20 p-3 text-xs">
+                  <p className="text-muted-foreground">
+                    Learned from how the team treats each outlet&rsquo;s stories: ticks, crosses,
+                    scripts written, saves and reels filmed. Stories you ticked come first, then{" "}
+                    <span className="font-medium text-foreground">trusted</span> outlets&rsquo;
+                    stories, then new news. New scripts are written from them in that order, with as
+                    many topics as before, and never from{" "}
+                    <span className="font-medium text-foreground">avoided</span> outlets.
+                  </p>
+                  {data.outlets.trusted.length ? (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="flex items-center gap-1 font-medium text-emerald-700 dark:text-emerald-400">
+                        <ShieldCheck className="size-3.5" aria-hidden /> Trusted
+                      </span>
+                      {data.outlets.trusted.map((outlet) => (
+                        <Badge
+                          key={outlet.name}
+                          variant="outline"
+                          className="border-emerald-600/30 font-normal text-emerald-800 dark:text-emerald-300"
+                          title={outletEvidence(outlet)}
+                        >
+                          {outlet.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : null}
+                  {data.outlets.avoided.length ? (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="flex items-center gap-1 font-medium text-destructive">
+                        <Ban className="size-3.5" aria-hidden /> Avoided
+                      </span>
+                      {data.outlets.avoided.map((outlet) => (
+                        <Badge
+                          key={outlet.name}
+                          variant="outline"
+                          className="border-destructive/30 font-normal text-destructive"
+                          title={outletEvidence(outlet)}
+                        >
+                          {outlet.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
               ) : null}
 
               {lanes.length > 1 ? (
@@ -208,7 +260,10 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                 <ul className="divide-y">
                   {visible.map((item) => {
                     const age = ageDays(item.publishedAt);
-                    const pending = write.isPending && write.variables?.sourceId === item.id;
+                    const pending =
+                      write.isPending &&
+                      (write.variables?.sourceId === item.id ||
+                        write.variables?.sourceId === item.scriptSourceId);
                     const justWritten = writtenFor === item.id;
                     return (
                       <li
@@ -235,6 +290,21 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 pl-5 text-xs text-muted-foreground">
                             {item.publisher ? (
                               <span className="font-medium">{item.publisher}</span>
+                            ) : null}
+                            {item.outlet?.standing === "trusted" ? (
+                              <span
+                                className="inline-flex items-center gap-0.5 text-emerald-700 dark:text-emerald-400"
+                                title={item.outlet.evidence ?? undefined}
+                              >
+                                <ShieldCheck className="size-3" aria-hidden /> trusted
+                              </span>
+                            ) : item.outlet?.standing === "avoided" ? (
+                              <span
+                                className="inline-flex items-center gap-0.5 text-destructive"
+                                title={item.outlet.evidence ?? undefined}
+                              >
+                                <Ban className="size-3" aria-hidden /> avoided, not used for scripts
+                              </span>
                             ) : null}
                             {age != null ? (
                               <span>{age === 0 ? "today" : `${age}d ago`}</span>
@@ -292,12 +362,12 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                                   disabled={openSavedScript.isPending || write.isPending}
                                   onClick={() => {
                                     setScriptMessage(null);
-                                    openSavedScript.mutate(item.id);
+                                    openSavedScript.mutate(item.scriptSourceId ?? item.id);
                                   }}
                                 >
                                   <FileText className="size-3.5" aria-hidden />
                                   {openSavedScript.isPending &&
-                                  openSavedScript.variables === item.id
+                                  openSavedScript.variables === (item.scriptSourceId ?? item.id)
                                     ? "Loading…"
                                     : "View script"}
                                 </Button>
@@ -309,7 +379,10 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                                   className="gap-1.5"
                                   disabled={write.isPending || openSavedScript.isPending}
                                   onClick={() =>
-                                    write.mutate({ sourceId: item.id, regenerate: true })
+                                    write.mutate({
+                                      sourceId: item.scriptSourceId ?? item.id,
+                                      regenerate: true,
+                                    })
                                   }
                                   title="Uses AI calls to write a new version with the current rules. The earlier version stays in history."
                                 >
