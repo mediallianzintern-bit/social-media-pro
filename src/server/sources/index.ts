@@ -4,7 +4,7 @@
 // other external call in this system it can run on each sync. The only guard is
 // a politeness floor, so a busy afternoon of syncs does not hammer the feed.
 import { searchNews } from "./news";
-import { queriesForLane } from "./queries";
+import { OWN_SHARE, queriesForLane } from "./queries";
 import { OWNER_ACCOUNTS } from "../apify/accounts";
 import { hasOpenAi } from "../ai/client";
 import {
@@ -38,6 +38,13 @@ export const REFRESH_FLOOR_HOURS = 6;
 
 /** Stories kept per lane per fetch — enough to choose from, few enough to read. */
 const PER_LANE = 15;
+
+/**
+ * Stories kept per search, for a lane with many searches: a lane keeps the
+ * larger of PER_LANE and this times its searches, so adding searches to a lane
+ * adds stories rather than splitting the same fifteen.
+ */
+const PER_QUERY = 7;
 
 /** How far back a fetch searches. The inbox then shows anything inside SOURCE_WINDOW_DAYS. */
 const SEARCH_DAYS = 7;
@@ -119,7 +126,11 @@ export async function refreshSources(
   for (const { lane, query, pulled } of plan) {
     try {
       const found = await searchNews(query, lane, { days: SEARCH_DAYS });
-      const bucket = pulled ? `pulled:${query}` : (lane ?? "");
+      const bucket = pulled
+        ? `pulled:${query}`
+        : OWN_SHARE.has(query)
+          ? `own:${query}`
+          : (lane ?? "");
       byLane.set(bucket, [...(byLane.get(bucket) ?? []), ...found]);
     } catch (error) {
       failures.push(`${query}: ${error instanceof Error ? error.message : String(error)}`);
@@ -131,8 +142,14 @@ export async function refreshSources(
   // unique (platform, url) key would collapse it anyway.
   const seen = new Set<string>();
   const keep: Array<SourceDraft & { coverage: number }> = [];
-  for (const [, drafts] of byLane) {
-    const stories = rankSources(clusterStories(drafts)).slice(0, PER_LANE);
+  const searchesIn = new Map<string, number>();
+  for (const { lane, query, pulled } of plan) {
+    if (pulled || OWN_SHARE.has(query)) continue;
+    searchesIn.set(lane ?? "", (searchesIn.get(lane ?? "") ?? 0) + 1);
+  }
+  for (const [bucket, drafts] of byLane) {
+    const limit = Math.max(PER_LANE, PER_QUERY * (searchesIn.get(bucket) ?? 0));
+    const stories = rankSources(clusterStories(drafts)).slice(0, limit);
     for (const story of stories) {
       if (seen.has(story.url)) continue;
       seen.add(story.url);

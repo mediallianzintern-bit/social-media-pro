@@ -17,8 +17,28 @@ export const LANE_QUERIES: Record<string, string[]> = {
   "marketing stunts": ['"marketing stunt"', "intitle:campaign brand ad"],
   "brand strategy lessons": ['"brand strategy"', "rebrand OR repositioning brand"],
   "ai tool workflows": ['"AI tool" marketing'],
-  "frontier ai developments": ["intitle:AI model launch", '"frontier AI"'],
+  // Launches, and since 23 Oct 2026 the security and safety side of frontier AI
+  // too: AI-found vulnerabilities (PHP2Shell, OpenAI's "Patch the Planet"),
+  // rogue agents (the OpenAI and Hugging Face hack) and lab safety news. Each
+  // was tested on the live feed and returned those stories first. TechCrunch's
+  // AI coverage comes in through its own search (see OWN_SHARE).
+  "frontier ai developments": [
+    "intitle:AI model launch",
+    '"frontier AI"',
+    '"AI" cybersecurity flaw',
+    '"AI agents" cyberattack',
+    '"AI safety" OpenAI',
+    "intitle:AI site:techcrunch.com",
+  ],
 };
+
+/**
+ * Searches that keep their own share of their lane's stories instead of
+ * competing for it. A lane keeps its top stories ranked trending-first, and a
+ * single outlet's feed is never "trending", so ranked with the lane's other
+ * searches it would always lose its place.
+ */
+export const OWN_SHARE = new Set(["intitle:AI site:techcrunch.com"]);
 
 /**
  * Words that describe the KIND of post rather than its subject. Stripped when a
