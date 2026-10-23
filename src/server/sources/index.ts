@@ -4,7 +4,7 @@
 // other external call in this system it can run on each sync. The only guard is
 // a politeness floor, so a busy afternoon of syncs does not hammer the feed.
 import { searchNews } from "./news";
-import { OWN_SHARE, queriesForLane } from "./queries";
+import { isNewsOffLane, OWN_SHARE, queriesForLane } from "./queries";
 import { OWNER_ACCOUNTS } from "../apify/accounts";
 import { hasOpenAi } from "../ai/client";
 import { readAllReelLearning } from "../reel-learning/store";
@@ -128,7 +128,10 @@ export async function refreshSources(
   // own share below instead of competing with the lane's standing searches
   // for the same fifteen places.
   const votes = await readTopicVotes(platform).catch(() => []);
-  for (const pull of pullQueries(votes)) plan.push({ ...pull, pulled: true });
+  for (const pull of pullQueries(votes)) {
+    // A lane fed by creator reels gets no news, pulled in or otherwise.
+    if (!isNewsOffLane(pull.lane)) plan.push({ ...pull, pulled: true });
+  }
   if (!plan.length) {
     return {
       ...empty,
@@ -306,12 +309,14 @@ async function outletSignals(
  */
 export async function topicInbox(platform: PlatformId): Promise<TopicInbox> {
   const since = new Date(Date.now() - SOURCE_WINDOW_DAYS * 86_400_000).toISOString();
-  const [items, used, last, votes] = await Promise.all([
+  const [stored, used, last, votes] = await Promise.all([
     readSourceItems(platform, since).catch(() => []),
     readUsedSourceIds(platform).catch(() => []),
     lastSourceFetch(platform).catch(() => null),
     readTopicVotes(platform).catch(() => []),
   ]);
+  // A lane fed by creator reels shows only the reels, not its old news.
+  const items = stored.filter((item) => item.kind === "video" || !isNewsOffLane(item.lane));
   const usedSet = new Set(used);
   const model = buildPreferenceModel(votes);
 

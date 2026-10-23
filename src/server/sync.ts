@@ -468,6 +468,15 @@ async function runSyncOnce(
     await refreshSources(platform).catch((error: unknown) =>
       console.error(`[sync:${platform}] topic refresh failed:`, error),
     );
+    // Standout reels from watched creators, for the lanes they feed (AI tool
+    // workflows). Free: Instagram's own API. Every sync, no floor: it is a
+    // handful of small requests, and a reel's standing moves within hours.
+    if (platform === "instagram") {
+      const { watchCreators } = await import("./creators");
+      await watchCreators(platform).catch((error: unknown) =>
+        console.error(`[sync:${platform}] creator reels failed:`, error),
+      );
+    }
   }
 
   return { startedAt, finishedAt: new Date().toISOString(), outcomes };
