@@ -102,12 +102,6 @@ function sharesName(a: Set<string>, b: Set<string>): boolean {
   return false;
 }
 
-function sharedCount(a: Set<string>, b: Set<string>): number {
-  let shared = 0;
-  for (const word of a) if (b.has(word)) shared += 1;
-  return shared;
-}
-
 function jaccard(a: Set<string>, b: Set<string>): number {
   if (!a.size || !b.size) return 0;
   let shared = 0;
@@ -115,117 +109,16 @@ function jaccard(a: Set<string>, b: Set<string>): number {
   return shared / (a.size + b.size - shared);
 }
 
-/** A headline reduced to its letters and digits: two copies of one headline compare equal. */
-export function headlineKey(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[’']/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
-
 /**
- * Whether two headlines report the same story.
+ * Groups reports of the same story and counts the outlets behind each.
  *
  * Deliberately conservative: two headlines join only when they share at least
  * half their distinctive words AND at least one name. The name test was added
  * after real results merged "PepsiCo launches brand campaign" with "Ecover
  * launches £4m brand campaign" on vocabulary alone. A false merge inflates
  * "trending" — the one number here people will act on — so both tests must
- * pass. An identical headline always matches: on 22 Oct 2026, 24 of the 812
- * stories in the inbox were the same headline fetched twice, some with no
- * capitalised name for the name test to find.
- */
-export function sameStory(
-  a: string,
-  b: string,
-  threshold = 0.5,
-  dates: { a?: string | null; b?: string | null } = {},
-): boolean {
-  if (headlineKey(a) === headlineKey(b)) return true;
-  const tokensA = titleTokens(a);
-  const tokensB = titleTokens(b);
-  if (!sharesName(nameTokens(a), nameTokens(b))) return false;
-  return (
-    jaccard(tokensA, tokensB) >= threshold ||
-    reworded(tokensA, tokensB, timeOf(dates.a), timeOf(dates.b))
-  );
-}
-
-/** Reports this close in time can be the same story told in different words. */
-const REWORDED_DAYS = 3;
-/** Distinctive words they must share, and the share of all their words. */
-const REWORDED_SHARED_WORDS = 4;
-const REWORDED_OVERLAP = 0.3;
-
-function timeOf(date: string | null | undefined): number | null {
-  const time = date ? new Date(date).getTime() : NaN;
-  return Number.isFinite(time) ? time : null;
-}
-
-/**
- * The same story, reworded: published within a few days of each other and
- * sharing at least four distinctive words and 30% of their wording. Found on
- * live data on 22 Oct 2026: "Meta's ad revenue hits over US$63 billion in Q3"
- * and "Meta's ad prices rise 14% as advertising revenue hits $63 billion" share
- * meta, revenue, hits, 63 and billion, but only a third of their words, so the
- * stricter test kept them apart. Callers check the shared name first.
- */
-function reworded(a: Set<string>, b: Set<string>, timeA: number | null, timeB: number | null) {
-  if (timeA === null || timeB === null) return false;
-  if (Math.abs(timeA - timeB) > REWORDED_DAYS * 86_400_000) return false;
-  return sharedCount(a, b) >= REWORDED_SHARED_WORDS && jaccard(a, b) >= REWORDED_OVERLAP;
-}
-
-/**
- * Reports of the same story, grouped: two reports join when they pass the
- * sameStory test (with publish dates), directly or through another report in
- * the group. Tokens are computed once per item, not once per comparison.
- */
-export function groupStories<T extends { title: string; publishedAt?: string | null }>(
-  items: T[],
-  threshold = 0.5,
-): T[][] {
-  const keys = items.map((item) => headlineKey(item.title));
-  const tokens = items.map((item) => titleTokens(item.title));
-  const names = items.map((item) => nameTokens(item.title));
-  const times = items.map((item) => timeOf(item.publishedAt));
-  const taken = new Array<boolean>(items.length).fill(false);
-  const groups: T[][] = [];
-
-  const same = (i: number, j: number) =>
-    keys[i] === keys[j] ||
-    (sharesName(names[i]!, names[j]!) &&
-      (jaccard(tokens[i]!, tokens[j]!) >= threshold ||
-        reworded(tokens[i]!, tokens[j]!, times[i]!, times[j]!)));
-
-  for (let i = 0; i < items.length; i += 1) {
-    if (taken[i]) continue;
-    taken[i] = true;
-    // A report joins when it matches ANY report already in the group, not only
-    // the first: a big story is told many ways, and comparing with the first
-    // headline alone left Meta's Muse Wonder launch as five separate stories.
-    const members = [i];
-    for (let k = 0; k < members.length; k += 1) {
-      for (let j = i + 1; j < items.length; j += 1) {
-        if (!taken[j] && same(members[k]!, j)) {
-          taken[j] = true;
-          members.push(j);
-        }
-      }
-    }
-    groups.push(members.map((index) => items[index]!));
-  }
-  return groups;
-}
-
-/** Distinct outlets behind a group of reports: one outlet running a story twice is one. */
-export function outletCount(items: Array<{ publisher: string | null }>): number {
-  return Math.max(1, new Set(items.map((item) => (item.publisher ?? "").toLowerCase())).size);
-}
-
-/**
- * Groups reports of the same story and counts the outlets behind each.
+ * pass. Coverage counts DISTINCT outlets, so one outlet running the same story
+ * twice is still one outlet, not a trend.
  *
  * Returns one lead item per story (the most recent report), carrying the
  * number of distinct outlets as `coverage`.
@@ -233,10 +126,35 @@ export function outletCount(items: Array<{ publisher: string | null }>): number 
 export function clusterStories<
   T extends { title: string; publisher: string | null; publishedAt: string | null },
 >(items: T[], threshold = 0.5): Array<T & { coverage: number }> {
+  const tokens = items.map((item) => titleTokens(item.title));
+  const names = items.map((item) => nameTokens(item.title));
+  const groupOf = new Array<number>(items.length).fill(-1);
+  const groups: number[][] = [];
+
+  for (let i = 0; i < items.length; i += 1) {
+    if (groupOf[i] !== -1) continue;
+    const group = [i];
+    groupOf[i] = groups.length;
+    for (let j = i + 1; j < items.length; j += 1) {
+      if (groupOf[j] !== -1) continue;
+      if (
+        jaccard(tokens[i] ?? new Set(), tokens[j] ?? new Set()) >= threshold &&
+        sharesName(names[i] ?? new Set(), names[j] ?? new Set())
+      ) {
+        group.push(j);
+        groupOf[j] = groups.length;
+      }
+    }
+    groups.push(group);
+  }
+
   const time = (item: T) => (item.publishedAt ? new Date(item.publishedAt).getTime() : 0);
-  return groupStories(items, threshold).map((members) => {
+
+  return groups.map((group) => {
+    const members = group.map((index) => items[index]).filter((item): item is T => Boolean(item));
     const lead = members.reduce((best, item) => (time(item) > time(best) ? item : best));
-    return { ...lead, coverage: outletCount(members) };
+    const outlets = new Set(members.map((item) => (item.publisher ?? "").toLowerCase()));
+    return { ...lead, coverage: Math.max(1, outlets.size) };
   });
 }
 

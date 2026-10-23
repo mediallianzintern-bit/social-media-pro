@@ -7,14 +7,10 @@ import { searchNews } from "./news";
 import { queriesForLane } from "./queries";
 import { OWNER_ACCOUNTS } from "../apify/accounts";
 import { hasOpenAi } from "../ai/client";
-import { readAllReelLearning } from "../reel-learning/store";
 import {
   lastSourceFetch,
-  readIdeaById,
   readPosts,
-  readSavedTopics,
   readSourceItems,
-  readSourceItemsById,
   readTaxonomy,
   readTopicVotes,
   readUsedSourceIds,
@@ -26,25 +22,11 @@ import {
   laneQuota,
   preferenceFor,
   pullQueries,
-  type TopicVote,
   type Verdict,
 } from "@/lib/preferences";
 import {
-  buildOutletModel,
-  outletEvidence,
-  outletFor,
-  outletSummary,
-  STANDING_RANK,
-  type OutletRecord,
-  type OutletSignal,
-  type OutletStanding,
-} from "@/lib/source-trust";
-import {
   clusterStories,
-  groupStories,
-  outletCount,
   rankSources,
-  sameStory,
   SOURCE_WINDOW_DAYS,
   TRENDING_COVERAGE,
   type SourceDraft,
@@ -182,29 +164,8 @@ export interface InboxPreference {
   reason: string | null;
 }
 
-/** What the team's behaviour says about a story's outlet. See lib/source-trust.ts. */
-export interface InboxOutlet {
-  standing: OutletStanding;
-  /** The counts behind it ("7 ✓ · 1 ✗ · 2 scripts"). Null when never acted on. */
-  evidence: string | null;
-}
-
 export interface TopicInbox {
-  items: Array<
-    SourceItem & {
-      used: boolean;
-      preference: InboxPreference;
-      outlet: InboxOutlet;
-      /** Other reports of this same story folded into this row. */
-      repeats: number;
-      /**
-       * The report the script was written from, when this story already has
-       * one. Not always this row's id: the script may come from another
-       * outlet's report of the same story, or from an older fetch.
-       */
-      scriptSourceId: string | null;
-    }
-  >;
+  items: Array<SourceItem & { used: boolean; preference: InboxPreference }>;
   /**
    * Stories held back because the team crossed them, or crossed enough like
    * them. Returned rather than silently dropped, for the same reason the trend
@@ -213,88 +174,12 @@ export interface TopicInbox {
    * could quietly empty a lane.
    */
   hidden: Array<SourceItem & { reason: string }>;
-  /** Reports folded into another row because they were the same story. */
-  repeatsMerged: number;
-  /** Outlets the team's behaviour has judged, for display. */
-  outlets: { trusted: OutletRecord[]; avoided: OutletRecord[]; judged: number };
   lastFetchedAt: string | null;
   /** False before migration 0010: the inbox cannot keep what it fetches. */
   storable: boolean;
 }
 
-/**
- * Where a story sits in the inbox, top first. A story the team ticked is above
- * all of these (tier 0): what the team chose comes first, then what trusted
- * outlets report, then new news, and avoided outlets last.
- */
-const TIER: Record<OutletStanding, number> = { trusted: 1, untested: 2, avoided: 3 };
-
-/** Stored sources by id, in batches small enough for one request each. */
-async function sourcesById(ids: string[]): Promise<SourceItem[]> {
-  const batches: string[][] = [];
-  for (let i = 0; i < ids.length; i += 100) batches.push(ids.slice(i, i + 100));
-  const results = await Promise.all(
-    batches.map((batch) => readSourceItemsById(batch).catch(() => [] as SourceItem[])),
-  );
-  return results.flat();
-}
-
-/**
- * Everything the team has done with stories, as signals about their outlets:
- * ticks and crosses, scripts written, stories saved, reels filmed. Free: stored
- * rows only. See lib/source-trust.ts for how they are weighed.
- */
-async function outletSignals(
-  platform: PlatformId,
-  votes: TopicVote[],
-  usedIds: string[],
-  byId: Map<string, SourceItem>,
-): Promise<OutletSignal[]> {
-  const [saved, filmed] = await Promise.all([
-    readSavedTopics(platform).catch(() => []),
-    readAllReelLearning(platform).catch(() => []),
-  ]);
-  const filmedSources = await Promise.all(
-    filmed.map(async (row) => ({
-      at: row.filmedAt,
-      publisher: (await readIdeaById(row.ideaId).catch(() => null))?.source?.publisher ?? null,
-    })),
-  );
-
-  const signals: OutletSignal[] = [];
-  const push = (publisher: string | null | undefined, kind: OutletSignal["kind"], at: string) => {
-    if (publisher) signals.push({ publisher, kind, at });
-  };
-  for (const vote of votes) {
-    if (vote.kind !== "source") continue;
-    push(
-      byId.get(vote.itemId)?.publisher,
-      vote.verdict === "like" ? "tick" : "cross",
-      vote.createdAt,
-    );
-  }
-  for (const id of usedIds) {
-    const source = byId.get(id);
-    if (source) push(source.publisher, "script", source.fetchedAt);
-  }
-  for (const topic of saved) {
-    if (topic.kind === "source") push(topic.sourceLabel, "saved", topic.createdAt);
-  }
-  for (const reel of filmedSources) push(reel.publisher, "filmed", reel.at);
-  return signals;
-}
-
-/**
- * Fresh stories for the inbox: each story once, trending first, with the
- * team's votes and outlet trust applied, and the ones already written marked.
- *
- * The same story is fetched again and again: by another outlet, by another
- * lane's search, or by the next fetch. On 22 Oct 2026, 91 of the 812 stories in
- * the inbox repeated one already there. So every report in the window is
- * grouped by story (lib/sources.ts sameStory) and shown once. A vote, a script
- * or a cross on any report counts for the whole story, and so does a script
- * written from an older report that has left the window.
- */
+/** Fresh stories for the inbox, trending first, with the ones already turned into ideas marked. */
 export async function topicInbox(platform: PlatformId): Promise<TopicInbox> {
   const since = new Date(Date.now() - SOURCE_WINDOW_DAYS * 86_400_000).toISOString();
   const [items, used, last, votes] = await Promise.all([
@@ -306,129 +191,50 @@ export async function topicInbox(platform: PlatformId): Promise<TopicInbox> {
   const usedSet = new Set(used);
   const model = buildPreferenceModel(votes);
 
-  // Every story the team voted on or wrote from, including ones that have left
-  // the window: their outlets are learned from, and a written one must not
-  // come back as new under another outlet's headline.
-  const byId = new Map(items.map((item) => [item.id, item]));
-  const outside = [
-    ...new Set([
-      ...votes.filter((vote) => vote.kind === "source").map((vote) => vote.itemId),
-      ...used,
-    ]),
-  ].filter((id) => !byId.has(id));
-  for (const source of await sourcesById(outside)) byId.set(source.id, source);
-  const outlets = buildOutletModel(await outletSignals(platform, votes, used, byId));
-  const writtenEarlier = used
-    .filter((id) => !items.some((item) => item.id === id))
-    .map((id) => byId.get(id))
-    .filter((source): source is SourceItem => Boolean(source));
-
-  const latestVote = new Map<string, TopicVote>();
-  for (const vote of votes) {
-    if (vote.kind !== "source") continue;
-    const seen = latestVote.get(vote.itemId);
-    if (!seen || vote.createdAt > seen.createdAt) latestVote.set(vote.itemId, vote);
-  }
-  const standingOf = (item: SourceItem) =>
-    outletFor(outlets, item.publisher)?.standing ?? "untested";
-  const time = (item: SourceItem) => (item.publishedAt ? new Date(item.publishedAt).getTime() : 0);
-
-  // One row per story. Its lead report is the one the team acted on, if any,
-  // so the vote and the script stay attached to what is shown; otherwise the
-  // most trusted outlet's report, then the newest.
-  let repeatsMerged = 0;
-  const stories = groupStories(items).map((members) => {
-    repeatsMerged += members.length - 1;
-    const voted = members
-      .filter((item) => latestVote.has(item.id))
-      .sort((a, b) =>
-        latestVote.get(b.id)!.createdAt.localeCompare(latestVote.get(a.id)!.createdAt),
-      );
-    const written = members.find((item) => usedSet.has(item.id));
-    const lead =
-      voted[0] ??
-      written ??
-      [...members].sort(
-        (a, b) => STANDING_RANK[standingOf(b)] - STANDING_RANK[standingOf(a)] || time(b) - time(a),
-      )[0]!;
-    const writtenBefore = written
-      ? null
-      : writtenEarlier.find((source) =>
-          sameStory(source.title, lead.title, 0.5, { a: source.publishedAt, b: lead.publishedAt }),
-        );
-    return {
-      lead: { ...lead, coverage: Math.max(lead.coverage, outletCount(members)) },
-      repeats: members.length - 1,
-      scriptSourceId: written?.id ?? writtenBefore?.id ?? null,
-    };
-  });
-
-  // Order, in tiers (TIER below): stories the team ticked, then trusted
-  // outlets' stories, then new news, then avoided outlets' stories. Within a
-  // tier the existing order holds — trending first, then newest — as a score
-  // that falls off gently with position, multiplied by the team's preference,
-  // so a liked subject climbs a few places and a disliked one sinks.
+  // The existing order — trending first, then newest — becomes a score that
+  // falls off gently with position, and the team's preference multiplies it.
+  // With no votes every multiplier is exactly 1 and the order is untouched;
+  // a liked story climbs a few places and a disliked one sinks, rather than
+  // either jumping to an end on one click.
   const shown: TopicInbox["items"] = [];
   const hidden: TopicInbox["hidden"] = [];
-  const leads = new Map(stories.map((story) => [story.lead.id, story]));
-  const scored = rankSources(stories.map((story) => story.lead)).map((item, index) => {
+  const scored = rankSources(items).map((item, index) => {
     const preference = preferenceFor(model, {
       kind: "source",
       itemId: item.id,
       text: item.title,
       lane: item.lane,
     });
-    const record = outletFor(outlets, item.publisher);
-    const standing = record?.standing ?? "untested";
-    return {
-      item,
-      preference,
-      outlet: { standing, evidence: record ? outletEvidence(record) : null },
-      tier: preference.voted === "like" ? 0 : TIER[standing],
-      rank: (1 / (1 + index / 10)) * preference.multiplier,
-    };
+    return { item, preference, rank: (1 / (1 + index / 10)) * preference.multiplier };
   });
 
-  for (const { item, preference, outlet } of scored.sort(
-    (a, b) => a.tier - b.tier || b.rank - a.rank,
-  )) {
+  for (const { item, preference } of scored.sort((a, b) => b.rank - a.rank)) {
     if (preference.suppressed) {
       hidden.push({ ...item, reason: preference.reason ?? "like topics you crossed" });
       continue;
     }
-    const story = leads.get(item.id)!;
     shown.push({
       ...item,
-      used: story.scriptSourceId !== null,
+      used: usedSet.has(item.id),
       preference: { voted: preference.voted, reason: preference.reason },
-      outlet,
-      repeats: story.repeats,
-      scriptSourceId: story.scriptSourceId,
     });
   }
 
   return {
     items: shown,
     hidden,
-    repeatsMerged,
-    outlets: outletSummary(outlets),
     lastFetchedAt: last,
     storable: last !== null || items.length > 0,
   };
 }
 
 /**
- * What the strategist may build on: fresh, unused stories, best first, spread
- * across lanes.
- *
- * Built from the inbox, so every story appears once, nothing already written
- * (from any outlet's report of it) is handed out again, and the inbox's order
- * carries over: stories the team ticked, then trusted outlets' stories, then
- * new news. Stories from avoided outlets are never used. The list is as long as
- * it always was — trust decides what comes first, not how many there are.
+ * What the strategist may build on: fresh, unused stories, spread across lanes.
  *
  * Capped per lane so one busy news lane cannot crowd the others out of the
- * list, and overall so the prompt stays readable.
+ * list, and overall so the prompt stays readable. Stories already turned into
+ * an idea are excluded — handing the same article out twice is the source-level
+ * version of repeating a topic.
  */
 export async function sourceCandidates(
   platform: PlatformId,
@@ -444,20 +250,14 @@ export async function sourceCandidates(
   const counts = new Map<string, number>();
   const picked: SourceItem[] = [];
   for (const item of inbox.items) {
-    if (item.used || item.outlet.standing === "avoided") continue;
+    if (item.used) continue;
     const lane = item.lane ?? "";
     // A lane the team keeps ticking gets more of the strategist's attention,
-    // one it keeps crossing gets less. Hidden stories never reach here at all.
+    // one it keeps crossing gets less — the "more of what we like" half of the
+    // feature. Hidden stories never reach here at all.
     if ((counts.get(lane) ?? 0) >= laneQuota(model, item.lane, perLane)) continue;
     counts.set(lane, (counts.get(lane) ?? 0) + 1);
-    const {
-      used: _used,
-      preference: _preference,
-      outlet: _outlet,
-      repeats: _repeats,
-      scriptSourceId: _script,
-      ...source
-    } = item;
+    const { used: _used, preference: _preference, ...source } = item;
     picked.push(source);
     if (picked.length >= limit) break;
   }
