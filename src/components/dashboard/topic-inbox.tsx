@@ -148,7 +148,7 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                   {isLoading
                     ? "Loading stories…"
                     : items.length
-                      ? `${items.length} stories from the last two weeks${trending ? `, ${trending} carried by more than one outlet` : ""}.`
+                      ? `${items.length} stories from the last two weeks${trending ? `, ${trending} carried by more than one outlet` : ""}.${data?.repeatsMerged ? ` ${data.repeatsMerged} repeated reports of the same stories merged.` : ""}`
                       : "No stories stored yet."}
                   {data?.lastFetchedAt ? ` Last fetched ${dateTime(data.lastFetchedAt)}.` : ""}
                 </p>
@@ -208,7 +208,10 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                 <ul className="divide-y">
                   {visible.map((item) => {
                     const age = ageDays(item.publishedAt);
-                    const pending = write.isPending && write.variables?.sourceId === item.id;
+                    const pending =
+                      write.isPending &&
+                      (write.variables?.sourceId === item.id ||
+                        write.variables?.sourceId === item.scriptSourceId);
                     const justWritten = writtenFor === item.id;
                     return (
                       <li
@@ -292,12 +295,12 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                                   disabled={openSavedScript.isPending || write.isPending}
                                   onClick={() => {
                                     setScriptMessage(null);
-                                    openSavedScript.mutate(item.id);
+                                    openSavedScript.mutate(item.scriptSourceId ?? item.id);
                                   }}
                                 >
                                   <FileText className="size-3.5" aria-hidden />
                                   {openSavedScript.isPending &&
-                                  openSavedScript.variables === item.id
+                                  openSavedScript.variables === (item.scriptSourceId ?? item.id)
                                     ? "Loading…"
                                     : "View script"}
                                 </Button>
@@ -309,7 +312,10 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                                   className="gap-1.5"
                                   disabled={write.isPending || openSavedScript.isPending}
                                   onClick={() =>
-                                    write.mutate({ sourceId: item.id, regenerate: true })
+                                    write.mutate({
+                                      sourceId: item.scriptSourceId ?? item.id,
+                                      regenerate: true,
+                                    })
                                   }
                                   title="Uses AI calls to write a new version with the current rules. The earlier version stays in history."
                                 >
