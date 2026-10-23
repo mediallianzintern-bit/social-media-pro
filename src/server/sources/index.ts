@@ -99,6 +99,16 @@ export async function refreshSources(
 ): Promise<RefreshResult> {
   const empty: RefreshResult = { ran: false, queries: 0, stored: 0, trending: 0, failures: [] };
 
+  // "Refresh topics" also re-reads the watched creators, so the reel-fed lanes
+  // refresh with the button and not only on Sync. Free: Instagram's own API.
+  // A Sync reads them itself after this (sync.ts), so only the button does.
+  if (options.force && platform === "instagram") {
+    const { watchCreators } = await import("../creators");
+    await watchCreators(platform).catch((error: unknown) =>
+      console.error(`[sources:${platform}] creator reels failed:`, error),
+    );
+  }
+
   if (!options.force) {
     const last = await lastSourceFetch(platform).catch(() => null);
     const hours = last ? (Date.now() - new Date(last).getTime()) / 3_600_000 : Infinity;
