@@ -325,9 +325,25 @@ export async function topicInbox(platform: PlatformId): Promise<TopicInbox> {
     lastSourceFetch(platform).catch(() => null),
     readTopicVotes(platform).catch(() => []),
   ]);
-  // A lane fed by creator reels shows only the reels, not its old news.
-  const items = stored.filter((item) => item.kind === "video" || !isNewsOffLane(item.lane));
   const usedSet = new Set(used);
+  // Creator reels show while they are current: every read of the creators
+  // re-stores the reels that still stand out and still fit the lane, so one
+  // not refreshed by the latest read has dropped out (aged past two weeks,
+  // fallen back to its creator's normal, or failed the learned pattern). A reel
+  // a script was written from stays, so its script can still be opened.
+  const latestReel = new Map<string, number>();
+  for (const item of stored) {
+    if (item.kind !== "video") continue;
+    const key = item.lane ?? "";
+    latestReel.set(key, Math.max(latestReel.get(key) ?? 0, Date.parse(item.fetchedAt)));
+  }
+  const current = (item: SourceItem) =>
+    usedSet.has(item.id) ||
+    Date.parse(item.fetchedAt) >= (latestReel.get(item.lane ?? "") ?? 0) - 15 * 60_000;
+  // A lane fed by creator reels shows only the reels, not its old news.
+  const items = stored.filter((item) =>
+    item.kind === "video" ? current(item) : !isNewsOffLane(item.lane),
+  );
   const model = buildPreferenceModel(votes);
 
   // Every story the team voted on or wrote from, including ones that have left

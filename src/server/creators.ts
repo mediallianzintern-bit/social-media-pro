@@ -5,13 +5,17 @@
 // Business or Creator account. The reels that beat that creator's own normal
 // (lib/creator-reels.ts) are stored as topics beside the news, in the
 // creator's lane, so the lane's topic list, ticks and crosses, Save, Write
-// script and the writer's own suggestions all work on them unchanged.
+// script and the writer's own suggestions all work on them unchanged. Since
+// phase 2 a reel must also fit the lane's pattern, learned from these
+// creators' own posts (server/creator-pattern.ts).
 //
 // Never fatal: a creator that cannot be read is skipped and named in the log.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { fitOf } from "@/lib/creator-pattern";
 import { reelAsTopic, standoutReels, type CreatorPost } from "@/lib/creator-reels";
 import type { PlatformId } from "@/lib/analytics-types";
 
+import { patternFor } from "./creator-pattern";
 import { graph, hasInstagramGraph } from "./graph/client";
 import { hasDurableStore, saveSourceItems } from "./store";
 
@@ -79,28 +83,59 @@ export interface WatchResult {
   failures: string[];
 }
 
-/** Reads every active creator and stores their standout reels as topics. Free. */
-export async function watchCreators(platform: PlatformId): Promise<WatchResult> {
+/**
+ * Reads every active creator and stores their standout reels as topics. Free.
+ *
+ * A reel is kept when it beat its creator's normal AND fits the lane's learned
+ * pattern (server/creator-pattern.ts). The pattern is built from these same
+ * posts the first time and whenever it is a month old, or now with
+ * `rebuildPattern`.
+ */
+export async function watchCreators(
+  platform: PlatformId,
+  options: { rebuildPattern?: boolean } = {},
+): Promise<WatchResult> {
   const result: WatchResult = { creators: 0, read: 0, standouts: 0, failures: [] };
   if (platform !== "instagram" || !hasInstagramGraph()) return result;
   const creators = await readWatchedCreators(platform);
   result.creators = creators.length;
 
-  const topics: Array<ReturnType<typeof reelAsTopic>> = [];
   // One at a time: a handful of small requests, well inside Instagram's limits.
+  const read: Array<{ creator: WatchedCreator; posts: CreatorPost[] }> = [];
   for (const creator of creators) {
     try {
-      const posts = await fetchCreatorPosts(creator.handle);
+      read.push({ creator, posts: await fetchCreatorPosts(creator.handle) });
       result.read += 1;
-      for (const standout of standoutReels(posts)) {
-        topics.push(reelAsTopic(creator.handle, creator.lane, standout));
-      }
     } catch (error) {
       result.failures.push(
         `@${creator.handle}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
+
+  const topics: Array<ReturnType<typeof reelAsTopic>> = [];
+  for (const lane of new Set(read.map((entry) => entry.creator.lane))) {
+    const inLane = read.filter((entry) => entry.creator.lane === lane);
+    const pattern = await patternFor(
+      platform,
+      lane,
+      inLane.flatMap(({ creator, posts }) =>
+        posts.map((post) => ({ creator: creator.handle, text: post.caption })),
+      ),
+      { force: options.rebuildPattern ?? false },
+    ).catch((error: unknown) => {
+      result.failures.push(`pattern: ${error instanceof Error ? error.message : String(error)}`);
+      return null;
+    });
+    for (const { creator, posts } of inLane) {
+      const onTopic = pattern ? (caption: string) => fitOf(pattern, caption).passes : undefined;
+      for (const standout of standoutReels(posts, Date.now(), onTopic)) {
+        const fit = pattern ? fitOf(pattern, standout.post.caption).fit : null;
+        topics.push(reelAsTopic(creator.handle, creator.lane, standout, fit));
+      }
+    }
+  }
+
   result.standouts = await saveSourceItems(platform, topics).catch((error: unknown) => {
     result.failures.push(`storage: ${error instanceof Error ? error.message : String(error)}`);
     return 0;

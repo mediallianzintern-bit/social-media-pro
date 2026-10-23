@@ -258,7 +258,8 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                               // A creator's reel: how far it beat that creator's own normal.
                               <Badge variant="secondary" className="gap-1 font-normal">
                                 <Clapperboard className="size-3" aria-hidden />
-                                Reel · {item.query.split(" · ")[1] ?? "creator reel"}
+                                Reel ·{" "}
+                                {item.query.split(" · ").slice(1).join(" · ") || "creator reel"}
                               </Badge>
                             ) : null}
                             {item.coverage >= TRENDING_COVERAGE ? (

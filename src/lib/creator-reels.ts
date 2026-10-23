@@ -72,20 +72,6 @@ export function headlineOf(caption: string): string {
   return line.length > 140 ? `${line.slice(0, 137).trimEnd()}…` : line;
 }
 
-/**
- * Does the caption show an AI tool being used? The lane is strict (the
- * proposal's recommendation): a caption must name an AI tool, or a prompt,
- * workflow, automation or agent. Measured on the ten reference creators on
- * 23 Oct 2026, this drops "Gate prep !" (no description at all) and an
- * account-security checklist, and keeps every tool walkthrough.
- */
-const AI_WORKFLOW =
-  /\b(ai|a\.i\.|chatgpt|gpt[-\s]?\d*|claude|gemini|copilot|midjourney|runway|sora|veo|kling|higgsfield|heygen|elevenlabs|perplexity|canva|capcut|notebooklm|n8n|zapier|make\.com|prompts?|workflows?|automat\w*|agents?|agentic|llms?)\b/i;
-
-export function showsAiWorkflow(caption: string): boolean {
-  return AI_WORKFLOW.test(caption);
-}
-
 export interface Standout {
   post: CreatorPost;
   /** Likes against this creator's own median (comments, if likes are hidden). */
@@ -97,10 +83,18 @@ export interface Standout {
  *
  * Strict, as the proposal recommends: at least BREAKOUT_MULTIPLE times the
  * creator's median, only reels, only from the last CREATOR_REEL_WINDOW_DAYS,
- * and none at all until the creator has MIN_POSTS_FOR_MEDIAN posts to set a
- * normal from.
+ * only captions that fit the lane, and none at all until the creator has
+ * MIN_POSTS_FOR_MEDIAN posts to set a normal from.
  */
-export function standoutReels(posts: CreatorPost[], now = Date.now()): Standout[] {
+export function standoutReels(
+  posts: CreatorPost[],
+  now = Date.now(),
+  /**
+   * Is this caption the lane's kind of content? The lane's learned pattern
+   * (lib/creator-pattern.ts). Until one exists, every standout reel counts.
+   */
+  onTopic: (caption: string) => boolean = () => true,
+): Standout[] {
   if (posts.length < MIN_POSTS_FOR_MEDIAN) return [];
   // A creator who hides likes everywhere is judged on comments alone.
   const likesHidden = posts.every((post) => post.likes === null);
@@ -108,9 +102,7 @@ export function standoutReels(posts: CreatorPost[], now = Date.now()): Standout[
   if (!baseline) return [];
   const since = now - CREATOR_REEL_WINDOW_DAYS * 86_400_000;
   return posts
-    .filter(
-      (post) => post.isReel && Date.parse(post.postedAt) >= since && showsAiWorkflow(post.caption),
-    )
+    .filter((post) => post.isReel && Date.parse(post.postedAt) >= since && onTopic(post.caption))
     .map((post) => ({ post, multiple: engagementOf(post, likesHidden) / baseline }))
     .filter((entry) => entry.multiple >= BREAKOUT_MULTIPLE && headlineOf(entry.post.caption))
     .sort((a, b) => b.multiple - a.multiple)
@@ -127,9 +119,9 @@ export function reelAsTopic(
   handle: string,
   lane: string,
   standout: Standout,
-): SourceDraft & {
-  coverage: number;
-} {
+  /** 0-100 fit to the lane's learned pattern, when there is one. */
+  fit: number | null = null,
+): SourceDraft & { coverage: number } {
   return {
     url: standout.post.permalink,
     title: headlineOf(standout.post.caption),
@@ -137,7 +129,7 @@ export function reelAsTopic(
     publisherUrl: `https://www.instagram.com/${handle}/`,
     publishedAt: standout.post.postedAt,
     // "How it was found" — the creator and how far the reel beat their normal.
-    query: `@${handle} reel · ${multipleLabel(standout.multiple)}`,
+    query: `@${handle} reel · ${multipleLabel(standout.multiple)}${fit === null ? "" : ` · ${fit}% fit`}`,
     lane,
     kind: "video",
     coverage: 1,

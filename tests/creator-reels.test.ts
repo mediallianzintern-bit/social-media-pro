@@ -74,9 +74,10 @@ describe("standout creator reels", () => {
     ).toBe("Seven Claude skills, one for every format:");
   });
 
-  it("drops reels that do not show an AI tool or workflow", () => {
+  it("drops reels the lane's pattern says are off topic", () => {
     const offTopic = { ...post("gate", 9000, 90, 1), caption: "Gate prep !" };
-    expect(standoutReels([...normal, offTopic], now)).toEqual([]);
+    const onTopic = (caption: string) => caption.includes("ChatGPT");
+    expect(standoutReels([...normal, offTopic], now, onTopic)).toEqual([]);
   });
 
   it("judges on likes, so a comment giveaway does not inflate a reel", () => {
