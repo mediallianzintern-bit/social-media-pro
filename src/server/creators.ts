@@ -43,6 +43,44 @@ export async function readWatchedCreators(platform: PlatformId): Promise<Watched
   return (data ?? []) as WatchedCreator[];
 }
 
+export interface WatchedCreatorRow extends WatchedCreator {
+  active: boolean;
+  /** Share of recent posts that fit the lane's pattern, 0-1 (phase 3). */
+  fit: number | null;
+  foundBy: string | null;
+  retiredReason: string | null;
+  lastChecked: string | null;
+}
+
+/** Every watched creator, active or not, for the Data sources panel. */
+export async function readAllWatchedCreators(platform: PlatformId): Promise<WatchedCreatorRow[]> {
+  if (!hasDurableStore()) return [];
+  const full = await db()
+    .from("watched_creators")
+    .select("handle,lane,role,active,fit,found_by,retired_reason,last_checked")
+    .eq("platform", platform)
+    .order("added_at", { ascending: true });
+  // Before 0023 the phase 3 columns are missing: read what 0021 has.
+  const { data, error } = full.error
+    ? await db()
+        .from("watched_creators")
+        .select("handle,lane,role,active")
+        .eq("platform", platform)
+        .order("added_at", { ascending: true })
+    : full;
+  if (error) return [];
+  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    handle: String(row["handle"]),
+    lane: String(row["lane"]),
+    role: row["role"] as WatchedCreator["role"],
+    active: Boolean(row["active"]),
+    fit: row["fit"] == null ? null : Number(row["fit"]),
+    foundBy: (row["found_by"] as string | null) ?? null,
+    retiredReason: (row["retired_reason"] as string | null) ?? null,
+    lastChecked: (row["last_checked"] as string | null) ?? null,
+  }));
+}
+
 interface DiscoveryMedia {
   id: string;
   permalink?: string;
@@ -127,6 +165,18 @@ export async function watchCreators(
       result.failures.push(`pattern: ${error instanceof Error ? error.message : String(error)}`);
       return null;
     });
+    if (pattern) {
+      // Found creators who drifted off the subject or went quiet are paused
+      // (phase 3). Free: it judges the posts just read.
+      const { retireDrifted } = await import("./creator-finder");
+      await retireDrifted(
+        platform,
+        pattern,
+        inLane.map(({ creator, posts }) => ({ handle: creator.handle, role: creator.role, posts })),
+      ).catch((error: unknown) =>
+        result.failures.push(`retire: ${error instanceof Error ? error.message : String(error)}`),
+      );
+    }
     for (const { creator, posts } of inLane) {
       const onTopic = pattern ? (caption: string) => fitOf(pattern, caption).passes : undefined;
       for (const standout of standoutReels(posts, Date.now(), onTopic)) {

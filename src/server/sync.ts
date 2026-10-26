@@ -476,6 +476,12 @@ async function runSyncOnce(
       await watchCreators(platform).catch((error: unknown) =>
         console.error(`[sync:${platform}] creator reels failed:`, error),
       );
+      // New creators, once a week, only under CREATOR_SEARCH_MONTHLY_USD (off
+      // when unset). The one paid step of the creator lanes.
+      const { findCreators } = await import("./creator-finder");
+      await findCreators(platform).catch((error: unknown) =>
+        console.error(`[sync:${platform}] creator search failed:`, error),
+      );
     }
   }
 
