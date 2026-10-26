@@ -181,7 +181,9 @@ export async function watchCreators(
       const onTopic = pattern ? (caption: string) => fitOf(pattern, caption).passes : undefined;
       for (const standout of standoutReels(posts, Date.now(), onTopic)) {
         const fit = pattern ? fitOf(pattern, standout.post.caption).fit : null;
-        topics.push(reelAsTopic(creator.handle, creator.lane, standout, fit));
+        topics.push(
+          reelAsTopic(creator.handle, creator.lane, standout, fit, creator.role === "found"),
+        );
       }
     }
   }

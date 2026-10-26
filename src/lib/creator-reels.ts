@@ -121,6 +121,8 @@ export function reelAsTopic(
   standout: Standout,
   /** 0-100 fit to the lane's learned pattern, when there is one. */
   fit: number | null = null,
+  /** A creator the system found itself, rather than one the team supplied. */
+  found = false,
 ): SourceDraft & { coverage: number } {
   return {
     url: standout.post.permalink,
@@ -129,7 +131,7 @@ export function reelAsTopic(
     publisherUrl: `https://www.instagram.com/${handle}/`,
     publishedAt: standout.post.postedAt,
     // "How it was found" — the creator and how far the reel beat their normal.
-    query: `@${handle} reel · ${multipleLabel(standout.multiple)}${fit === null ? "" : ` · ${fit}% fit`}`,
+    query: `@${handle} reel · ${multipleLabel(standout.multiple)}${fit === null ? "" : ` · ${fit}% fit`}${found ? " · found creator" : ""}`,
     lane,
     kind: "video",
     coverage: 1,
