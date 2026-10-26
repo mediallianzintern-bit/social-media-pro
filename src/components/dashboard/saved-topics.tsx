@@ -177,14 +177,23 @@ function SavedRow({ item }: { item: SavedTopic }) {
             <meta.icon className="size-3" aria-hidden />
             {meta.label}
           </span>
-          <span>· {reaction ? "answers a rising post" : "built on a news story"}</span>
+          <span>
+            ·{" "}
+            {reaction
+              ? "answers a rising post"
+              : /instagram\.com\/(reel|p)\//.test(item.url ?? "")
+                ? "built on a creator reel"
+                : "built on a news story"}
+          </span>
           {item.sourceLabel ? <span>· {item.sourceLabel}</span> : null}
           {item.lane ? <span>· {item.lane}</span> : null}
           <span>· saved {dateTime(item.createdAt)}</span>
           {item.actor ? <span>by {item.actor}</span> : null}
         </p>
       </div>
-      <div className="flex shrink-0 flex-wrap items-center gap-2 pl-5 sm:pl-0">
+      {/* Capped, so a long message under the buttons wraps instead of widening
+          this column and squeezing the topic into a sliver. */}
+      <div className="flex shrink-0 flex-wrap items-center gap-2 pl-5 sm:max-w-[28rem] sm:justify-end sm:pl-0">
         {reaction ? <ReactionScriptActions item={item} /> : <NewsScriptActions item={item} />}
         <Badge variant="outline" className="font-normal capitalize">
           {item.lane ?? "no lane"}
@@ -304,7 +313,11 @@ function NewsScriptActions({ item }: { item: SavedTopic }) {
           {write.isPending ? "Writing…" : "Write script"}
         </Button>
       )}
-      {message ? <span className="w-full text-xs text-destructive">{message}</span> : null}
+      {message ? (
+        <span className="basis-full whitespace-normal break-words text-xs text-destructive">
+          {message}
+        </span>
+      ) : null}
 
       {viewing ? (
         <AiIdeaCards
@@ -454,7 +467,11 @@ function ReactionScriptActions({ item }: { item: SavedTopic }) {
           </Button>
         </>
       )}
-      {message ? <span className="w-full text-xs text-destructive">{message}</span> : null}
+      {message ? (
+        <span className="basis-full whitespace-normal break-words text-xs text-destructive">
+          {message}
+        </span>
+      ) : null}
 
       {viewing ? (
         <AiIdeaCards

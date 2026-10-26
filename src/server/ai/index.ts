@@ -16,6 +16,7 @@ import { questionFeedActor, trendFeedActor, trendFeedInAnalysis } from "./feeds"
 import { currentNiche, recordPredictions } from "../predict";
 import { hasOpenAi, openAiKeyIsPlaceholder } from "./client";
 import { workflowLaneForSource } from "./tool-workflow";
+import { isAiToolWorkflowLane } from "@/lib/tool-workflow";
 import { discoverCompetitors, type DiscoveryResult } from "./discover";
 import { filmedLessonsBlock, learnedRules } from "../reel-learning/lessons";
 import { classifyPosts, ensureLanes } from "./lanes";
@@ -629,14 +630,26 @@ export async function generateMore(
     briefsFor(platform),
   ]);
 
-  const workflowLane = options.sourceId
-    ? workflowLaneForSource(
-        platform,
-        sources[0]?.lane,
-        (ownerBrief.lanes ?? []).map((lane) => lane.lane),
-      )
+  const accountLanes = (ownerBrief.lanes ?? []).map((lane) => lane.lane);
+  // A NEWS story filed under AI tool workflows is not a workflow: it says a
+  // tool exists or something happened, and never shows the steps the workflow
+  // format requires, so every script written from one was discarded (26 Oct
+  // 2026: "PHP flaws found by AI put 70% of websites at risk"). It is written as
+  // an AI news reel in the account's other AI lane instead. Only creator reels
+  // (kind "video"), which show a tool being used, are held to the workflow
+  // format: since phase 1 they are what feeds that lane.
+  const newsInWorkflowLane =
+    Boolean(options.sourceId) &&
+    sources[0]?.kind !== "video" &&
+    isAiToolWorkflowLane(sources[0]?.lane);
+  const workflowLane =
+    options.sourceId && !newsInWorkflowLane
+      ? workflowLaneForSource(platform, sources[0]?.lane, accountLanes)
+      : undefined;
+  const newsLane = newsInWorkflowLane
+    ? accountLanes.find((lane) => /\bai\b/i.test(lane) && !isAiToolWorkflowLane(lane))
     : undefined;
-  const requestedLane = workflowLane ?? options.lane;
+  const requestedLane = workflowLane ?? newsLane ?? options.lane;
   // Regeneration rewrites ONE story's script, so it needs that story. Any
   // lane may be regenerated; it used to be AI tool workflows only.
   if (options.regenerate && (!options.sourceId || options.fresh)) {
