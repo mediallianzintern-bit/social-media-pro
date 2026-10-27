@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import type { CreatorPattern } from "@/lib/creator-pattern";
+import { creatorKey, type CreatorStanding } from "@/lib/creator-standing";
 import { requireStaff } from "@/lib/require-staff";
 
 const platformInput = z.enum(["instagram", "linkedin"]);
@@ -15,6 +16,8 @@ export interface CreatorLanePattern {
     fit: number | null;
     foundBy: string | null;
     retiredReason: string | null;
+    /** The team's ticks and crosses on their reels (phase 4). Null before any reel was shown. */
+    standing: CreatorStanding | null;
   }>;
   pattern: CreatorPattern | null;
 }
@@ -40,11 +43,16 @@ export const getCreatorPatterns = createServerFn({ method: "GET" })
   .middleware([requireStaff])
   .validator((input: unknown) => platformInput.parse(input))
   .handler(async ({ data: platform }): Promise<CreatorLanePattern[]> => {
-    const [{ readAllWatchedCreators }, { readPattern }] = await Promise.all([
-      import("@/server/creators"),
-      import("@/server/creator-pattern"),
+    const [{ readAllWatchedCreators }, { readPattern }, { readCreatorStandings }] =
+      await Promise.all([
+        import("@/server/creators"),
+        import("@/server/creator-pattern"),
+        import("@/server/creator-standing"),
+      ]);
+    const [creators, standings] = await Promise.all([
+      readAllWatchedCreators(platform),
+      readCreatorStandings(platform).catch(() => new Map<string, CreatorStanding>()),
     ]);
-    const creators = await readAllWatchedCreators(platform);
     const lanes = [...new Set(creators.map((creator) => creator.lane))];
     return Promise.all(
       lanes.map(async (lane) => ({
@@ -58,6 +66,7 @@ export const getCreatorPatterns = createServerFn({ method: "GET" })
             fit,
             foundBy,
             retiredReason,
+            standing: standings.get(creatorKey(handle)) ?? null,
           })),
         pattern: await readPattern(platform, lane),
       })),

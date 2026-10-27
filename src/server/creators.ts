@@ -135,6 +135,11 @@ export async function watchCreators(
 ): Promise<WatchResult> {
   const result: WatchResult = { creators: 0, read: 0, standouts: 0, failures: [] };
   if (platform !== "instagram" || !hasInstagramGraph()) return result;
+  // Phase 4: found creators the team keeps crossing are dropped before reading.
+  const { retireCrossed } = await import("./creator-standing");
+  await retireCrossed(platform).catch((error: unknown) =>
+    result.failures.push(`standing: ${error instanceof Error ? error.message : String(error)}`),
+  );
   const creators = await readWatchedCreators(platform);
   result.creators = creators.length;
 

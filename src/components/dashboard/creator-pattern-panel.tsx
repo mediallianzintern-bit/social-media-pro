@@ -16,6 +16,7 @@ import {
 } from "@/lib/creator-pattern.functions";
 import type { PatternTerm } from "@/lib/creator-pattern";
 import { MAX_ADDED_PER_RUN } from "@/lib/creator-finder";
+import { DROP_CROSSES, DROP_WINDOW } from "@/lib/creator-standing";
 import { dateTime } from "@/lib/format";
 
 const pct = (share: number, digits = 0) => `${(share * 100).toFixed(digits)}%`;
@@ -110,12 +111,39 @@ function LanePattern({ entry }: { entry: CreatorLanePattern }) {
   );
 }
 
+const STANDING_LABEL = { backed: "backed", crossed: "often crossed", untested: "untested" };
+
+/**
+ * The team's ticks and crosses on a creator's reels (phase 4). Shown only: it
+ * does not order the lane yet. Found creators also show how near the drop rule
+ * they are; reference creators are never dropped.
+ */
+function Standing({ creator }: { creator: CreatorLanePattern["creators"][number] }) {
+  const standing = creator.standing;
+  if (!standing || (!standing.ticks && !standing.crosses)) {
+    return <span className="text-xs text-muted-foreground">no votes yet</span>;
+  }
+  return (
+    <span
+      className="text-xs text-muted-foreground"
+      title={`Score ${standing.score} from ${standing.reels} reels shown. Not used to order the lane yet.`}
+    >
+      {standing.ticks} ✓ · {standing.crosses} ✗ · {STANDING_LABEL[standing.standing]}
+      {creator.role === "found" && creator.active
+        ? ` · ${standing.recentCrosses} of last ${standing.recentReels} crossed (dropped at ${DROP_CROSSES} of ${DROP_WINDOW})`
+        : ""}
+    </span>
+  );
+}
+
 /** Every watched creator: how it got here, how well it fits, and whether it is still watched. */
 function Creators({ creators }: { creators: CreatorLanePattern["creators"] }) {
   return (
     <div className="space-y-1.5">
       <p className="text-xs font-medium text-muted-foreground">
-        Watched creators: reference ones were supplied, found ones the system added itself
+        Watched creators: reference ones were supplied, found ones the system added itself. Ticks
+        and crosses on their reels build each one&rsquo;s standing; a found creator is dropped at{" "}
+        {DROP_CROSSES} crosses in their last {DROP_WINDOW} reels.
       </p>
       <ul className="divide-y rounded-md border text-sm">
         {creators.map((creator) => (
@@ -149,6 +177,7 @@ function Creators({ creators }: { creators: CreatorLanePattern["creators"] }) {
             {creator.foundBy ? (
               <span className="text-xs text-muted-foreground">found by “{creator.foundBy}”</span>
             ) : null}
+            <Standing creator={creator} />
             {!creator.active ? (
               <span className="text-xs text-destructive">
                 retired{creator.retiredReason ? `: ${creator.retiredReason}` : ""}
