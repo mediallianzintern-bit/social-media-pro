@@ -60,6 +60,7 @@ import { hookTest, VARIANT_LABELS } from "@/lib/hook-variants";
 import { voiceFlags } from "@/lib/voice-check";
 import { computeInsights } from "@/lib/insights";
 import { usePlatform } from "@/lib/use-dashboard";
+import { PIVOT_LABEL, RIGHTS_LABEL, SOURCE_PLATFORM_LABEL } from "@/lib/reaction";
 
 /**
  * The handover document, as plain text.
@@ -125,6 +126,26 @@ function toPlainText(idea: ContentIdea): string {
     for (const link of searchLinks(source.searchQuery)) lines.push(`  ${link.label}: ${link.href}`);
     lines.push(
       "No live source was available — written from the model's knowledge. Confirm every detail first.",
+      "",
+    );
+  }
+
+  // A reaction's source is a clip, not an article: the same block, so the
+  // editor watches what is being answered before a word of it is filmed.
+  const reaction = idea.reaction;
+  if (reaction) {
+    lines.push("--- SOURCE CLIP: WATCH THIS BEFORE MAKING IT ---");
+    lines.push(
+      `Creator:   ${reaction.sourceCreatorHandle ? `@${reaction.sourceCreatorHandle}` : "unknown"} on ${SOURCE_PLATFORM_LABEL[reaction.sourcePlatform]}`,
+    );
+    lines.push(`Link:      ${reaction.sourceUrl}`);
+    lines.push(`Claim:     ${reaction.claim}`);
+    lines.push(`Borrow:    ${reaction.sourceIn}–${reaction.sourceOut} of the original`);
+    lines.push(`Credit:    ${reaction.creditOverlayText || "not set"}`);
+    lines.push(`Rights:    ${RIGHTS_LABEL[reaction.rightsStatus]}`);
+    lines.push(`Response:  ${PIVOT_LABEL[reaction.pivotType]}`);
+    lines.push(
+      "Anything marked [VERIFY] below must be confirmed by the client before filming.",
       "",
     );
   }

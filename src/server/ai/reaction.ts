@@ -54,22 +54,34 @@ import {
 /** The longest transcript sent. Enough for a ~60s clip; the claim is near the start. */
 const TRANSCRIPT_LIMIT = 3_000;
 
-const SHOT_JSON = {
-  type: "object",
-  additionalProperties: false,
-  required: ["mark", "shotType", "visual", "voiceover", "onScreenText", "transition"],
-  properties: {
-    mark: { type: "string", description: 'Time range, e.g. "0:00–0:06".' },
-    shotType: {
-      type: "string",
-      description: '"Source clip", "Talking head — tight", "Screen", "B-roll".',
-    },
-    visual: { type: "string" },
-    voiceover: { type: "string", description: "Spoken line. Empty for the source clip shot." },
-    onScreenText: { type: "string" },
-    transition: { type: "string" },
+/** How the expert's beats can be filmed: the variety the written reels have. */
+export const EXPERT_SHOT_TYPES = [
+  "Talking head — tight",
+  "Talking head — wide",
+  "Screen recording",
+  "B-roll",
+  "Text card",
+] as const;
+
+/**
+ * The fallback shot for a beat the model left undescribed, so a script never
+ * collapses back into one long talking head.
+ */
+const BEAT_SHOT: Record<(typeof REACTION_BEATS)[number], { shotType: string; visual: string }> = {
+  pivot: {
+    shotType: "Talking head — tight",
+    visual: "Pritesh straight to camera on the branded set",
   },
-} as const;
+  authority: {
+    shotType: "Talking head — wide",
+    visual: "Pritesh on the branded set, brand screen visible",
+  },
+  specifics: { shotType: "Screen recording", visual: "The example he names, on screen" },
+  mechanism: { shotType: "B-roll", visual: "Footage that shows how it works" },
+  twist: { shotType: "Talking head — tight", visual: "Pritesh straight to camera, closer framing" },
+  redirect: { shotType: "Talking head — wide", visual: "Pritesh on the branded set" },
+  cta: { shotType: "Text card", visual: "Simple text card with the CTA" },
+};
 
 export const REACTION_SCHEMA: Record<string, unknown> = {
   type: "object",
@@ -84,7 +96,7 @@ export const REACTION_SCHEMA: Record<string, unknown> = {
     "sourceIn",
     "sourceOut",
     "beats",
-    "shots",
+    "musicDirection",
     "expertSeconds",
     "contentLane",
     "whyNow",
@@ -135,21 +147,35 @@ export const REACTION_SCHEMA: Record<string, unknown> = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["beat", "line"],
+        required: ["beat", "line", "shotType", "visual", "onScreenText"],
         properties: {
           beat: { type: "string", enum: [...REACTION_BEATS] },
           line: {
             type: "string",
             description: "What the expert says. Mark domain facts [VERIFY].",
           },
+          shotType: {
+            type: "string",
+            enum: [...EXPERT_SHOT_TYPES],
+            description: "How this beat is filmed. Vary it across the beats.",
+          },
+          visual: {
+            type: "string",
+            description:
+              "What the viewer sees during this beat, concretely enough for an editor to source " +
+              "it: the exact screen, footage or framing.",
+          },
+          onScreenText: {
+            type: "string",
+            description: "Two to five words burned on screen for this beat.",
+          },
         },
       },
     },
-    shots: {
-      type: "array",
+    musicDirection: {
+      type: "string",
       description:
-        "Shot list. Shot 1 is the source clip; the rest is the expert on the branded set.",
-      items: SHOT_JSON,
+        "Music under the expert's part: mood, genre and energy. The source clip keeps its own audio.",
     },
     expertSeconds: { type: "number", description: "Length of the expert's segment in seconds." },
     contentLane: { type: "string", description: "The owned lane the topic is redirected into." },
@@ -172,17 +198,16 @@ const reactionSchema = z.object({
   pivotType: z.enum(["contradict", "concede_reframe", "raise_stakes"]),
   sourceIn: z.string(),
   sourceOut: z.string(),
-  beats: z.array(z.object({ beat: z.enum(REACTION_BEATS), line: z.string() })),
-  shots: z.array(
+  beats: z.array(
     z.object({
-      mark: z.string(),
-      shotType: z.string(),
-      visual: z.string(),
-      voiceover: z.string(),
-      onScreenText: z.string(),
-      transition: z.string(),
+      beat: z.enum(REACTION_BEATS),
+      line: z.string(),
+      shotType: z.string().default(""),
+      visual: z.string().default(""),
+      onScreenText: z.string().default(""),
     }),
   ),
+  musicDirection: z.string().default(""),
   expertSeconds: z.number(),
   contentLane: z.string(),
   whyNow: z.string(),
@@ -258,8 +283,13 @@ fixed by this format and take precedence over any general guidance.
 - Any factual or domain claim in the voiceover — statistics, prices, dates, figures, legal or
   financial points — must be marked [VERIFY] at the end of its line. Do not present a figure as
   settled fact unless it appears in the DATA block.
-- Shot 1 is the source clip itself, with the credit overlay. Every later shot is the expert on
-  the account's branded set, same framing each time, word-by-word burned-in captions.
+- EVERY BEAT IS ITS OWN SHOT, like a normal reel's shot list — never one long talking head.
+  For each beat give shotType (${EXPERT_SHOT_TYPES.join(", ")}), a concrete visual an editor
+  can source (the exact screen, footage or framing) and two to five words of onScreenText.
+  Vary the shots: open on a tight talking head, show the specifics on screen or in B-roll,
+  and end the cta beat on a text card. The source clip itself is shot 1 and is added by the
+  system; do not describe it.
+- musicDirection: the mood, genre and energy under the expert's part.
 - Do not write any URL, link, handle or credit text yourself. The source and its credit are
   attached to the script by the system after you answer.
 - Exactly 5 hashtags.`;
@@ -406,14 +436,13 @@ export function assembleReaction(
     angle: stripLinks(rawInput.angle),
     whyNow: stripLinks(rawInput.whyNow),
     extractedClaim: stripLinks(rawInput.extractedClaim),
-    beats: rawInput.beats.map((entry) => ({ ...entry, line: stripLinks(entry.line) })),
-    caption: stripCredits(stripLinks(rawInput.caption), source.sourceCreatorHandle),
-    shots: rawInput.shots.map((shot) => ({
-      ...shot,
-      visual: stripCredits(stripLinks(shot.visual), source.sourceCreatorHandle),
-      voiceover: stripLinks(shot.voiceover),
-      onScreenText: stripCredits(stripLinks(shot.onScreenText), source.sourceCreatorHandle),
+    beats: rawInput.beats.map((entry) => ({
+      ...entry,
+      line: stripLinks(entry.line),
+      visual: stripCredits(stripLinks(entry.visual), source.sourceCreatorHandle),
+      onScreenText: stripCredits(stripLinks(entry.onScreenText), source.sourceCreatorHandle),
     })),
+    caption: stripCredits(stripLinks(rawInput.caption), source.sourceCreatorHandle),
   };
   const credit =
     source.creditText?.trim() || defaultCredit(source.sourceCreatorHandle, source.sourcePlatform);
@@ -442,18 +471,30 @@ export function assembleReaction(
   );
 
   // Shot 1 is the source clip, always, carrying the stored credit — never a
-  // credit the model composed.
-  // The closing line is set BEFORE the clock is built, so the marks are
-  // timed on the words actually said, CTA included.
-  const expertShots = raw.shots
-    .filter((shot) => !/source/i.test(shot.shotType))
-    .map((shot, index, all) =>
-      closing && index === all.length - 1 ? { ...shot, voiceover: closing } : shot,
-    );
-  const checkedShots = enforceVerify(
-    expertShots.map((shot) => shot.voiceover),
-    allowed,
-  );
+  // credit the model composed. After it, ONE SHOT PER BEAT: a real script had
+  // the model put every beat in a single 51-second talking head, which gives
+  // an editor nothing to cut to. Built from the beats, so that cannot recur.
+  // The closing line is already in the cta beat, so the marks below are timed
+  // on the words actually said, CTA included.
+  const beatShots = REACTION_BEATS.map((beat, index) => {
+    const entry = raw.beats.find((candidate) => candidate.beat === beat);
+    return {
+      beat,
+      line: checkedBeats.lines[index] ?? beats[index]!.line,
+      shotType: entry?.shotType?.trim() || BEAT_SHOT[beat].shotType,
+      visual: entry?.visual?.trim() || BEAT_SHOT[beat].visual,
+      onScreenText: entry?.onScreenText?.trim() ?? "",
+    };
+  }).filter((shot) => shot.line.trim());
+  const expertShots = beatShots.map((shot, index) => ({
+    mark: "",
+    shotType: shot.shotType,
+    visual: shot.visual,
+    voiceover: shot.line,
+    onScreenText: shot.beat === "cta" && !shot.onScreenText ? (closing ?? "") : shot.onScreenText,
+    transition: index === beatShots.length - 1 ? "End" : "Hard cut",
+  }));
+
   // THE REEL'S OWN CLOCK, rebuilt here rather than taken from the model.
   //
   // Two timelines are in play and they are not the same one: where a moment
@@ -468,9 +509,7 @@ export function assembleReaction(
   // expert's shots follow it without a gap, sharing his segment in proportion
   // to how much there is to say in each. The last one ends exactly on the
   // duration the production block states.
-  const spokenLines = checkedShots.lines.length
-    ? checkedShots.lines
-    : expertShots.map((shot) => shot.voiceover ?? "");
+  const spokenLines = expertShots.map((shot) => shot.voiceover);
   // How long the expert's part ACTUALLY runs, from the words written rather
   // than from the model's own estimate of them. Asked for 28-32 seconds it
   // returned 12 for seven full sentences, which put a fifteen-word line in a
@@ -489,14 +528,10 @@ export function assembleReaction(
   };
   const shots: Shot[] = [
     sourceShot,
-    ...expertShots.map((shot, index) => ({
-      ...shot,
-      mark: expertMarks[index] ?? shot.mark,
-      voiceover: checkedShots.lines[index] ?? shot.voiceover,
-    })),
+    ...expertShots.map((shot, index) => ({ ...shot, mark: expertMarks[index] ?? shot.mark })),
   ];
 
-  const verifyItems = [...new Set([...checkedBeats.verifyItems, ...checkedShots.verifyItems])];
+  const verifyItems = [...new Set(checkedBeats.verifyItems)];
   const finalBeats = beats.map((entry, index) => ({
     beat: entry.beat,
     line: checkedBeats.lines[index] ?? entry.line,
@@ -543,10 +578,16 @@ export function assembleReaction(
       durationSeconds: expertSeconds + segment.seconds,
       aspectRatio: "9:16",
       coverText: raw.title,
-      musicDirection: "None under the expert; the source clip keeps its own audio.",
+      musicDirection: raw.musicDirection.trim()
+        ? `${raw.musicDirection.trim()} under the expert; the source clip keeps its own audio.`
+        : "None under the expert; the source clip keeps its own audio.",
       subtitleStyle: "Word-by-word burned-in captions, the same style across the series.",
       assetsNeeded: [
         `The source clip: ${source.sourceUrl}`,
+        // What the editor must find for the shots that are not filmed on set.
+        ...expertShots
+          .filter((shot) => /b-roll|screen/i.test(shot.shotType))
+          .map((shot) => `${shot.shotType}: ${shot.visual}`),
         ...(context.leadMagnet ? [`Lead magnet on screen at the end: ${context.leadMagnet}`] : []),
       ],
       editorNotes: [
