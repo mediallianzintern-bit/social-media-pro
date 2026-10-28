@@ -146,6 +146,28 @@ export function closingLineFor(lane: string | null | undefined, title: string): 
   return ctaFor(lane);
 }
 
+/**
+ * The brand rule for one lane, or "" where the lane has none.
+ *
+ * Frontier AI developments is AI news told to marketers, and the team found its
+ * scripts explained the development without ever saying which brand it touches
+ * or what it changes for a brand's marketing. So the reel always names a brand:
+ * the real one from the story, or — when the story names none — one clearly
+ * hypothetical example described by its type. A real company is never named
+ * as doing something the source does not say.
+ */
+const LANE_BRAND_RULE: Record<string, string> = {
+  "frontier ai developments":
+    "BRAND AND MARKETING ANGLE: name the brand or company in the voiceover: the AI company behind the development, and any brand the story says is using it. " +
+    'If the story names no brand using it, add ONE clearly hypothetical example, described by its type and never by a real company\'s name: "Imagine a D2C skincare brand using this to…" or "Say you run a mid-size travel agency…". ' +
+    "Never say a real brand did something the source does not say. " +
+    "Always give the marketing angle: one line on what this development changes for a brand's marketing, such as its ads, content, customer service, targeting or costs.",
+};
+
+export function brandRule(lane: string | null | undefined): string {
+  return LANE_BRAND_RULE[(lane ?? "").trim().toLowerCase()] ?? "";
+}
+
 /** The prompt's wording of the CTA rule for one lane. */
 export function ctaRule(lane: string | null | undefined): string {
   const fixed = ctaFor(lane);
@@ -234,6 +256,7 @@ export function laneShapesBlock(lanes: ContentLane[]): string {
       ...shape.structure.map((beat, index) => `    ${index + 1}. ${beat}`),
       `  ${shape.ending}`,
       `  ${ctaRule(lane.name)}`,
+      ...(brandRule(lane.name) ? [`  ${brandRule(lane.name)}`] : []),
     ].join("\n");
   });
 

@@ -25,7 +25,7 @@ import type { SourceItem } from "@/lib/sources";
 
 import { completeJson } from "./client";
 import type { ContentIdea } from "@/lib/ai-types";
-import { ctaRule } from "@/lib/script-families";
+import { brandRule, ctaRule } from "@/lib/script-families";
 
 import { isAiToolWorkflowLane, toolWorkflowIssues, toolWorkflowPrompt } from "./tool-workflow";
 import { workflowCtaIssue } from "@/lib/tool-workflow";
@@ -248,6 +248,9 @@ function reviewUser(
     // The team's call to action for this lane — the "when a call to action is
     // requested" case in his ENDING section.
     ctaRule(lane),
+    // Frontier AI developments: a brand, real or clearly hypothetical, and the
+    // marketing angle — kept through the rewrite, not only asked of the writer.
+    brandRule(lane),
     `Draft:\n${JSON.stringify(draftFor(idea), null, 2)}`,
     feedback
       ? `YOUR PREVIOUS REWRITE broke these hard rules, counted by code, not estimated:\n${feedback.problems
