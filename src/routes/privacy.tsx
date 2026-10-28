@@ -228,8 +228,9 @@ function PrivacyPage() {
             Data is held in a managed Postgres database reachable only by our server, which holds
             the credentials; they are never sent to the browser. Access requires a password and an @
             {ALLOWED_EMAIL_DOMAIN} address. Platform access tokens are stored as server-side
-            environment variables and are never exposed to the client. Traffic is encrypted in
-            transit.
+            environment variables or, where the account owner grants access by signing in (as with
+            LinkedIn), in a database table only our server can read. They are never exposed to the
+            client. Traffic is encrypted in transit.
           </p>
           <p>
             No system is perfectly secure. If we become aware of a breach affecting personal data,

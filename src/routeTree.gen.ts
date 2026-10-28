@@ -25,6 +25,7 @@ import { Route as AppReactionsRouteImport } from './routes/_app/reactions'
 import { Route as AppSavedRouteImport } from './routes/_app/saved'
 import { Route as AppSourcesRouteImport } from './routes/_app/sources'
 import { Route as AppWorkspaceRouteImport } from './routes/_app/workspace'
+import { Route as AppConnectLinkedinRouteImport } from './routes/_app/connect/linkedin'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -105,6 +106,11 @@ const AppWorkspaceRoute = AppWorkspaceRouteImport.update({
   path: '/workspace',
   getParentRoute: () => AppRoute,
 } as any)
+const AppConnectLinkedinRoute = AppConnectLinkedinRouteImport.update({
+  id: '/connect/linkedin',
+  path: '/connect/linkedin',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -122,6 +128,7 @@ export interface FileRoutesByFullPath {
   '/saved': typeof AppSavedRoute
   '/sources': typeof AppSourcesRoute
   '/workspace': typeof AppWorkspaceRoute
+  '/connect/linkedin': typeof AppConnectLinkedinRoute
 }
 export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
@@ -139,6 +146,7 @@ export interface FileRoutesByTo {
   '/sources': typeof AppSourcesRoute
   '/workspace': typeof AppWorkspaceRoute
   '/': typeof AppIndexRoute
+  '/connect/linkedin': typeof AppConnectLinkedinRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -158,6 +166,7 @@ export interface FileRoutesById {
   '/_app/sources': typeof AppSourcesRoute
   '/_app/workspace': typeof AppWorkspaceRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/connect/linkedin': typeof AppConnectLinkedinRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -177,6 +186,7 @@ export interface FileRouteTypes {
     | '/saved'
     | '/sources'
     | '/workspace'
+    | '/connect/linkedin'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/forgot-password'
@@ -194,6 +204,7 @@ export interface FileRouteTypes {
     | '/sources'
     | '/workspace'
     | '/'
+    | '/connect/linkedin'
   id:
     | '__root__'
     | '/_app'
@@ -212,6 +223,7 @@ export interface FileRouteTypes {
     | '/_app/sources'
     | '/_app/workspace'
     | '/_app/'
+    | '/_app/connect/linkedin'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -339,6 +351,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppWorkspaceRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/connect/linkedin': {
+      id: '/_app/connect/linkedin'
+      path: '/connect/linkedin'
+      fullPath: '/connect/linkedin'
+      preLoaderRoute: typeof AppConnectLinkedinRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
@@ -351,6 +370,7 @@ interface AppRouteChildren {
   AppSourcesRoute: typeof AppSourcesRoute
   AppWorkspaceRoute: typeof AppWorkspaceRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppConnectLinkedinRoute: typeof AppConnectLinkedinRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -362,6 +382,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSourcesRoute: AppSourcesRoute,
   AppWorkspaceRoute: AppWorkspaceRoute,
   AppIndexRoute: AppIndexRoute,
+  AppConnectLinkedinRoute: AppConnectLinkedinRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

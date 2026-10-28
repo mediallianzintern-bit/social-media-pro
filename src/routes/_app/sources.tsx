@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2, ExternalLink, PlugZap } from "lucide-react";
 
+import { LinkedInApiCard } from "@/components/dashboard/linkedin-api-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -135,6 +136,8 @@ function Sources() {
         })}
       </div>
 
+      <LinkedInApiCard />
+
       <Card>
         <CardHeader>
           <CardTitle>What scraping cannot reach</CardTitle>
@@ -166,8 +169,9 @@ function Sources() {
             Instagram&rsquo;s versions of these become available if{" "}
             <strong className="font-medium text-foreground">@priteshpatel.co</strong> is switched to
             a Business or Creator account and linked to a Facebook Page &mdash; the Meta Graph API
-            then serves reach, impressions, profile visits and demographics. LinkedIn publishes no
-            equivalent API for personal profiles at any tier.
+            then serves reach, impressions, profile visits and demographics. On LinkedIn,
+            impressions and members reached come from LinkedIn&rsquo;s own Member Post Analytics API
+            once Pritesh Sir connects his profile above.
           </p>
         </CardContent>
       </Card>
