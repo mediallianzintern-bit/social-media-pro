@@ -358,13 +358,11 @@ export function PlatformView({
            owner-only half (impressions and reach) stays locked below. */}
       {!isInstagram ? (
         <>
-          <SectionHeading title="Public engagement" note="From each public post, scraped" />
-          <PublicEngagement
-            posts={posts}
-            allPosts={allPosts ?? posts}
-            range={range}
-            color={color}
+          <SectionHeading
+            title="Public engagement"
+            note="Posts found by the scraper, ranked by LinkedIn's impressions"
           />
+          <PublicEngagement posts={posts} range={range} />
         </>
       ) : null}
 
