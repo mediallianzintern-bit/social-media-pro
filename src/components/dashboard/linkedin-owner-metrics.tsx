@@ -8,15 +8,21 @@
 // LinkedIn is connected and has figures. The audience breakdowns stay locked:
 // LinkedIn offers no API for them on a personal profile.
 import { useQuery } from "@tanstack/react-query";
-import { Bookmark, Eye, Percent, Users } from "lucide-react";
-import { useMemo } from "react";
+import { Bookmark, ChevronRight, Eye, Percent, Users } from "lucide-react";
+import { useMemo, useState } from "react";
 
 import { KpiTile } from "@/components/dashboard/kpi-tile";
 import { LockedPanel } from "@/components/dashboard/locked-panel";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { PostRecord } from "@/lib/analytics-types";
 import { compactNumber, dateTime, fullNumber, percent, shortDate } from "@/lib/format";
-import { TRACK_DAYS, trueEngagementRate } from "@/lib/linkedin-analytics";
+import {
+  measuredByImpressions,
+  postAnalyticsUrl,
+  TRACK_DAYS,
+  trueEngagementRate,
+  type LinkedInPostFigures,
+} from "@/lib/linkedin-analytics";
 import { linkedInAnalyticsQueryOptions } from "@/lib/linkedin-api.functions";
 
 const AUDIENCE_PANEL = {
@@ -40,21 +46,107 @@ const IMPRESSIONS_PANEL = {
     "Measured by LinkedIn's Member Post Analytics API once Pritesh connects his LinkedIn on Data sources. They fill in on the next LinkedIn sync after that.",
 };
 
+/**
+ * One post the way his LinkedIn "Top performing posts" shows it: impressions
+ * and engagements across the top, View analytics, then the post's text.
+ * `detail` adds the figures LinkedIn's own card leaves to its analytics page.
+ */
+export function LinkedInPostCard({
+  post,
+  figures,
+  detail = false,
+}: {
+  post: PostRecord;
+  figures: LinkedInPostFigures;
+  detail?: boolean;
+}) {
+  const engaged = post.likes + post.comments + post.shares;
+  const rate = trueEngagementRate(engaged, figures.impressions);
+  return (
+    <li className="overflow-hidden rounded-lg border">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b px-4 py-2.5 text-sm">
+        <span className="tabular-nums">
+          {fullNumber(figures.impressions ?? 0)} impressions · {fullNumber(engaged)} engagements
+        </span>
+        <a
+          href={postAnalyticsUrl(post.postId)}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="font-medium text-primary hover:underline"
+        >
+          View analytics
+        </a>
+      </div>
+      <div className="space-y-1.5 px-4 py-3">
+        <a
+          href={post.url}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="line-clamp-2 text-sm leading-snug hover:underline"
+        >
+          {post.caption || "(no text)"}
+        </a>
+        <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground tabular-nums">
+          <span>{shortDate(post.publishedAt)}</span>
+          {detail ? (
+            <>
+              <span>{fullNumber(figures.membersReached ?? 0)} members reached</span>
+              <span>{rate === null ? "—" : percent(rate, 1)} engagement rate</span>
+              <span>
+                {fullNumber(post.likes)} reactions · {fullNumber(post.comments)} comments ·{" "}
+                {fullNumber(post.shares)} reposts
+              </span>
+              <span>
+                {figures.saves ?? 0} saves · {figures.sends ?? 0} sends
+              </span>
+            </>
+          ) : null}
+        </p>
+      </div>
+    </li>
+  );
+}
+
+/** A list of post cards: the first few, then Show more, as LinkedIn does it. */
+export function LinkedInPostList({
+  rows,
+  first,
+  detail = false,
+}: {
+  rows: Array<{ post: PostRecord; figures: LinkedInPostFigures }>;
+  first: number;
+  detail?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const shown = open ? rows : rows.slice(0, first);
+  return (
+    <div className="space-y-3">
+      <ol className="space-y-3">
+        {shown.map(({ post, figures }) => (
+          <LinkedInPostCard key={post.postId} post={post} figures={figures} detail={detail} />
+        ))}
+      </ol>
+      {rows.length > first ? (
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          className="flex w-full items-center justify-center gap-1 py-1 text-sm font-medium text-muted-foreground hover:text-foreground"
+        >
+          {open ? "Show less" : `Show more (${rows.length - first})`}
+          <ChevronRight
+            className={`size-4 transition-transform ${open ? "-rotate-90" : ""}`}
+            aria-hidden
+          />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export function LinkedInOwnerMetrics({ posts, color }: { posts: PostRecord[]; color: string }) {
   const { data } = useQuery(linkedInAnalyticsQueryOptions);
-  const byId = useMemo(
-    () => new Map((data?.posts ?? []).map((figures) => [figures.postId, figures])),
-    [data],
-  );
-
   // The posts in the selected range that LinkedIn has measured.
-  const measured = posts
-    .filter((post) => !post.pinned)
-    .map((post) => ({ post, figures: byId.get(post.postId) }))
-    .filter(
-      (row): row is { post: PostRecord; figures: NonNullable<typeof row.figures> } =>
-        row.figures?.impressions != null,
-    );
+  const measured = useMemo(() => measuredByImpressions(posts, data?.posts), [posts, data]);
 
   if (!data || !measured.length) {
     return (
@@ -76,9 +168,6 @@ export function LinkedInOwnerMetrics({ posts, color }: { posts: PostRecord[]; co
     .map((row) => row.figures.fetchedAt ?? "")
     .sort()
     .at(-1);
-  const rows = [...measured].sort(
-    (a, b) => (b.figures.impressions ?? 0) - (a.figures.impressions ?? 0),
-  );
 
   return (
     <div className="space-y-4">
@@ -130,56 +219,7 @@ export function LinkedInOwnerMetrics({ posts, color }: { posts: PostRecord[]; co
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm">
-              <thead>
-                <tr className="border-b text-left text-xs text-muted-foreground">
-                  <th className="py-2 pr-3 font-medium">Post</th>
-                  <th className="py-2 pr-3 text-right font-medium">Impressions</th>
-                  <th className="py-2 pr-3 text-right font-medium">Reached</th>
-                  <th className="py-2 pr-3 text-right font-medium">Interactions</th>
-                  <th className="py-2 pr-3 text-right font-medium">Engagement</th>
-                  <th className="py-2 text-right font-medium">Saves · sends</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map(({ post, figures }) => {
-                  const engaged = post.likes + post.comments + post.shares;
-                  const postRate = trueEngagementRate(engaged, figures.impressions);
-                  return (
-                    <tr key={post.postId} className="border-b last:border-0">
-                      <td className="max-w-[22rem] py-2 pr-3">
-                        <a
-                          href={post.url}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                          className="line-clamp-1 hover:underline"
-                        >
-                          {post.caption || "(no text)"}
-                        </a>
-                        <span className="text-xs text-muted-foreground">
-                          {shortDate(post.publishedAt)}
-                        </span>
-                      </td>
-                      <td className="py-2 pr-3 text-right tabular-nums">
-                        {fullNumber(figures.impressions ?? 0)}
-                      </td>
-                      <td className="py-2 pr-3 text-right tabular-nums">
-                        {fullNumber(figures.membersReached ?? 0)}
-                      </td>
-                      <td className="py-2 pr-3 text-right tabular-nums">{fullNumber(engaged)}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums">
-                        {postRate === null ? "—" : percent(postRate, 1)}
-                      </td>
-                      <td className="py-2 text-right tabular-nums">
-                        {figures.saves ?? 0} · {figures.sends ?? 0}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <LinkedInPostList rows={measured} first={5} detail />
         </CardContent>
       </Card>
 

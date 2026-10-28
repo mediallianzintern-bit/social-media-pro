@@ -8,6 +8,7 @@
 //   - a post 7-30 days old every 3 days: they have mostly settled,
 //   - an older post is not asked about again and keeps its last figures,
 // newest first, within a fixed budget per run.
+import type { PostRecord } from "@/lib/analytics-types";
 
 /** The figures asked for per post. Reactions, comments and reposts come from the scraper. */
 export const POST_METRICS = ["IMPRESSION", "MEMBERS_REACHED", "POST_SAVE", "POST_SEND"] as const;
@@ -72,4 +73,25 @@ export function trueEngagementRate(
   impressions: number | null,
 ): number | null {
   return impressions && impressions > 0 ? interactions / impressions : null;
+}
+
+/** LinkedIn's own analytics page for one of his posts, opened from "View analytics". */
+export function postAnalyticsUrl(postId: string): string {
+  return `https://www.linkedin.com/analytics/post-summary/urn:li:activity:${postId}/`;
+}
+
+/** His posts in `posts` that LinkedIn has measured, most impressions first. */
+export function measuredByImpressions(
+  posts: PostRecord[],
+  figures: LinkedInPostFigures[] | undefined,
+) {
+  const byId = new Map((figures ?? []).map((row) => [row.postId, row]));
+  return posts
+    .filter((post) => !post.pinned)
+    .map((post) => ({ post, figures: byId.get(post.postId) }))
+    .filter(
+      (row): row is { post: PostRecord; figures: LinkedInPostFigures } =>
+        row.figures?.impressions != null,
+    )
+    .sort((a, b) => (b.figures.impressions ?? 0) - (a.figures.impressions ?? 0));
 }

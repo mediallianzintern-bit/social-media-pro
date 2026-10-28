@@ -15,11 +15,15 @@ import {
   Repeat2,
   ThumbsUp,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
+import { LinkedInPostList } from "@/components/dashboard/linkedin-owner-metrics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { engagementsOf, organicPosts, type PostRecord } from "@/lib/analytics-types";
 import { labelInSentence, withinRange, type ResolvedRange } from "@/lib/date-range";
 import { delta, fullNumber, shortDate, signedPercent } from "@/lib/format";
+import { measuredByImpressions } from "@/lib/linkedin-analytics";
+import { linkedInAnalyticsQueryOptions } from "@/lib/linkedin-api.functions";
 
 const TOP_POSTS = 5;
 
@@ -99,6 +103,10 @@ export function PublicEngagement({
     ? totalsOf(organicPosts(allPosts.filter((post) => withinRange(post.publishedAt, prior))))
     : null;
   const top = [...current].sort((a, b) => engagementsOf(b) - engagementsOf(a)).slice(0, TOP_POSTS);
+  // Ranked by impressions, as his own LinkedIn screen ranks them, once
+  // LinkedIn's API has measured the posts. Until then, by engagements.
+  const { data: linkedIn } = useQuery(linkedInAnalyticsQueryOptions);
+  const byImpressions = measuredByImpressions(current, linkedIn?.posts);
 
   const tiles: Array<{ label: string; key: keyof Totals; icon: typeof ThumbsUp | null }> = [
     { label: "Social engagements", key: "engagements", icon: null },
@@ -159,12 +167,15 @@ export function PublicEngagement({
         <CardHeader>
           <CardTitle className="text-base">Top performing posts</CardTitle>
           <CardDescription>
-            By engagements in {labelInSentence(range)}. Ranking by impressions needs Pritesh&rsquo;s
-            own LinkedIn analytics.
+            {byImpressions.length
+              ? `By impressions in ${labelInSentence(range)}, as LinkedIn measures them. Engagements are each post's reactions, comments and reposts.`
+              : `By engagements in ${labelInSentence(range)}. Ranked by impressions once Pritesh's LinkedIn is connected on Data sources.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {top.length ? (
+          {byImpressions.length ? (
+            <LinkedInPostList rows={byImpressions} first={3} />
+          ) : top.length ? (
             <ol className="divide-y">
               {top.map((post, index) => (
                 <li key={post.postId} className="flex gap-3 py-2.5 first:pt-0 last:pb-0">
