@@ -140,6 +140,14 @@ export function LinkedInApiCard() {
               All of his posts, {dateTime(test.data.from)} – {dateTime(test.data.to)}
             </p>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3">
+              <div>
+                <dt className="text-xs text-muted-foreground">Followers (today)</dt>
+                <dd className="font-medium">
+                  {test.data.followers === null
+                    ? "not available"
+                    : test.data.followers.toLocaleString("en-US")}
+                </dd>
+              </div>
               {Object.entries(test.data.totals).map(([metric, value]) => (
                 <div key={metric}>
                   <dt className="text-xs text-muted-foreground">

@@ -34,12 +34,12 @@ describe("LinkedIn redirect", () => {
     expect(() => redirectUri("https://evil.example.com")).toThrow();
   });
 
-  it("asks LinkedIn for the post analytics permission only", () => {
+  it("asks LinkedIn for his post and profile analytics only", () => {
     process.env["LINKEDIN_CLIENT_ID"] = "86cth51ugybwfv";
     process.env["LINKEDIN_CLIENT_SECRET"] = secret;
     const url = new URL(connectUrl("http://localhost:8080", "parth@mediallianz.com"));
     expect(url.origin + url.pathname).toBe("https://www.linkedin.com/oauth/v2/authorization");
-    expect(url.searchParams.get("scope")).toBe("r_member_postAnalytics");
+    expect(url.searchParams.get("scope")).toBe("r_member_postAnalytics r_member_profileAnalytics");
     expect(url.searchParams.get("redirect_uri")).toBe("http://localhost:8080/connect/linkedin");
   });
 });

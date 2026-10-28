@@ -23,8 +23,12 @@ import { hasDurableStore } from "./store";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = () => supabaseAdmin as any;
 
-/** The one permission asked for: read the member's own posts' analytics. */
-export const LINKEDIN_SCOPES = ["r_member_postAnalytics"];
+/**
+ * The permissions asked for, both read-only and both about him alone: his own
+ * posts' analytics, and his profile analytics (true follower count). Asked for
+ * together so he signs in once, not again for each figure.
+ */
+export const LINKEDIN_SCOPES = ["r_member_postAnalytics", "r_member_profileAnalytics"];
 /** LinkedIn's versioned API, YYYYMM. Versions are supported for about a year. */
 export const LINKEDIN_VERSION = "202610";
 /** Where LinkedIn sends the browser back. Registered in the app's Auth tab. */
@@ -232,6 +236,8 @@ export async function memberTotals(days = 30): Promise<{
   from: string;
   to: string;
   totals: Record<MemberMetric, number | null>;
+  /** His lifetime follower count, from LinkedIn itself (r_member_profileAnalytics). */
+  followers: number | null;
   errors: string[];
 }> {
   const token = await readToken();
@@ -266,5 +272,27 @@ export async function memberTotals(days = 30): Promise<{
       totals[metric] = (body.elements ?? []).reduce((sum, row) => sum + (row.count ?? 0), 0);
     }),
   );
-  return { from: start.toISOString(), to: end.toISOString(), totals, errors };
+  const followers = await linkedInGet<{ elements?: Array<{ memberFollowersCount?: number }> }>(
+    "memberFollowersCount?q=me",
+    token,
+  )
+    .then((body) => body.elements?.[0]?.memberFollowersCount ?? null)
+    .catch((error: unknown) => {
+      errors.push(`FOLLOWERS: ${error instanceof Error ? error.message : String(error)}`);
+      return null;
+    });
+  return { from: start.toISOString(), to: end.toISOString(), totals, followers, errors };
+}
+
+async function linkedInGet<T>(path: string, token: string): Promise<T> {
+  const response = await fetch(`https://api.linkedin.com/rest/${path}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "LinkedIn-Version": LINKEDIN_VERSION,
+      "X-Restli-Protocol-Version": "2.0.0",
+    },
+  });
+  const body = (await response.json().catch(() => ({}))) as T & { message?: string };
+  if (!response.ok) throw new Error(body.message ?? String(response.status));
+  return body;
 }
