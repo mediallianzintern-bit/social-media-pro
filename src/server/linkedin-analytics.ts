@@ -101,7 +101,8 @@ export async function refreshLinkedInAnalytics(
     .maybeSingle();
   if (!todayRow) {
     budget -= ACCOUNT_CALLS;
-    const end = new Date();
+    // LinkedIn's end date is exclusive: tomorrow, so today's figures are included.
+    const end = new Date(Date.now() + 86_400_000);
     const start = new Date(end.getTime() - 30 * 86_400_000);
     const total = (metric: string) =>
       linkedInGet<{ elements?: Array<{ count?: number }> }>(
@@ -247,7 +248,8 @@ export async function readLinkedInAnalytics(): Promise<LinkedInAnalytics> {
  * recent days as late impressions are counted.
  */
 export async function refreshMemberDaily(token: string): Promise<number> {
-  const end = new Date();
+  // LinkedIn's end date is exclusive: tomorrow, so today's figures are included.
+  const end = new Date(Date.now() + 86_400_000);
   const start = new Date(end.getTime() - DAILY_HISTORY_DAYS * 86_400_000);
   const byDay = new Map<string, Record<string, number | string>>();
   for (const [metric, field] of Object.entries(DAILY_METRICS)) {

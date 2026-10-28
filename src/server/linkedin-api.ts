@@ -243,7 +243,8 @@ export async function memberTotals(days = 30): Promise<{
 }> {
   const token = await readToken();
   if (!token) throw new Error("LinkedIn is not connected, or the connection has expired.");
-  const end = new Date();
+  // LinkedIn's end date is exclusive: tomorrow, so today's figures are included.
+  const end = new Date(Date.now() + 86_400_000);
   const start = new Date(end.getTime() - days * 86_400_000);
   const totals = {} as Record<MemberMetric, number | null>;
   const errors: string[] = [];
