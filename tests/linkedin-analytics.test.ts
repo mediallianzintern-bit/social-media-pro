@@ -5,7 +5,11 @@ import {
   CALLS_PER_RUN,
   duePosts,
   entityParam,
+  periodOf,
   POST_METRICS,
+  priorPeriodOf,
+  socialEngagements,
+  sumPeriod,
   trueEngagementRate,
   type TrackedPost,
 } from "@/lib/linkedin-analytics";
@@ -53,5 +57,33 @@ describe("LinkedIn post IDs", () => {
   it("measures engagement on impressions, not followers", () => {
     expect(trueEngagementRate(14, 499)).toBeCloseTo(0.028, 3);
     expect(trueEngagementRate(3, 0)).toBeNull();
+  });
+});
+
+describe("LinkedIn Discovery and Engagement periods", () => {
+  const day = (d: string, impressions: number, reactions = 0, saves = 0) => ({
+    day: d,
+    impressions,
+    reactions,
+    comments: 1,
+    reposts: 0,
+    saves,
+    sends: 0,
+  });
+  const rows = [day("2026-09-30", 50), day("2026-10-01", 130, 5), day("2026-10-28", 68, 2, 1)];
+
+  it("asks for the calendar days the page shows", () => {
+    const period = periodOf({ from: new Date(2026, 9, 1), to: new Date(2026, 9, 29) });
+    expect(period).toEqual({ start: "2026-10-01", end: "2026-10-29" });
+    expect(priorPeriodOf(period)).toEqual({ start: "2026-09-03", end: "2026-10-01" });
+    expect(priorPeriodOf({ start: null, end: "2026-10-29" })).toBeNull();
+  });
+
+  it("sums only the days inside the period", () => {
+    const totals = sumPeriod(rows, { start: "2026-10-01", end: "2026-10-29" });
+    expect(totals.impressions).toBe(198);
+    expect(totals.days).toBe(2);
+    // Reactions, comments, reposts, saves and sends, as LinkedIn counts them.
+    expect(socialEngagements(totals)).toBe(5 + 2 + 2 + 1);
   });
 });

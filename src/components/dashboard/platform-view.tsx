@@ -380,7 +380,7 @@ export function PlatformView({
       ) : !isInstagram ? (
         <>
           <SectionHeading title="Owner-only metrics" note="Measured by LinkedIn, not scraped" />
-          <LinkedInOwnerMetrics posts={posts} color={color} />
+          <LinkedInOwnerMetrics posts={posts} color={color} range={range} />
         </>
       ) : (
         <>

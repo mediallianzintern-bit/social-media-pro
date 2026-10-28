@@ -78,3 +78,26 @@ export const linkedInAnalyticsQueryOptions = {
   queryFn: () => getLinkedInAnalytics(),
   staleTime: 5 * 60 * 1000,
 };
+
+const periodInput = z.object({
+  start: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable(),
+  end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+/** His LinkedIn Discovery and Engagement for one period. Free. */
+export const getLinkedInPeriod = createServerFn({ method: "GET" })
+  .middleware([requireStaff])
+  .validator((input: unknown) => periodInput.parse(input))
+  .handler(async ({ data }) => {
+    const { readLinkedInPeriod } = await import("@/server/linkedin-analytics");
+    return readLinkedInPeriod(data);
+  });
+
+export const linkedInPeriodQueryOptions = (period: { start: string | null; end: string }) => ({
+  queryKey: ["linkedin-period", period.start, period.end] as const,
+  queryFn: () => getLinkedInPeriod({ data: period }),
+  staleTime: 10 * 60 * 1000,
+});

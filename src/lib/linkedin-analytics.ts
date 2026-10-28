@@ -16,8 +16,11 @@ export type PostMetric = (typeof POST_METRICS)[number];
 
 /** Calls one sync may spend, well under LinkedIn's 100 per member per day. */
 export const CALLS_PER_RUN = 80;
-/** Calls the daily account row costs: followers, 30-day impressions and reach. */
-export const ACCOUNT_CALLS = 3;
+/**
+ * Calls the daily account step costs: followers, 30-day impressions and reach,
+ * and his six figures day by day (see DAILY_METRICS below).
+ */
+export const ACCOUNT_CALLS = 9;
 /** Posts older than this are no longer asked about. */
 export const TRACK_DAYS = 30;
 const FRESH_DAYS = 7;
@@ -94,4 +97,81 @@ export function measuredByImpressions(
         row.figures?.impressions != null,
     )
     .sort((a, b) => (b.figures.impressions ?? 0) - (a.figures.impressions ?? 0));
+}
+
+// ---------------------------------------------------------------------------
+// His whole account, day by day: the Discovery and Engagement cards of his
+// LinkedIn Content analytics screen. Stored per UTC day (0026), summed here.
+// ---------------------------------------------------------------------------
+
+/** The account figures LinkedIn reports per day. Members reached is not one: it cannot be summed. */
+export const DAILY_METRICS = {
+  IMPRESSION: "impressions",
+  REACTION: "reactions",
+  COMMENT: "comments",
+  RESHARE: "reposts",
+  POST_SAVE: "saves",
+  POST_SEND: "sends",
+} as const;
+export type DailyField = (typeof DAILY_METRICS)[keyof typeof DAILY_METRICS];
+/** Days of history refreshed each day: enough for a 90-day period and the one before it. */
+export const DAILY_HISTORY_DAYS = 180;
+
+export type DailyRow = { day: string } & Record<DailyField, number>;
+export type PeriodTotals = Record<DailyField, number> & { days: number };
+
+/** A period as LinkedIn's days: `start` inclusive, `end` exclusive, YYYY-MM-DD. */
+export interface LinkedInPeriod {
+  start: string | null;
+  end: string;
+}
+
+const dayOf = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+/**
+ * The page's period as calendar days. Taken from the viewer's own dates, so
+ * "Oct 1 – Oct 28" on the page asks LinkedIn for Oct 1 – Oct 28, the same
+ * days his LinkedIn screen labels, although LinkedIn counts each day in UTC.
+ */
+export function periodOf(
+  range: { from: Date | null; to: Date | null },
+  now = new Date(),
+): LinkedInPeriod {
+  const end = range.to ?? new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  return { start: range.from ? dayOf(range.from) : null, end: dayOf(end) };
+}
+
+/** The period of the same length just before, or null for all time. */
+export function priorPeriodOf(period: LinkedInPeriod): LinkedInPeriod | null {
+  if (!period.start) return null;
+  const start = Date.parse(`${period.start}T00:00:00Z`);
+  const length = Date.parse(`${period.end}T00:00:00Z`) - start;
+  if (!(length > 0)) return null;
+  const iso = (time: number) => new Date(time).toISOString().slice(0, 10);
+  return { start: iso(start - length), end: period.start };
+}
+
+/** Sums the stored days inside a period. */
+export function sumPeriod(rows: DailyRow[], period: LinkedInPeriod): PeriodTotals {
+  const totals: PeriodTotals = {
+    impressions: 0,
+    reactions: 0,
+    comments: 0,
+    reposts: 0,
+    saves: 0,
+    sends: 0,
+    days: 0,
+  };
+  for (const row of rows) {
+    if ((period.start && row.day < period.start) || row.day >= period.end) continue;
+    totals.days += 1;
+    for (const field of Object.values(DAILY_METRICS)) totals[field] += row[field] ?? 0;
+  }
+  return totals;
+}
+
+/** Reactions, comments, reposts, saves and sends: what LinkedIn calls social engagements. */
+export function socialEngagements(totals: PeriodTotals): number {
+  return totals.reactions + totals.comments + totals.reposts + totals.saves + totals.sends;
 }

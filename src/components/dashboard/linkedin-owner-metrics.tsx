@@ -12,9 +12,11 @@ import { Bookmark, ChevronRight, Eye, Percent, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { KpiTile } from "@/components/dashboard/kpi-tile";
+import { LinkedInDiscovery } from "@/components/dashboard/linkedin-discovery";
 import { LockedPanel } from "@/components/dashboard/locked-panel";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { PostRecord } from "@/lib/analytics-types";
+import type { ResolvedRange } from "@/lib/date-range";
 import { compactNumber, dateTime, fullNumber, percent, shortDate } from "@/lib/format";
 import {
   measuredByImpressions,
@@ -143,16 +145,27 @@ export function LinkedInPostList({
   );
 }
 
-export function LinkedInOwnerMetrics({ posts, color }: { posts: PostRecord[]; color: string }) {
+export function LinkedInOwnerMetrics({
+  posts,
+  color,
+  range,
+}: {
+  posts: PostRecord[];
+  color: string;
+  range: ResolvedRange;
+}) {
   const { data } = useQuery(linkedInAnalyticsQueryOptions);
   // The posts in the selected range that LinkedIn has measured.
   const measured = useMemo(() => measuredByImpressions(posts, data?.posts), [posts, data]);
 
   if (!data || !measured.length) {
     return (
-      <div className="grid gap-4 lg:grid-cols-2">
-        <LockedPanel {...IMPRESSIONS_PANEL} />
-        <LockedPanel {...AUDIENCE_PANEL} />
+      <div className="space-y-4">
+        <LinkedInDiscovery range={range} />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <LockedPanel {...IMPRESSIONS_PANEL} />
+          <LockedPanel {...AUDIENCE_PANEL} />
+        </div>
       </div>
     );
   }
@@ -223,6 +236,7 @@ export function LinkedInOwnerMetrics({ posts, color }: { posts: PostRecord[]; co
         </CardContent>
       </Card>
 
+      <LinkedInDiscovery range={range} />
       <LockedPanel {...AUDIENCE_PANEL} />
     </div>
   );
