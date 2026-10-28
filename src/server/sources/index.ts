@@ -4,7 +4,7 @@
 // other external call in this system it can run on each sync. The only guard is
 // a politeness floor, so a busy afternoon of syncs does not hammer the feed.
 import { searchNews } from "./news";
-import { isNewsOffLane, OWN_SHARE, queriesForLane } from "./queries";
+import { OWN_SHARE, queriesForLane } from "./queries";
 import { OWNER_ACCOUNTS } from "../apify/accounts";
 import { hasOpenAi } from "../ai/client";
 import { readAllReelLearning } from "../reel-learning/store";
@@ -99,16 +99,6 @@ export async function refreshSources(
 ): Promise<RefreshResult> {
   const empty: RefreshResult = { ran: false, queries: 0, stored: 0, trending: 0, failures: [] };
 
-  // "Refresh topics" also re-reads the watched creators, so the reel-fed lanes
-  // refresh with the button and not only on Sync. Free: Instagram's own API.
-  // A Sync reads them itself after this (sync.ts), so only the button does.
-  if (options.force && platform === "instagram") {
-    const { watchCreators } = await import("../creators");
-    await watchCreators(platform).catch((error: unknown) =>
-      console.error(`[sources:${platform}] creator reels failed:`, error),
-    );
-  }
-
   if (!options.force) {
     const last = await lastSourceFetch(platform).catch(() => null);
     const hours = last ? (Date.now() - new Date(last).getTime()) / 3_600_000 : Infinity;
@@ -138,10 +128,7 @@ export async function refreshSources(
   // own share below instead of competing with the lane's standing searches
   // for the same fifteen places.
   const votes = await readTopicVotes(platform).catch(() => []);
-  for (const pull of pullQueries(votes)) {
-    // A lane fed by creator reels gets no news, pulled in or otherwise.
-    if (!isNewsOffLane(pull.lane)) plan.push({ ...pull, pulled: true });
-  }
+  for (const pull of pullQueries(votes)) plan.push({ ...pull, pulled: true });
   if (!plan.length) {
     return {
       ...empty,
@@ -325,25 +312,12 @@ export async function topicInbox(platform: PlatformId): Promise<TopicInbox> {
     lastSourceFetch(platform).catch(() => null),
     readTopicVotes(platform).catch(() => []),
   ]);
-  const usedSet = new Set(used);
-  // Creator reels show while they are current: every read of the creators
-  // re-stores the reels that still stand out and still fit the lane, so one
-  // not refreshed by the latest read has dropped out (aged past two weeks,
-  // fallen back to its creator's normal, or failed the learned pattern). A reel
-  // a script was written from stays, so its script can still be opened.
-  const latestReel = new Map<string, number>();
-  for (const item of stored) {
-    if (item.kind !== "video") continue;
-    const key = item.lane ?? "";
-    latestReel.set(key, Math.max(latestReel.get(key) ?? 0, Date.parse(item.fetchedAt)));
-  }
-  const current = (item: SourceItem) =>
-    usedSet.has(item.id) ||
-    Date.parse(item.fetchedAt) >= (latestReel.get(item.lane ?? "") ?? 0) - 15 * 60_000;
-  // A lane fed by creator reels shows only the reels, not its old news.
-  const items = stored.filter((item) =>
-    item.kind === "video" ? current(item) : !isNewsOffLane(item.lane),
+  // Creator reels stored while the AI tool workflows phases were live (26-28
+  // Oct 2026) are not news: kept in the table, never shown as stories.
+  const items = stored.filter(
+    (item) => !(item.kind === "video" && item.publisher?.startsWith("@")),
   );
+  const usedSet = new Set(used);
   const model = buildPreferenceModel(votes);
 
   // Every story the team voted on or wrote from, including ones that have left

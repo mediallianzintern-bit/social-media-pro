@@ -16,7 +16,7 @@
 export const LANE_QUERIES: Record<string, string[]> = {
   "marketing stunts": ['"marketing stunt"', "intitle:campaign brand ad"],
   "brand strategy lessons": ['"brand strategy"', "rebrand OR repositioning brand"],
-  // No news since 23 Oct 2026: see NEWS_OFF_LANES.
+  "ai tool workflows": ['"AI tool" marketing'],
   // Launches, and since 23 Oct 2026 the security and safety side of frontier AI
   // too: AI-found vulnerabilities (PHP2Shell, OpenAI's "Patch the Planet"),
   // rogue agents (the OpenAI and Hugging Face hack) and lab safety news. Each
@@ -81,22 +81,9 @@ export function derivedQuery(lane: string): string | null {
   return phrase.length > 2 ? `"${phrase}"` : null;
 }
 
-/**
- * Lanes fed by something other than news. AI tool workflows shows a tool being
- * used, step by step, and no article contains that: since 23 Oct 2026 (the
- * approved AI Tool Workflows proposal, phase 1) it is fed by standout reels
- * from watched creators instead (server/creators.ts). Its old news stories are
- * hidden from the topic list as well, not just no longer fetched.
- */
-export const NEWS_OFF_LANES = new Set(["ai tool workflows"]);
-
-export function isNewsOffLane(lane: string | null | undefined): boolean {
-  return NEWS_OFF_LANES.has((lane ?? "").trim().toLowerCase());
-}
-
 export function queriesForLane(lane: string): string[] {
   const key = lane.trim().toLowerCase();
-  if (key === "other" || NEWS_OFF_LANES.has(key)) return [];
+  if (key === "other") return [];
   const tested = LANE_QUERIES[key];
   if (tested?.length) return tested;
   const derived = derivedQuery(lane);

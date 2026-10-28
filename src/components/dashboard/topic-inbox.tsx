@@ -5,7 +5,6 @@ import {
   FileText,
   Flame,
   Loader2,
-  Clapperboard,
   Newspaper,
   RefreshCw,
   Sparkles,
@@ -127,7 +126,7 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
     <>
       <SectionHeading
         title="Topics in the news"
-        note="Live news for your lanes, and standout creator reels for AI tool workflows — nothing here is generated"
+        note="Fetched from a live news search for your lanes — nothing here is generated"
         action={
           <CollapseToggle
             collapsed={collapsed}
@@ -226,17 +225,10 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                             rel="noreferrer noopener"
                             className="group inline-flex items-start gap-1.5 text-sm font-medium leading-snug hover:underline"
                           >
-                            {item.kind === "video" ? (
-                              <Clapperboard
-                                className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
-                                aria-hidden
-                              />
-                            ) : (
-                              <Newspaper
-                                className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
-                                aria-hidden
-                              />
-                            )}
+                            <Newspaper
+                              className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
+                              aria-hidden
+                            />
                             <span>{item.title}</span>
                             <ExternalLink
                               className="mt-0.5 size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
@@ -253,14 +245,6 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                             {item.lane ? <span>· {item.lane}</span> : null}
                             {item.preference?.reason ? (
                               <span className="italic">· {item.preference.reason}</span>
-                            ) : null}
-                            {item.kind === "video" ? (
-                              // A creator's reel: how far it beat that creator's own normal.
-                              <Badge variant="secondary" className="gap-1 font-normal">
-                                <Clapperboard className="size-3" aria-hidden />
-                                Reel ·{" "}
-                                {item.query.split(" · ").slice(1).join(" · ") || "creator reel"}
-                              </Badge>
                             ) : null}
                             {item.coverage >= TRENDING_COVERAGE ? (
                               <Badge variant="secondary" className="gap-1 font-normal">

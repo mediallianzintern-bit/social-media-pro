@@ -911,15 +911,7 @@ ${
   sources.length
     ? `
 SOURCES — ${sources.length} real stories fetched from a live news search in the last fortnight. Build
-every idea on one of these, by id.${
-        sources.some((source) => source.kind === "video")
-          ? ` A source with kind "reel" is not news: it is a creator's Instagram reel that beat that
-creator's own normal, showing an AI tool being used. Its headline is the reel's caption and its
-\`article\`, when present, is what the creator says in it. Build Pritesh's OWN version of the
-workflow it demonstrates, in his voice, with his own example; never copy the creator's words, and
-never name or credit the creator in the script.`
-          : ""
-      } ${
+every idea on one of these, by id. ${
         sources.some((source) => source.article)
           ? "A source with an `article` field comes with the article's text, read from the outlet in `articleFrom`; for any other source you have the headline only:"
           : "You have the headline only; you have not read the article:"
@@ -931,7 +923,6 @@ ${JSON.stringify(
     publisher: source.publisher,
     published: source.publishedAt?.slice(0, 10) ?? null,
     lane: source.lane,
-    ...(source.kind === "video" ? { kind: "reel" } : {}),
     coverage: source.coverage,
     ...(source.article
       ? { articleFrom: source.article.publisher, article: source.article.text }

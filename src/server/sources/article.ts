@@ -287,32 +287,10 @@ export function coversStory(text: string, headline: string): boolean {
  * covered the same story. Null when none can be read, which leaves the script
  * on the headline exactly as before.
  */
-/**
- * A creator's reel, read as its transcript: what is said in it is the workflow
- * the script is built on. One Apify transcript run (about 1.5¢), only when a
- * script is written from the reel.
- */
-async function readReel(source: SourceItem): Promise<ArticleText | null> {
-  const { fetchReelTranscript } = await import("../apify/reels");
-  const result = await fetchReelTranscript(source.url).catch(() => null);
-  if (!result || !("transcript" in result) || !result.transcript.trim()) return null;
-  const text = `What ${source.publisher ?? "the creator"} says in the reel:\n${result.transcript.trim()}`;
-  return {
-    publisher: source.publisher,
-    url: source.url,
-    text,
-    words: countWords(text),
-    sameOutlet: true,
-  };
-}
-
 export async function readStory(
   source: SourceItem,
   inboxTitles: string[] = [],
 ): Promise<ArticleText | null> {
-  if (source.kind === "video" && /instagram\.com\/(reel|p)\//.test(source.url)) {
-    return readReel(source);
-  }
   let fetches = 0;
 
   fetches += 1;
