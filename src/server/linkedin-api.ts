@@ -281,6 +281,13 @@ export async function memberTotals(days = 30): Promise<{
       errors.push(`FOLLOWERS: ${error instanceof Error ? error.message : String(error)}`);
       return null;
     });
+  // Every call refused for the same reason: the connection itself is gone, so
+  // say that once and plainly instead of listing eight identical errors.
+  if (errors.length && errors.every((error) => /revoked|authenticate|expired/i.test(error))) {
+    throw new Error(
+      "LinkedIn no longer accepts this connection (it was revoked or has expired). Press Connect again and sign in as Pritesh Sir.",
+    );
+  }
   return { from: start.toISOString(), to: end.toISOString(), totals, followers, errors };
 }
 
