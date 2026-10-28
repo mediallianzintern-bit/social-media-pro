@@ -7,6 +7,7 @@ import { mergeCompetitors, OWNER_ACCOUNTS, trendSourcesFor } from "./apify/accou
 import { apifyToken } from "./apify/client";
 import { fetchInstagram, normalizeInstagram } from "./apify/instagram";
 import {
+  authorOf,
   fetchLinkedIn,
   LINKEDIN_POSTS_ACTOR,
   LINKEDIN_PROFILE_ACTOR,
@@ -278,6 +279,27 @@ export async function syncLinkedIn(trigger: "manual" | "schedule"): Promise<Sync
 
   await saveSnapshots("linkedin", dbRunId, snapshots);
   await finishRun(dbRunId);
+
+  // His owner-only figures from LinkedIn's own API (impressions, members
+  // reached, saves, sends), for the posts just scraped. Free, and never fatal:
+  // the scraped data above is already stored whatever happens here.
+  const owner = OWNER_ACCOUNTS.linkedin.handle.toLowerCase();
+  const { refreshLinkedInAnalytics } = await import("./linkedin-analytics");
+  await refreshLinkedInAnalytics(
+    posts
+      .filter((post) => authorOf(post)?.toLowerCase() === owner && post.id && post.shareUrn)
+      .map((post) => ({
+        postId: post.id!,
+        shareUrn: post.shareUrn!,
+        publishedAt: post.postedAt?.date ?? null,
+      })),
+  )
+    .then((refresh) =>
+      console.info(
+        `[sync:linkedin] LinkedIn API: ${refresh.ran ? `${refresh.posts} posts refreshed, ${refresh.calls} calls` : refresh.reason}${refresh.errors.length ? `; ${refresh.errors.slice(0, 3).join("; ")}` : ""}`,
+      ),
+    )
+    .catch((error: unknown) => console.warn("[sync:linkedin] LinkedIn API skipped:", error));
 
   return {
     platform: "linkedin",

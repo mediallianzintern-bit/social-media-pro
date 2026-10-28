@@ -42,6 +42,12 @@ interface LiPost {
   postedAt?: { date?: string; timestamp?: number };
   engagement?: { likes?: number; comments?: number; shares?: number };
   author?: { publicIdentifier?: string; headline?: string };
+  /**
+   * LinkedIn's own ID for the post, e.g. "urn:li:share:7501881006313062400".
+   * Not the activity number in the post's link: LinkedIn's analytics API only
+   * answers to this one. harvestapi supplies it; the fallback does not.
+   */
+  shareUrn?: string;
 }
 
 /**

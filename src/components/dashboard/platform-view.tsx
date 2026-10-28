@@ -12,6 +12,7 @@ import { CadenceNudge } from "@/components/dashboard/cadence-nudge";
 import { DeriveLanes } from "@/components/dashboard/derive-lanes";
 import { ErasPanel } from "@/components/dashboard/eras-panel";
 import { LearningPanel } from "@/components/dashboard/learning-panel";
+import { LinkedInOwnerMetrics } from "@/components/dashboard/linkedin-owner-metrics";
 import { LockedPanel } from "@/components/dashboard/locked-panel";
 import { PublicEngagement } from "@/components/dashboard/public-engagement";
 import { MetricBars, type BarRow } from "@/components/dashboard/metric-bars";
@@ -375,6 +376,11 @@ export function PlatformView({
         <>
           <SectionHeading title="Owner-only metrics" note="Measured by Instagram, not scraped" />
           <InsightsPanels insights={data.insights} posts={data.posts} color={color} />
+        </>
+      ) : !isInstagram ? (
+        <>
+          <SectionHeading title="Owner-only metrics" note="Measured by LinkedIn, not scraped" />
+          <LinkedInOwnerMetrics posts={posts} color={color} />
         </>
       ) : (
         <>

@@ -64,3 +64,17 @@ export const linkedInApiStatusQueryOptions = {
   queryFn: () => getLinkedInApiStatus(),
   staleTime: 60 * 1000,
 };
+
+/** His stored LinkedIn figures (impressions, reach, saves, sends) for the LinkedIn page. Free. */
+export const getLinkedInAnalytics = createServerFn({ method: "GET" })
+  .middleware([requireStaff])
+  .handler(async () => {
+    const { readLinkedInAnalytics } = await import("@/server/linkedin-analytics");
+    return readLinkedInAnalytics();
+  });
+
+export const linkedInAnalyticsQueryOptions = {
+  queryKey: ["linkedin-analytics"] as const,
+  queryFn: () => getLinkedInAnalytics(),
+  staleTime: 5 * 60 * 1000,
+};

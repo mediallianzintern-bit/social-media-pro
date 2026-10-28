@@ -129,7 +129,8 @@ export async function readConnection(): Promise<LinkedInConnection> {
   };
 }
 
-async function readToken(): Promise<string | null> {
+/** The stored token, or null when not connected or expired. Server-only. */
+export async function readToken(): Promise<string | null> {
   if (!hasDurableStore()) return null;
   const { data } = await db()
     .from("platform_tokens")
@@ -291,7 +292,8 @@ export async function memberTotals(days = 30): Promise<{
   return { from: start.toISOString(), to: end.toISOString(), totals, followers, errors };
 }
 
-async function linkedInGet<T>(path: string, token: string): Promise<T> {
+/** One GET against LinkedIn's versioned REST API. Throws with LinkedIn's own message. */
+export async function linkedInGet<T>(path: string, token: string): Promise<T> {
   const response = await fetch(`https://api.linkedin.com/rest/${path}`, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -300,6 +302,12 @@ async function linkedInGet<T>(path: string, token: string): Promise<T> {
     },
   });
   const body = (await response.json().catch(() => ({}))) as T & { message?: string };
-  if (!response.ok) throw new Error(body.message ?? String(response.status));
+  if (!response.ok) {
+    // The status travels with the error: 429 means the daily limit is spent,
+    // 401 that the connection is gone, and the caller stops on either.
+    throw Object.assign(new Error(body.message ?? String(response.status)), {
+      status: response.status,
+    });
+  }
   return body;
 }
