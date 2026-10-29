@@ -62,6 +62,7 @@ import { computeInsights } from "@/lib/insights";
 import { usePlatform } from "@/lib/use-dashboard";
 import { PIVOT_LABEL, RIGHTS_LABEL, SOURCE_PLATFORM_LABEL } from "@/lib/reaction";
 import { ResearchBlock } from "@/components/dashboard/research-block";
+import { ToneReferencesBlock } from "@/components/dashboard/tone-references-block";
 import { factSheetText } from "@/lib/research";
 
 /**
@@ -543,6 +544,7 @@ export function AiIdeaCards({
                 {/* Read the story first — so it sits above the script. */}
                 {open.source ? <SourceBlock source={open.source} /> : null}
                 {open.source?.research ? <ResearchBlock research={open.source.research} /> : null}
+                <ToneReferencesBlock idea={open} />
 
                 <HookChoice
                   idea={open}

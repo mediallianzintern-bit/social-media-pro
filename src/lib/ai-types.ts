@@ -9,6 +9,7 @@ import type { GenerationCost } from "@/lib/ai-cost";
 import type { PlatformId } from "@/lib/analytics-types";
 import type { Prediction } from "@/lib/prediction";
 import type { StoryResearch } from "@/lib/research";
+import type { ToneReferenceUsed } from "@/lib/tone-references";
 
 export type GapTone = "good" | "bad" | "warn" | "neutral";
 
@@ -156,6 +157,15 @@ export const FORMAT_LABEL: Record<IdeaFormat, string> = {
 };
 
 /** A written deliverable — LinkedIn's equivalent of a shot list. */
+/** A Rashmi-style check on a script: does it sound like Pritesh? */
+export interface ToneCheck {
+  verdict: "yes" | "no";
+  /** What is off, when it does not. */
+  note: string;
+  by: string | null;
+  at: string;
+}
+
 export interface WrittenPost {
   /**
    * Text post: the complete post, ready to paste. Article: the intro.
@@ -322,6 +332,13 @@ export interface ContentIdea {
    * own text. Hooks written with the script carry no style.
    */
   hookStyles?: Record<string, HookStyle> | undefined;
+  /**
+   * The posted reels given to the writer as tone references for this script,
+   * and how each conflicted with his brief (lib/tone-references.ts).
+   */
+  toneReferences?: ToneReferenceUsed[] | undefined;
+  /** The team's check: does this script sound like Pritesh? */
+  toneCheck?: ToneCheck | undefined;
   altHooks?: string[] | undefined;
   /**
    * The hook the team picked to film, when it was not the first one. What the

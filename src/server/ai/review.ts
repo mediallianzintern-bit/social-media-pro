@@ -25,6 +25,7 @@ import type { SourceItem } from "@/lib/sources";
 
 import { completeJson } from "./client";
 import { factSheetText } from "@/lib/research";
+import { toneReferencesBlock, type ToneReference } from "@/lib/tone-references";
 import type { ContentIdea } from "@/lib/ai-types";
 import { brandRule, ctaRule } from "@/lib/script-families";
 
@@ -410,6 +411,8 @@ export async function reviewDrafts(
    * than none.
    */
   deadline?: number,
+  /** His posted reels, for how he sounds: the same ones the writer was given. */
+  toneReferences: ToneReference[] = [],
 ): Promise<{ data: unknown; cost: GenerationCost | undefined; reviewed: number; failed: number }> {
   const ideas = (data as { ideas?: unknown })?.ideas;
   if (platform !== "instagram" || !reviewEnabled() || !Array.isArray(ideas)) {
@@ -434,7 +437,9 @@ export async function reviewDrafts(
         for (let round = 0; round < REVIEW_ROUNDS; round += 1) {
           if (deadline && deadline - Date.now() < REVIEW_ROUND_MIN_MS) break;
           const result = await completeJson<unknown>({
-            system: reviewSystem(lane),
+            system: [reviewSystem(lane), toneReferencesBlock(toneReferences)]
+              .filter(Boolean)
+              .join("\n\n"),
             user: reviewUser(idea, sources, feedback, lessons),
             schemaName: "reel_review",
             schema: reviewSchema as unknown as Record<string, unknown>,

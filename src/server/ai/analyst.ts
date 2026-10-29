@@ -21,6 +21,13 @@ import { costOf, type GenerationCost } from "@/lib/ai-cost";
 import { laneShapesBlock, withLaneCta } from "@/lib/script-families";
 import { linkedInShapesBlock } from "@/lib/linkedin-shapes";
 import { fitLinkedInPosts } from "./linkedin-length";
+import { readToneReferences } from "./tone";
+import {
+  pickReferences,
+  referencesUsed,
+  toneReferencesBlock,
+  type ToneReference,
+} from "@/lib/tone-references";
 import { reviewLinkedInDrafts } from "./linkedin-review";
 import { factSheetText } from "@/lib/research";
 import { NO_RULES, type LearnedRules } from "@/lib/reel-learning-types";
@@ -697,6 +704,8 @@ export interface IdeaReads {
   filmed?: string | null;
   /** The rules those lessons justify, enforced by the Reviewer and the final pass. */
   filmedRules?: LearnedRules | null;
+  /** Past scripts given as tone references (lib/tone-references.ts). Instagram only. */
+  toneReferences?: ToneReference[] | null;
 }
 
 export interface IdeaRequest {
@@ -762,6 +771,8 @@ export function buildIdeaRequest(
         )
       : "";
   const covered = voice && !written ? coveredCampaignsBlock() : "";
+  // His posted reels, for how he sounds (never their facts). Instagram reels only.
+  const tone = !written ? toneReferencesBlock(reads.toneReferences ?? []) : "";
   const blocked = owner.pastSuggestions?.blocked ?? [];
   const blockedLanes = new Set(
     blocked.filter((entry) => entry.kind === "lane").map((entry) => entry.value),
@@ -799,7 +810,7 @@ export function buildIdeaRequest(
 creator, based on their own measured performance.
 
 ${groundRules(owner.owned?.source)}
-${voice ? `\n${voice}\n` : ""}${laneShapes ? `\n${laneShapes}\n` : ""}${covered ? `\n${covered}\n` : ""}${workflow ? `\n${workflow}\n` : ""}
+${voice ? `\n${voice}\n` : ""}${tone ? `\n${tone}\n` : ""}${laneShapes ? `\n${laneShapes}\n` : ""}${covered ? `\n${covered}\n` : ""}${workflow ? `\n${workflow}\n` : ""}
 Additional requirements:
 - EVERY IDEA MUST HAVE A CONCRETE SUBJECT. Name the specific brand, campaign, product, tool,
   person or event the reel covers, in the title and again in the angle. A reader who sees only
@@ -1521,6 +1532,15 @@ export async function generateIdeas(
   /** What this call cost, from OpenAI's own usage figures. */
   cost?: GenerationCost | undefined;
 }> {
+  // Tone references: his posted reels, picked for this script's lane.
+  const toneReferences =
+    platform === "instagram"
+      ? pickReferences(
+          await readToneReferences(platform).catch(() => []),
+          onlyLane ?? sources[0]?.lane ?? null,
+        )
+      : [];
+  reads = { ...reads, toneReferences };
   const request = buildIdeaRequest(
     platform,
     owner,
@@ -1567,6 +1587,7 @@ Write it again and make sure each of these is fixed. Everything else above still
     reads.filmed ?? "",
     reads.filmedRules ?? NO_RULES,
     extra.deadline,
+    toneReferences,
   );
   if (review.reviewed || review.failed) {
     console.info(
@@ -1606,13 +1627,19 @@ Write it again and make sure each of these is fixed. Everything else above still
     fitted.cost,
   );
 
-  const { ideas, dropped } = finalizeIdeas(fitted.data, {
+  const { ideas: finalized, dropped } = finalizeIdeas(fitted.data, {
     sources,
     blocked: request.blocked,
     written: request.written,
     platform,
     blockedHashtags: (reads.filmedRules?.blockedHashtags ?? []).map((rule) => rule.tag),
   });
+  // Which posted reels informed each script's tone, and how each conflicted
+  // with his brief, so the team can see it and judge the result.
+  const used = referencesUsed(toneReferences);
+  const ideas = used.length
+    ? finalized.map((idea) => (idea.post ? idea : { ...idea, toneReferences: used }))
+    : finalized;
   if (dropped.length) console.warn(`[ai:${platform}] dropped idea(s):`, dropped);
 
   // Persisted append-only, separately from the cached ai_analyses row that
