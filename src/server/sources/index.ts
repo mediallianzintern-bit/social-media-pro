@@ -326,11 +326,25 @@ export async function topicInbox(platform: PlatformId): Promise<TopicInbox> {
     readTopicVotes(platform).catch(() => []),
   ]);
   const usedSet = new Set(used);
+  // Stories the team ticked, by their latest vote: a later cross un-ticks.
+  const lastVerdict = new Map<string, { verdict: string; at: string }>();
+  for (const vote of votes) {
+    if (vote.kind !== "source") continue;
+    const seen = lastVerdict.get(vote.itemId);
+    if (!seen || vote.createdAt > seen.at) {
+      lastVerdict.set(vote.itemId, { verdict: vote.verdict, at: vote.createdAt });
+    }
+  }
+  const ticked = new Set(
+    [...lastVerdict].filter(([, vote]) => vote.verdict === "like").map(([id]) => id),
+  );
   // Creator reels show while they are current: every read of the creators
   // re-stores the reels that still stand out and still fit the lane, so one
   // not refreshed by the latest read has dropped out (aged past two weeks,
   // fallen back to its creator's normal, or failed the learned pattern). A reel
-  // a script was written from stays, so its script can still be opened.
+  // a script was written from stays, so its script can still be opened, and so
+  // does a reel the team ticked (29 Oct 2026: the reels ticked on 27 Oct had
+  // left the list), whatever its age.
   const latestReel = new Map<string, number>();
   for (const item of stored) {
     if (item.kind !== "video") continue;
@@ -339,6 +353,7 @@ export async function topicInbox(platform: PlatformId): Promise<TopicInbox> {
   }
   const current = (item: SourceItem) =>
     usedSet.has(item.id) ||
+    ticked.has(item.id) ||
     Date.parse(item.fetchedAt) >= (latestReel.get(item.lane ?? "") ?? 0) - 15 * 60_000;
   // A lane fed by creator reels shows only the reels, not its old news.
   const items = stored.filter((item) =>
@@ -357,6 +372,11 @@ export async function topicInbox(platform: PlatformId): Promise<TopicInbox> {
     ]),
   ].filter((id) => !byId.has(id));
   for (const source of await sourcesById(outside)) byId.set(source.id, source);
+  // A ticked creator reel older than the window comes back into its lane.
+  for (const id of ticked) {
+    const source = byId.get(id);
+    if (source?.kind === "video" && !items.some((item) => item.id === id)) items.push(source);
+  }
   const outlets = buildOutletModel(await outletSignals(platform, votes, used, byId));
   const writtenEarlier = used
     .filter((id) => !items.some((item) => item.id === id))
