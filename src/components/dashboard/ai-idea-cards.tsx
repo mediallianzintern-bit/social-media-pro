@@ -954,6 +954,13 @@ function SourceBlock({ source }: { source: NonNullable<ContentIdea["source"]> })
               </a>
             ) : null}
           </div>
+          {!source.research && !source.readFrom ? (
+            <p className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-xs leading-relaxed text-amber-800 dark:text-amber-300">
+              Written from the headline only: no outlet could be read for this story (sites refused,
+              or Google limited link reading). Check every detail in [square brackets] before
+              filming, or press Regenerate later for a script built on the full reporting.
+            </p>
+          ) : null}
           <p className="text-xs leading-relaxed text-muted-foreground">
             {source.research
               ? "The script was written from the research below, across several outlets. Anything in [square brackets] is a detail none of them confirmed."

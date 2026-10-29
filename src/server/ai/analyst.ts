@@ -1078,6 +1078,11 @@ never name or credit the creator in the script.`
             ? "A source with an `article` field comes with the article's text, read from the outlet in `articleFrom`; for any other source you have the headline only:"
             : "You have the headline only; you have not read the article:"
       }
+HEADLINE ONLY means no outlet could be read for it, so accuracy comes first: state only what the
+headline itself says, explain what it means in simple words, use one clearly hypothetical example
+("Let's say you run…"), and write every other specific (how it works, dates, figures, who built it)
+as a bracketed "[verify: …]" note for the team. Never fill the length with general benefits
+("improve your customer service", "boost satisfaction"): a shorter honest script beats a padded one.
 ${JSON.stringify(
   sources.map((source) => ({
     id: source.id,

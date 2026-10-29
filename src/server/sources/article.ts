@@ -69,6 +69,64 @@ async function get(url: string, init: RequestInit = {}): Promise<Response | null
  * and this makes that same request. Unofficial, so any change on Google's side
  * simply returns null and the story falls back to its headline.
  */
+/** Links converted in this process, before the stored ones are asked. */
+const converted = new Map<string, string>();
+/**
+ * When Google last refused a conversion ("429, unusual traffic"). Until this
+ * passes no more are asked: a refusal is respected, not retried twenty times.
+ */
+let googleRefusedUntil = 0;
+const GOOGLE_PAUSE_MS = 15 * 60_000;
+
+async function storedLink(googleUrl: string): Promise<string | null> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await (
+      supabaseAdmin as unknown as {
+        from: (table: string) => {
+          select: (columns: string) => {
+            eq: (
+              column: string,
+              value: string,
+            ) => {
+              maybeSingle: () => Promise<{ data: { url?: string } | null }>;
+            };
+          };
+        };
+      }
+    )
+      .from("decoded_links")
+      .select("url")
+      .eq("google_url", googleUrl)
+      .maybeSingle();
+    return data?.url ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function storeLink(googleUrl: string, url: string): Promise<void> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await (
+      supabaseAdmin as unknown as {
+        from: (table: string) => {
+          upsert: (row: unknown, options: unknown) => Promise<unknown>;
+        };
+      }
+    )
+      .from("decoded_links")
+      .upsert({ google_url: googleUrl, url }, { onConflict: "google_url" });
+  } catch {
+    // Before 0031, or the store is down: the link is converted again next time.
+  }
+}
+
+/**
+ * The article a Google News link leads to. Converted once and kept (0031):
+ * a link already converted is never asked of Google again, and while Google
+ * is refusing, none is asked at all.
+ */
 export async function publisherUrl(url: string): Promise<string | null> {
   let parsed: URL;
   try {
@@ -77,10 +135,30 @@ export async function publisherUrl(url: string): Promise<string | null> {
     return null;
   }
   if (parsed.hostname !== "news.google.com") return url;
+  const known = converted.get(url) ?? (await storedLink(url));
+  if (known) {
+    converted.set(url, known);
+    return known;
+  }
+  if (Date.now() < googleRefusedUntil) return null;
+  const decoded = await convertGoogleLink(parsed);
+  if (decoded) {
+    converted.set(url, decoded);
+    await storeLink(url, decoded);
+  }
+  return decoded;
+}
+
+async function convertGoogleLink(parsed: URL): Promise<string | null> {
   const id = parsed.pathname.split("/").pop();
   if (!id) return null;
 
   const page = await get(`https://news.google.com/articles/${id}`);
+  if (page?.status === 429) {
+    googleRefusedUntil = Date.now() + GOOGLE_PAUSE_MS;
+    console.warn("[sources] Google News refused link conversion (429); pausing 15 minutes");
+    return null;
+  }
   const html = page?.ok ? await page.text() : "";
   const signature = /data-n-a-sg="([^"]+)"/.exec(html)?.[1];
   const timestamp = /data-n-a-ts="([^"]+)"/.exec(html)?.[1];
@@ -129,6 +207,11 @@ export async function publisherUrl(url: string): Promise<string | null> {
     headers: { "content-type": "application/x-www-form-urlencoded;charset=UTF-8" },
     body: `f.req=${encodeURIComponent(JSON.stringify([[["Fbv4je", inner]]]))}`,
   });
+  if (response?.status === 429) {
+    googleRefusedUntil = Date.now() + GOOGLE_PAUSE_MS;
+    console.warn("[sources] Google News refused link conversion (429); pausing 15 minutes");
+    return null;
+  }
   if (!response?.ok) return null;
   try {
     const payload = (await response.text()).split("\n\n")[1] ?? "";
