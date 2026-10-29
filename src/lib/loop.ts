@@ -100,6 +100,14 @@ export function scriptPatterns(outcomes: SuggestionOutcome[]): ScriptPatternScor
 }
 
 /**
+ * Hook types the loop never blocks. Naming the subject in the first line is
+ * the team's own rule for every hook (voice.ts DASHBOARD_HANDOVER), not a
+ * style to test: blocking it after three reels (Oct 2026) set the loop
+ * against that rule and pushed every hook towards "What if…" openings.
+ */
+const NEVER_BLOCKED_HOOK_TYPES = new Set(["named_subject"]);
+
+/**
  * What the loop refuses to suggest again, for now.
  *
  * Lanes, traits and hook types are each judged on their own tries. Case and
@@ -124,6 +132,7 @@ export function blockedPatterns(outcomes: SuggestionOutcome[], now = Date.now())
   const blocked: BlockedPattern[] = [];
   for (const { kind, groups } of candidates) {
     for (const [value, group] of groups) {
+      if (kind === "hookType" && NEVER_BLOCKED_HOOK_TYPES.has(value)) continue;
       if (group.length < BLOCK_MIN_MEASURED) continue;
       const hits = group.filter((o) => o.hit).length;
       if (hits / group.length > BLOCK_MAX_HIT_RATE) continue;

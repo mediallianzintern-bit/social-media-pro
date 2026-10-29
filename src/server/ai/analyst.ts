@@ -774,7 +774,20 @@ export function buildIdeaRequest(
   const covered = voice && !written ? coveredCampaignsBlock() : "";
   // His posted reels, for how he sounds (never their facts). Instagram reels only.
   const tone = !written ? toneReferencesBlock(reads.toneReferences ?? []) : "";
-  const blocked = owner.pastSuggestions?.blocked ?? [];
+  // A script the team asked for on one chosen story is written in that story's
+  // own lane even when the loop has blocked the lane: the block holds back
+  // the system's own suggestions, not a story someone picked (29 Oct 2026,
+  // when every Frontier AI story was forced into AI tool workflows and
+  // discarded). The rest of the request still respects every block.
+  const chosenLane =
+    sources.length === 1 &&
+    onlyLane &&
+    (sources[0]?.lane ?? "").trim().toLowerCase() === onlyLane.trim().toLowerCase()
+      ? onlyLane.trim().toLowerCase()
+      : null;
+  const blocked = (owner.pastSuggestions?.blocked ?? []).filter(
+    (entry) => !(entry.kind === "lane" && entry.value === chosenLane),
+  );
   const blockedLanes = new Set(
     blocked.filter((entry) => entry.kind === "lane").map((entry) => entry.value),
   );
