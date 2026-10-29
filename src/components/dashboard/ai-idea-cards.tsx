@@ -1115,7 +1115,9 @@ function HookChoice({
                   </span>
                 )}
                 {variant.chosen ? (
-                  <Badge className="text-[10px] font-normal">Filming this one</Badge>
+                  <Badge className="text-[10px] font-normal">
+                    {idea.post ? "Using this one" : "Filming this one"}
+                  </Badge>
                 ) : variant.recommended && !picked ? (
                   <Badge variant="secondary" className="text-[10px] font-normal">
                     Suggested
@@ -1133,7 +1135,7 @@ function HookChoice({
                   disabled={choose.isPending}
                   onClick={() => choose.mutate(variant.hook)}
                 >
-                  Film {variant.label} instead
+                  {idea.post ? "Use" : "Film"} {variant.label} instead
                 </Button>
               ) : null}
             </div>
@@ -1145,37 +1147,39 @@ function HookChoice({
       {test.warning ? <p className="mt-1 text-xs text-muted-foreground">{test.warning}</p> : null}
       {reason ? <p className="mt-1 text-xs text-destructive">{reason}</p> : null}
 
-      {!idea.post ? (
-        <div className="mt-3 rounded-lg border border-dashed p-3">
-          <p className="text-xs font-medium">Get more hooks</p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
-            Three more openings for this same script, in the style you pick. One AI call each.
-          </p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {(Object.keys(HOOK_STYLE_LABEL) as HookStyle[]).map((style) => (
-              <Button
-                key={style}
-                size="sm"
-                variant="outline"
-                className="h-auto gap-1.5 px-2.5 py-1 text-xs"
-                disabled={extend.isPending || full}
-                onClick={() => extend.mutate(style)}
-              >
-                {extend.isPending && extend.variables === style ? (
-                  <Loader2 className="size-3 animate-spin" aria-hidden />
-                ) : null}
-                {HOOK_STYLE_LABEL[style]}
-              </Button>
-            ))}
-          </div>
-          {full ? (
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              This script has {VARIANT_LABELS.length} hooks, the most the picker can label.
-            </p>
-          ) : null}
-          {more ? <p className="mt-2 text-[11px] text-muted-foreground">{more}</p> : null}
+      {/* Reels, carousels, and LinkedIn posts and articles alike. */}
+      <div className="mt-3 rounded-lg border border-dashed p-3">
+        <p className="text-xs font-medium">Get more hooks</p>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">
+          {idea.post
+            ? "Three more first lines for this same post, the line LinkedIn shows above “see more”, in the style you pick. Written from his LinkedIn voice and the first lines LinkedIn showed most. One AI call each."
+            : "Three more openings for this same script, in the style you pick. One AI call each."}
+        </p>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {(Object.keys(HOOK_STYLE_LABEL) as HookStyle[]).map((style) => (
+            <Button
+              key={style}
+              size="sm"
+              variant="outline"
+              className="h-auto gap-1.5 px-2.5 py-1 text-xs"
+              disabled={extend.isPending || full}
+              onClick={() => extend.mutate(style)}
+            >
+              {extend.isPending && extend.variables === style ? (
+                <Loader2 className="size-3 animate-spin" aria-hidden />
+              ) : null}
+              {HOOK_STYLE_LABEL[style]}
+            </Button>
+          ))}
         </div>
-      ) : null}
+        {full ? (
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            This {idea.post ? "post" : "script"} has {VARIANT_LABELS.length} hooks, the most the
+            picker can label.
+          </p>
+        ) : null}
+        {more ? <p className="mt-2 text-[11px] text-muted-foreground">{more}</p> : null}
+      </div>
     </section>
   );
 }

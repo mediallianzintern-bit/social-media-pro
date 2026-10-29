@@ -1,6 +1,11 @@
 // "Get more hooks" — three more opening lines for a script that already
 // exists, in a style the team picks: authority, curiosity or question.
 //
+// LinkedIn posts and articles too (Oct 2026). There the hook is the post's
+// first line, all LinkedIn shows above "see more", so the writer gets his
+// LinkedIn voice prompt instead of the reel brief, and his own best and
+// weakest first lines with the impressions LinkedIn measured for each.
+//
 // A script comes with three openings. When none of them is right, the fix is
 // not a new script: the body is fine, only the first line is wrong. So this is
 // a small request (the finished script plus Pritesh's own prompt) on the
@@ -16,8 +21,9 @@ import { NO_RULES } from "@/lib/reel-learning-types";
 
 import { completeJson, hasOpenAi } from "./client";
 import { reviewModel } from "./review";
-import { INSTAGRAM_MASTER_PROMPT } from "./voice";
-import { addIdeaHooks } from "../store";
+import { INSTAGRAM_MASTER_PROMPT, LINKEDIN_VOICE } from "./voice";
+import { addIdeaHooks, readPosts } from "../store";
+import { OWNER_ACCOUNTS } from "../apify/accounts";
 import { learnedRules } from "../reel-learning/lessons";
 
 /** How many hooks one press asks for. */
@@ -42,6 +48,62 @@ const STYLE_BRIEF: Record<HookStyle, string> = {
 };
 
 /**
+ * The same three styles for a LinkedIn post's first line, each with the shape
+ * taken from his own LinkedIn openings.
+ */
+const LINKEDIN_STYLE_BRIEF: Record<HookStyle, string> = {
+  authority:
+    'AUTHORITY: open with a clear POSITION on the subject, stated plainly, that a marketer or business owner could disagree with. Shape, from his own posts: "Meta is moving beyond AI that creates ads." / "AI has made content creation cheaper. It hasn\'t made good content easier." A line that only reports what happened is a description and fails. Sure, never superior. Use "I" only where the post itself does, and never invent an experience, a client or a result to sound credible.',
+  curiosity:
+    'CURIOSITY: open on the most surprising TRUE fact in the post, with its brand, tool or figure named, and hold back the why so the reader clicks "see more". Shape, from his best posts: "McDonald\'s wants to make $1 billion from advertising." / "AI just uncovered a security flaw that could put 70% of the world\'s websites at risk." Never exaggerate, never promise more than the post delivers.',
+  question:
+    'QUESTION: open with ONE specific question a business owner or marketer would genuinely ask about the subject, which the post then answers. Shape, from his posts: "What happens when AI starts finding security weaknesses faster than businesses can fix them?" / "Are Businesses Missing Out by Ignoring Google\'s Gemini 4 Argon?" It names the subject. Never "did you know", never "have you ever wondered", never "What do you think about AI?".',
+};
+
+/** How many of his best and weakest first lines the LinkedIn writer is shown. */
+const OPENINGS_SHOWN = 5;
+/**
+ * A post younger than this is still gathering impressions, and would read as
+ * weak only because it is new.
+ */
+const SETTLED_DAYS = 7;
+
+/** The first sentence of a stored caption: his post's opening line. */
+function firstLine(caption: string): string {
+  const text = caption.trim();
+  return (text.match(/^.{12,200}?[.?!](?=\s|$)/)?.[0] ?? text.slice(0, 160)).trim();
+}
+
+/**
+ * His LinkedIn opening lines that LinkedIn showed most and least, with the
+ * impressions it measured. Free: stored rows. Empty without LinkedIn connected.
+ */
+async function linkedInOpenings(): Promise<string> {
+  const { readLinkedInAnalytics } = await import("../linkedin-analytics");
+  const [stored, posts] = await Promise.all([
+    readLinkedInAnalytics(),
+    readPosts("linkedin", OWNER_ACCOUNTS.linkedin.handle, 200),
+  ]);
+  const impressions = new Map(stored.posts.map((row) => [row.postId, row.impressions]));
+  const settled = Date.now() - SETTLED_DAYS * 86_400_000;
+  const measured = posts
+    .filter(
+      (post) => !post.pinned && post.caption.trim() && Date.parse(post.publishedAt) <= settled,
+    )
+    .map((post) => ({ line: firstLine(post.caption), seen: impressions.get(post.postId) }))
+    .filter((row): row is { line: string; seen: number } => row.seen != null)
+    .sort((a, b) => b.seen - a.seen);
+  if (measured.length < OPENINGS_SHOWN * 2) return "";
+  const list = (rows: typeof measured) =>
+    rows.map((row) => `- "${row.line}" (${row.seen} impressions)`).join("\n");
+  return `HIS OWN LINKEDIN FIRST LINES, as LinkedIn measured them. Aim at what the best share; avoid what the weakest share. Never copy one.
+Best:
+${list(measured.slice(0, OPENINGS_SHOWN))}
+Weakest:
+${list(measured.slice(-OPENINGS_SHOWN).reverse())}`;
+}
+
+/**
  * Stock phrases that make a hook sound like every other reel. A hook that
  * uses one is dropped rather than shown: they carry no point of view, which
  * is the one thing a hook has to have.
@@ -57,7 +119,7 @@ const schema = {
     hooks: {
       type: "array",
       items: { type: "string" },
-      description: `Exactly ${PER_REQUEST} opening lines, each a single spoken sentence of at most 14 words.`,
+      description: `Exactly ${PER_REQUEST} opening lines, each as short as the rules below say.`,
     },
   },
 } as const;
@@ -66,12 +128,16 @@ const parsed = z.object({ hooks: z.array(z.string()) });
 
 /** The script as the writer of a new first line needs to see it. */
 function scriptText(idea: ContentIdea): string {
+  if (idea.post) {
+    const sections = (idea.post.sections ?? []).map((section) => section.heading).filter(Boolean);
+    return [idea.post.body, ...(sections.length ? ["Sections:", ...sections] : [])].join("\n");
+  }
   const spoken = (idea.shots ?? [])
     .map((shot) => shot.voiceover?.trim())
     .filter(Boolean)
     .join("\n");
   const beats = idea.reaction?.beats?.map((beat) => beat.line).join("\n");
-  return spoken || beats || idea.post?.body || idea.angle;
+  return spoken || beats || idea.angle;
 }
 
 /**
@@ -89,15 +155,18 @@ export async function moreHooks(
   if (!hasOpenAi()) return { idea: null, added: 0, reason: "OPENAI_API_KEY is not set." };
 
   const existing = [idea.hook, ...(idea.altHooks ?? [])].filter(Boolean);
+  // A LinkedIn post or article: its first line, not a spoken hook.
+  const written = Boolean(idea.post);
   // What filmed reels have proved: losing hook types are dropped below, and
   // hypothetical openers are allowed again once they have proved they work.
-  const rules = await learnedRules("instagram").catch(() => NO_RULES);
+  // Filmed reels are Instagram's; they say nothing about a LinkedIn post.
+  const rules = written ? NO_RULES : await learnedRules("instagram").catch(() => NO_RULES);
   const allowHypothetical = Boolean(rules.allowHypotheticalHooks);
   if (existing.length >= MAX_HOOKS) {
     return {
       idea: null,
       added: 0,
-      reason: `This script already has ${MAX_HOOKS} hooks to choose from.`,
+      reason: `This ${written ? "post" : "script"} already has ${MAX_HOOKS} hooks to choose from.`,
     };
   }
 
@@ -105,27 +174,47 @@ export async function moreHooks(
     ? `\nThis is a REACTION reel. It opens on a borrowed clip that claims: "${idea.reaction.claim}". The expert's first line pivots off that claim — it answers it, it does not repeat it.`
     : "";
 
-  const system = `${INSTAGRAM_MASTER_PROMPT}
+  const openings = written ? await linkedInOpenings().catch(() => "") : "";
+  const system = written
+    ? `${LINKEDIN_VOICE}
+
+YOUR TASK NOW is narrower than the voice above. The LinkedIn ${idea.format === "article" ? "article" : "post"} below is
+finished and approved. Write only new FIRST LINES for it: the line LinkedIn shows above "see
+more", which decides whether anyone reads on. Each must lead naturally into the rest of the
+${idea.format === "article" ? "article" : "post"} as written.`
+    : `${INSTAGRAM_MASTER_PROMPT}
 
 YOUR TASK NOW is narrower than the brief above. The script below is finished and
 approved. Write only new OPENING LINES for it: each must be a line Pritesh says
 first, on camera, that leads naturally into the rest of the script as written.`;
 
-  const user = `${STYLE_BRIEF[style]}
-
-Rules for every line:
+  const rulesFor = written
+    ? `Rules for every line:
+- One or two short sentences, at most 22 words in all: what fits above "see more".
+- It must fit THIS post: the line after it, as written, still follows naturally.
+- It NAMES the brand, tool, platform or figure the post is about. That is what separates his best
+  first lines from his weakest. Never open on a general principle or on a hypothetical ("Imagine…",
+  "Let's say…", "What if…", "Picture…"): those come later in the post.
+- Different from every opening already offered below, and from each other.
+- No emoji, no dashes, no exclamation marks, no hype words ("game-changer", "revolutionary",
+  "the possibilities are endless"), no "Agree?" or "Thoughts?".${openings ? `\n\n${openings}` : ""}`
+    : `Rules for every line:
 - One spoken sentence, at most 14 words. Short enough to say in the first three seconds.
 - It must fit THIS script: the line after it, as written, still follows naturally.
 - It is ABOUT the script's subject and names it: the tool, brand, campaign or development. Never open on the everyday example or a hypothetical ("Imagine…", "Let's say…", "What if…", "Picture…").
 - Different from every opening already offered below, and from each other.
 - No emoji, no dashes, no exclamation marks, no hype words, no promise of a guide or link.
-- No stock phrases: "next level", "raised the bar", "masterclass", "genius", "wild", "insane".${reaction}
+- No stock phrases: "next level", "raised the bar", "masterclass", "genius", "wild", "insane".`;
+
+  const user = `${(written ? LINKEDIN_STYLE_BRIEF : STYLE_BRIEF)[style]}
+
+${rulesFor}${reaction}
 
 Title: ${idea.title}
 Openings already offered (do not repeat or reword these):
 ${existing.map((hook) => `- ${hook}`).join("\n")}
 
-The script:
+The ${written ? (idea.format === "article" ? "article" : "post") : "script"}:
 ${scriptText(idea)}`;
 
   const result = await completeJson<unknown>({
@@ -151,7 +240,7 @@ ${scriptText(idea)}`;
     )
     .filter((hook) => {
       if (!hook || seen.has(hook.toLowerCase())) return false;
-      if (hook.split(/\s+/).length > 18) return false;
+      if (hook.split(/\s+/).length > (written ? 26 : 18)) return false;
       if (CLICHES.test(hook)) return false;
       if (hookIssue(hook, `${idea.title} ${idea.angle}`, { allowHypothetical })) return false;
       // A kind of hook filmed reels proved losing is not offered again.
