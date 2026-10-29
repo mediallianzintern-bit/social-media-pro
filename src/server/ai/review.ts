@@ -36,6 +36,7 @@ import { hookIssue } from "@/lib/hook-check";
 import { NO_RULES, type LearnedRules } from "@/lib/reel-learning-types";
 import { HOOK_TYPE_LABEL, hookTypeOf } from "@/lib/reel-parts";
 import { DASHBOARD_HANDOVER, INSTAGRAM_MASTER_PROMPT, INSTAGRAM_REVIEW_PROMPT } from "./voice";
+import { REEL_MAX_SECONDS, REEL_MIN_SECONDS, REEL_WORDS } from "@/lib/reel-length";
 
 const REVIEW_MODEL_DEFAULT = "gpt-4o";
 
@@ -97,7 +98,7 @@ const reviewSchema = {
         "OUTPUT item 1: the one ready-to-record script, complete, as 5-8 short paragraphs " +
         "separated by blank lines, following SCRIPT FLOW without labels: the Opening, the " +
         "Explanation in simple words, ONE familiar business Example, and a Closing with one " +
-        "practical next step or a clear takeaway. 100-115 spoken words (50-60 seconds), never more than 115.",
+        `practical next step or a clear takeaway. ${REEL_WORDS.min}-${REEL_WORDS.max} spoken words (${REEL_MIN_SECONDS}-${REEL_MAX_SECONDS} seconds), never more than ${REEL_WORDS.max}.`,
     },
     spokenWordCount: {
       type: "integer",
@@ -225,7 +226,7 @@ const WORDS_PER_SECOND = 2;
 /** Two rounds at most: the first rewrite, and one more if it misses a hard rule. */
 const REVIEW_ROUNDS = 2;
 
-const LENGTH_GUIDANCE = `LENGTH WITHOUT INVENTING: reach 100–115 spoken words (a 50–60 second reel) through the Explanation and the Example,
+const LENGTH_GUIDANCE = `LENGTH WITHOUT INVENTING: reach ${REEL_WORDS.min}–${REEL_WORDS.max} spoken words (a ${REEL_MIN_SECONDS}–${REEL_MAX_SECONDS} second reel) through the Explanation and the Example,
 never through invented facts or filler. When the source is only a headline, the Example is a
 clearly hypothetical business situation ("Let's say you run a small bakery…") showing how the
 viewer would use it. Count the words across every shot's voiceover before returning.`;
@@ -237,7 +238,7 @@ paragraph is its own shotType "Screen recording" shot. Describing what the tool 
 input details and it does the rest") is NOT a step. Where the source does not say exactly where a
 control is or what it is called, keep the step and mark the unknown part for the recording team,
 e.g. "Open the tool [VERIFY: where it sits in the app]." Never invent menus as if
-confirmed. The steps count toward the 100–115 words; keep each one short.
+confirmed. The steps count toward the ${REEL_WORDS.min}–${REEL_WORDS.max} words; keep each one short.
 The LAST line is this lane's CTA, its own shot: "Comment KEYWORD and I'll send you the full
 step-by-step guide.", with ONE keyword in capitals from this reel's tool or task. The team sends the
 guide to every commenter, so this promise is confirmed. A stock sign-off is wrong here.`;
@@ -366,14 +367,15 @@ function problemsOf(
         `every paragraph of the script must be one shot's voiceover, word for word`,
     );
   }
-  // 100, not his brief's 90: the team asked for 50-60 second reels, and at a
-  // relaxed two words a second that is the floor.
-  if (count < 100) {
+  // The team's 110-140 (lib/reel-length.ts), not his brief's 90-115: the reels
+  // he posted run that long, and shorter scripts came out too thin.
+  if (count < REEL_WORDS.min) {
     problems.push(
-      `${count} spoken words; it needs 100–115 for a 50–60 second reel, never more than 115`,
+      `${count} spoken words; it needs ${REEL_WORDS.min}–${REEL_WORDS.max} for a ${REEL_MIN_SECONDS}–${REEL_MAX_SECONDS} second reel, never more than ${REEL_WORDS.max}`,
     );
   }
-  if (count > 115) problems.push(`${count} spoken words; the maximum is 115`);
+  if (count > REEL_WORDS.max)
+    problems.push(`${count} spoken words; the maximum is ${REEL_WORDS.max}`);
   for (const hook of [review.hook, ...review.altHooks]) {
     const issue = hookIssue(hook, subject, {
       allowHypothetical: Boolean(rules.allowHypotheticalHooks),
@@ -397,7 +399,9 @@ function problemsOf(
   if (onScreen > 3) {
     problems.push(`${onScreen} shots have on-screen text; at most three may, the rest empty`);
   }
-  if (review.durationSeconds > 60) problems.push("the duration is over 60 seconds");
+  if (review.durationSeconds > REEL_MAX_SECONDS) {
+    problems.push(`the duration is over ${REEL_MAX_SECONDS} seconds`);
+  }
   if (lane && isAiToolWorkflowLane(lane)) {
     const asIdea = {
       format: "reel",
@@ -544,9 +548,9 @@ export async function reviewDrafts(
             ...(idea.production ?? {}),
             // From the counted words at a relaxed pace, not the reply's figure,
             // which put 97 words at 30 seconds. Never under what the words need,
-            // never past a minute: his hard limit.
+            // never past the team's limit (lib/reel-length.ts).
             durationSeconds: Math.min(
-              60,
+              REEL_MAX_SECONDS,
               Math.max(review.durationSeconds, Math.round(spokenWords(review) / WORDS_PER_SECOND)),
             ),
             editorNotes: [

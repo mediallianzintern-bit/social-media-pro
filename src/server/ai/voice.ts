@@ -22,6 +22,7 @@
 //
 // LinkedIn has its own: the voice sections of his LinkedIn voice prompt, below.
 import type { PlatformId } from "@/lib/analytics-types";
+import { REEL_MAX_SECONDS, REEL_MIN_SECONDS, REEL_WORDS } from "@/lib/reel-length";
 
 // ---------------------------------------------------------------------------
 // Pritesh's master prompt, verbatim, section by section. Split only so the
@@ -151,12 +152,12 @@ Return:
 /** How his OUTPUT section maps onto the editor handover the team requests. */
 export const DASHBOARD_HANDOVER = `DASHBOARD HANDOVER — the team requests these, which is the "unless requested" case in OUTPUT above:
 - The ready-to-record script is the voiceover across the shot list, in speaking order. Each short paragraph is a shot.
-- LENGTH FOR THIS DASHBOARD: the team asks for the top of the range in LENGTH above. The reel runs 50 to 60 seconds, so the whole voiceover is 100 to 115 spoken words, never more than 115. Short scripts have been the problem, so count before you return: under 100 means the Explanation or the Example is thin, and it is filled with substance, never padding.
+- LENGTH FOR THIS DASHBOARD, as the team set it after comparing with the reels Pritesh actually posted (they run about 110 to 140 words): this OVERRIDES the word range in LENGTH above. The reel runs ${REEL_MIN_SECONDS} to ${REEL_MAX_SECONDS} seconds, so the whole voiceover is ${REEL_WORDS.min} to ${REEL_WORDS.max} spoken words, never more than ${REEL_WORDS.max}. Short scripts have been the problem, so count before you return: under ${REEL_WORDS.min} means the Explanation or the Example is thin, and it is filled with substance from the source (its figures, names and specifics), never padding.
 - CTA FOR THIS DASHBOARD, as the team requested it (the "when a CTA is requested" case): Frontier AI developments, Brand strategy lessons and Marketing stunts end on exactly "Follow for daily AI and marketing updates. See you tomorrow." AI tool workflows end on "Comment KEYWORD and I'll send you the full step-by-step guide." with one keyword in capitals from that reel's tool or task. The team has confirmed it sends that guide to every commenter, so in that lane only, this promise is allowed.
 - The script's first line is the hook. The two alternative opening lines are the two alternative hooks, and each must lead into the same script.
 - EVERY HOOK IS ABOUT THE SCRIPT'S SUBJECT, in every lane: it names the tool, brand, campaign or development the reel is about ("X just launched a tool that writes your ads for you."). A hook never opens on the everyday example or a hypothetical ("Imagine…", "Let's say you run a bakery…", "What if…", "Picture…"): that is the Example's job, after the subject is on the table. A hook that could open a reel about something else is wrong.
 - The on-screen text suggestions go in the shots' onScreenText: at most three across the whole reel, empty in every other shot.
-- The approximate duration is production.durationSeconds, never more than 60. The dashboard counts the spoken words itself.
+- The approximate duration is production.durationSeconds, never more than ${REEL_MAX_SECONDS}. The dashboard counts the spoken words itself.
 - Also requested for the editor: the shot list, the production plan, a caption and exactly 5 hashtags.
 - No dashes of any kind in the voiceover: no em dash, no en dash, no spaced hyphen.
 - A claim that needs checking is written as a bracketed note for the team, e.g. "[verify: the release date]", never stated as confirmed.`;

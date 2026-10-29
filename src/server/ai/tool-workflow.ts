@@ -1,6 +1,7 @@
 import type { PlatformId } from "@/lib/analytics-types";
 import type { ContentIdea } from "@/lib/ai-types";
 import { isAiToolWorkflowLane } from "../../lib/tool-workflow.ts";
+import { REEL_MAX_SECONDS, REEL_MIN_SECONDS, REEL_WORDS } from "@/lib/reel-length";
 export { isAiToolWorkflowLane } from "../../lib/tool-workflow.ts";
 
 /**
@@ -54,8 +55,8 @@ export function toolWorkflowIssues(platform: PlatformId, idea: ContentIdea): str
   const issues: string[] = [];
   if (idea.format !== "reel") issues.push("AI tool workflows need a reel script");
   const duration = idea.production?.durationSeconds;
-  if (duration == null || duration > 60) {
-    issues.push("the reel must run under one minute");
+  if (duration == null || duration > REEL_MAX_SECONDS) {
+    issues.push(`the reel must run at most ${REEL_MAX_SECONDS} seconds`);
   }
   // Count demonstrated instructions, not mentions of actions in an abstract
   // benefits paragraph. Bracketed actions remain drafts for the team to verify.
@@ -107,7 +108,7 @@ The viewer should finish thinking "Okay, now I understand it, and I can try this
    GEMINI, CANVA). The team sends the guide to every commenter, so this promise is confirmed. Never a
    stock sign-off ("Follow for more AI and marketing tips", "See you next time", "See you tomorrow").
 Promise nothing else: no link, template or other resource.
-Stay within 100-115 spoken words, never more than 115: a 50 to 60 second reel. Count before returning.
+Stay within ${REEL_WORDS.min}-${REEL_WORDS.max} spoken words, never more than ${REEL_WORDS.max}: a ${REEL_MIN_SECONDS} to ${REEL_MAX_SECONDS} second reel. Count before returning.
 Map each shown action to its own shotType="Screen recording" shot whose voiceover starts with the
 action (optionally First/Next/Then/Now). On-screen text stays within the reel's three-line limit,
 so label only the steps that need it.

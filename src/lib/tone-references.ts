@@ -17,6 +17,7 @@
 // Client-safe and pure.
 import { HYPOTHETICAL_OPENER } from "@/lib/hook-check";
 import { ctaFor, scriptFamily } from "@/lib/script-families";
+import { REEL_WORDS } from "@/lib/reel-length";
 
 export interface ToneReference {
   id: string;
@@ -41,8 +42,8 @@ export const REFERENCES_PER_SCRIPT = 3;
 
 const words = (text: string) => text.split(/\s+/).filter(Boolean).length;
 
-/** His brief's spoken length (LENGTH, voice.ts): 90 to 115 words. */
-const BRIEF_WORDS = { min: 90, max: 115 };
+/** The team's reel length (lib/reel-length.ts), which overrides his brief's 90-115. */
+const BRIEF_WORDS = REEL_WORDS;
 
 /** Where a reference breaks a rule of his Instagram Tone and Voice brief, in words. */
 export function conflictsWithBrief(reference: Pick<ToneReference, "script" | "lane">): string[] {
@@ -50,7 +51,7 @@ export function conflictsWithBrief(reference: Pick<ToneReference, "script" | "la
   const conflicts: string[] = [];
   const count = words(script);
   if (count > BRIEF_WORDS.max || count < BRIEF_WORDS.min) {
-    conflicts.push(`${count} words; the brief says ${BRIEF_WORDS.min} to ${BRIEF_WORDS.max}`);
+    conflicts.push(`${count} words; the team's length is ${BRIEF_WORDS.min} to ${BRIEF_WORDS.max}`);
   }
   const first =
     script

@@ -74,6 +74,7 @@ import type {
   ProductionNotes,
   Shot,
 } from "@/lib/ai-types";
+import { REEL_MAX_SECONDS, REEL_MIN_SECONDS, REEL_WORDS } from "@/lib/reel-length";
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -684,8 +685,8 @@ Give 6-10 shots. Front-load: the first shot must work with the sound off, becaus
 decide in the first second.
 
 production must be fillable by the editor without a follow-up question:
-- durationSeconds: an Instagram reel runs 50 to 60 seconds, which is what the team asked
-  for, and never more than 60. A carousel is read, so it has no spoken length.
+- durationSeconds: an Instagram reel runs ${REEL_MIN_SECONDS} to ${REEL_MAX_SECONDS} seconds, which is what the team asked
+  for, and never more than ${REEL_MAX_SECONDS}. A carousel is read, so it has no spoken length.
 - coverText: 3-6 words for the cover frame.
 - musicDirection: genre, energy and where it should drop, not a track name.
 - subtitleStyle: how captions should look and behave.

@@ -19,6 +19,7 @@
 import type { ContentIdea } from "@/lib/ai-types";
 import { hookIssue } from "@/lib/hook-check";
 import { isAiToolWorkflowLane, isWorkflowCta, workflowCtaIssue } from "@/lib/tool-workflow";
+import { REEL_MAX_SECONDS, REEL_MIN_SECONDS, REEL_WORDS } from "@/lib/reel-length";
 
 /** Phrases banned outright by the voice document. Matched case-insensitively. */
 const BANNED_PHRASES = [
@@ -131,9 +132,9 @@ const BANNED_SHAPES: Array<{ label: string; pattern: RegExp }> = [
  * 90-110, never more than 115, under a minute. It replaced the SOP's 110-135.
  * The flag fires only outside the range and says what it means in seconds.
  */
-// 100, not the brief's 90: the team asked for 50-60 second reels.
-const MIN_WORDS = 100;
-const MAX_WORDS = 115;
+// The team's 110-140 since 29 Oct 2026, matching his posted reels (lib/reel-length.ts).
+const MIN_WORDS = REEL_WORDS.min;
+const MAX_WORDS = REEL_WORDS.max;
 
 /** "Agree?" and "Thoughts?" only count as engagement bait standing alone as a question. */
 const AGREE = /(^|[\s.!])agree\?/i;
@@ -321,9 +322,14 @@ export function voiceFlags(
   // exists, and only for a filmed format: a LinkedIn post has no spoken length.
   if (voiceover && !idea.post) {
     const count = words(voiceover);
-    if (count < MIN_WORDS) flags.push(`only ${count} words of voice over — under about 50 seconds`);
+    if (count < MIN_WORDS)
+      flags.push(
+        `only ${count} words of voice over — under ${MIN_WORDS}, about ${REEL_MIN_SECONDS} seconds`,
+      );
     else if (count > MAX_WORDS)
-      flags.push(`${count} words of voice over — over 115, likely to run past a minute`);
+      flags.push(
+        `${count} words of voice over — over ${MAX_WORDS}, likely to run past ${REEL_MAX_SECONDS} seconds`,
+      );
   }
 
   // A LinkedIn text post: the length his own posts run to.
