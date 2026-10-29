@@ -19,11 +19,13 @@ import {
   type PlatformData,
   viewsOf,
 } from "@/lib/analytics-types";
+import { followersForPeriod } from "@/lib/followers";
 
 export const Route = createFileRoute("/_app/")({ component: Overview });
 
 function summarize(data: PlatformData) {
-  const followers = data.latest?.followers ?? 0;
+  // As of the selected period's end, not today's (lib/followers.ts).
+  const followers = followersForPeriod(data) ?? 0;
   // Pinned posts are excluded from every rate — see organicPosts.
   const organic = organicPosts(data.posts);
   // Instagram's own count where we hold it — the number the owner sees in the
@@ -44,7 +46,9 @@ function summarize(data: PlatformData) {
 function Overview() {
   const { data, range } = useFilteredDashboard();
   const reporting = data.platforms.filter((p) => p.status === "ok");
-  const totalFollowers = reporting.reduce((sum, p) => sum + (p.latest?.followers ?? 0), 0);
+  const totalFollowers = reporting.reduce((sum, p) => sum + (followersForPeriod(p) ?? 0), 0);
+  // A period that ends before follower history began has no total to add up.
+  const unrecorded = reporting.some((p) => followersForPeriod(p) == null);
 
   return (
     <>
@@ -147,7 +151,7 @@ function Overview() {
       <section aria-label="Combined audience" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <KpiTile
           label="Total audience"
-          value={fullNumber(totalFollowers)}
+          value={unrecorded ? "—" : fullNumber(totalFollowers)}
           icon={Users}
           hint={`across ${reporting.length} platform${reporting.length === 1 ? "" : "s"} · ${labelInSentence(range)}`}
         />

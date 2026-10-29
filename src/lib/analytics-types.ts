@@ -4,6 +4,7 @@
 // analytics (impressions, reach, audience demographics, video retention) have no
 // public source and are deliberately absent rather than estimated.
 
+import type { PeriodFollowers } from "@/lib/followers";
 import type { ScriptFeatures } from "@/lib/script-features";
 
 export type PlatformId = "instagram" | "linkedin";
@@ -328,6 +329,12 @@ export interface PlatformData {
   latest: AccountSnapshot | null;
   /** Oldest first. One point per stored sync. */
   growth: GrowthPoint[];
+  /**
+   * Followers for the selected period: the total as of its end and the change
+   * across it, from the dated snapshots (lib/followers.ts). Set by the date
+   * filter; absent on the unfiltered payload.
+   */
+  followersInPeriod?: PeriodFollowers | undefined;
   posts: PostRecord[];
   competitors: CompetitorRecord[];
   /**

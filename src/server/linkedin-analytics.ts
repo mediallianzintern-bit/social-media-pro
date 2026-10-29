@@ -320,6 +320,29 @@ export async function refreshMemberDaily(token: string): Promise<number> {
       byDay.set(day, entry);
     }
   }
+  // New followers each day, LinkedIn's own count (0029). One more call; a
+  // failure leaves the other figures stored as before.
+  try {
+    const followers = await linkedInGet<{
+      elements?: Array<{
+        memberFollowersCount?: number;
+        dateRange?: { start?: { year: number; month: number; day: number } };
+      }>;
+    }>(
+      `memberFollowersCount?q=dateRange&dateRange=(start:${restliDate(start)},end:${restliDate(end)})`,
+      token,
+    );
+    for (const row of followers.elements ?? []) {
+      const at = row.dateRange?.start;
+      if (!at) continue;
+      const day = `${at.year}-${String(at.month).padStart(2, "0")}-${String(at.day).padStart(2, "0")}`;
+      const entry = byDay.get(day) ?? { day };
+      entry["new_followers"] = row.memberFollowersCount ?? 0;
+      byDay.set(day, entry);
+    }
+  } catch (error) {
+    console.warn("[linkedin] daily new followers not read:", (error as Error).message);
+  }
   if (!byDay.size) return 0;
   const fetchedAt = new Date().toISOString();
   const { error } = await db()
@@ -340,6 +363,8 @@ export interface LinkedInPeriodFigures {
   membersReached: number | null;
   /** The latest day stored, so the card can say how fresh it is. */
   lastDay: string | null;
+  /** New followers in the period, LinkedIn's own daily count. Null before 0029 or its first read. */
+  newFollowers: number | null;
 }
 
 const REACH_FRESH_MS = 24 * 3_600_000;
@@ -355,13 +380,22 @@ export async function readLinkedInPeriod(period: LinkedInPeriod): Promise<Linked
     prior: null,
     membersReached: null,
     lastDay: null,
+    newFollowers: null,
   };
   if (!hasDurableStore()) return none;
   const [token, daily] = await Promise.all([
     readToken(),
     db().from("linkedin_member_daily").select("*").order("day", { ascending: true }),
   ]);
-  const rows = ((daily.data ?? []) as Array<Record<string, unknown>>).map((row) => {
+  const raw = (daily.data ?? []) as Array<Record<string, unknown>>;
+  const inPeriod = (day: string) => (!period.start || day >= period.start) && day < period.end;
+  const followerDays = raw.filter(
+    (row) => row["new_followers"] != null && inPeriod(String(row["day"])),
+  );
+  const newFollowers = followerDays.length
+    ? followerDays.reduce((sum, row) => sum + Number(row["new_followers"]), 0)
+    : null;
+  const rows = raw.map((row) => {
     const entry: Record<string, unknown> = { day: String(row["day"]) };
     for (const field of Object.values(DAILY_METRICS)) entry[field] = Number(row[field] ?? 0);
     return entry as DailyRow;
@@ -377,6 +411,7 @@ export async function readLinkedInPeriod(period: LinkedInPeriod): Promise<Linked
     prior: prior && prior.start && prior.start >= earliest ? sumPeriod(rows, prior) : null,
     membersReached: null,
     lastDay: rows.at(-1)!.day,
+    newFollowers,
   };
 
   const key = `${period.start ?? "all"}..${period.end}`;

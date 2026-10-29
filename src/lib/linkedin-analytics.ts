@@ -21,9 +21,10 @@ export type PostMetric = (typeof POST_METRICS)[number];
 export const CALLS_PER_RUN = 80;
 /**
  * Calls the daily account step costs: followers, 30-day impressions and reach,
- * and his six figures day by day (see DAILY_METRICS below).
+ * his six figures day by day (see DAILY_METRICS below), and his new followers
+ * day by day.
  */
-export const ACCOUNT_CALLS = 9;
+export const ACCOUNT_CALLS = 10;
 /** Posts older than this are no longer asked about. */
 export const TRACK_DAYS = 30;
 const FRESH_DAYS = 7;

@@ -4,6 +4,7 @@ import { goalReadFor, laneExpectations } from "@/lib/prediction";
 import { lanePerformance } from "@/lib/analytics-types";
 import type { GrowthGoal } from "@/lib/growth";
 import type { DashboardData, PlatformData, PostRecord } from "@/lib/analytics-types";
+import { periodFollowers } from "@/lib/followers";
 
 /**
  * The lane scorecard, recomputed over the posts actually in the window.
@@ -58,8 +59,10 @@ export function filterPlatform(
     ...data,
     posts,
     growth: data.growth.filter((point) => withinRange(point.capturedAt, window)),
-    // `latest` is the current follower count and is deliberately NOT filtered —
-    // "followers as of now" is the truth regardless of the window being viewed.
+    // `latest` stays today's count. A period's own total, as of its end, and
+    // the change across it come from the dated snapshots, read from the
+    // UNFILTERED history so the snapshot just before the period counts.
+    followersInPeriod: periodFollowers(data.growth, window),
     ...(data.learning ? { learning: windowedLearning(data.learning, posts, growthGoal) } : {}),
   };
 }

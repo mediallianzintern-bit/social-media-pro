@@ -1,10 +1,12 @@
 import { Link } from "@tanstack/react-router";
-import { AlertTriangle, ExternalLink, Eye, FileText, Heart, Info, Send, Users } from "lucide-react";
+import { AlertTriangle, ExternalLink, Eye, FileText, Heart, Info, Send } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { AiPanel } from "@/components/dashboard/ai-panel";
 import { CompetitorTable, type BenchmarkRow } from "@/components/dashboard/competitor-table";
 import { ContentTiles } from "@/components/dashboard/content-tiles";
+import { FollowersTile } from "@/components/dashboard/followers-tile";
+import { followersForPeriod } from "@/lib/followers";
 import { GrowthChart } from "@/components/dashboard/growth-chart";
 import { KpiTile } from "@/components/dashboard/kpi-tile";
 import { InsightsPanels } from "@/components/dashboard/insights-panels";
@@ -150,7 +152,8 @@ export function PlatformView({
 
   const ranked = [...organic].sort((a, b) => primaryOf(b) - primaryOf(a));
   const best = ranked[0];
-  const rate = engagementRate(posts, latest.followers);
+  // On the followers the period had, not today's.
+  const rate = engagementRate(posts, followersForPeriod(data) ?? latest.followers);
   const totalInteractions = organic.reduce((sum, post) => sum + engagementsOf(post), 0);
 
   // Best-performer funnel: only the rows public data actually supports. The
@@ -236,13 +239,7 @@ export function PlatformView({
       {/* ---- Overview ---- */}
       <SectionHeading title="Overview" note={range.label} />
       <section aria-label="Headline metrics" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiTile
-          label="Followers"
-          value={fullNumber(latest.followers)}
-          icon={Users}
-          hint={latest.following ? `${compactNumber(latest.following)} following` : undefined}
-          accent={color}
-        />
+        <FollowersTile data={data} range={range} color={color} />
         <KpiTile
           label="Interactions"
           value={fullNumber(totalInteractions)}
