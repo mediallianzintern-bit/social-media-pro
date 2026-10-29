@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2, ExternalLink, PlugZap } from "lucide-react";
 
+import { CreatorPatternPanel } from "@/components/dashboard/creator-pattern-panel";
 import { LinkedInApiCard } from "@/components/dashboard/linkedin-api-card";
+import { SectionHeading } from "@/components/dashboard/section-heading";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -137,6 +139,12 @@ function Sources() {
       </div>
 
       <LinkedInApiCard />
+
+      <SectionHeading
+        title="Creator-fed lanes"
+        note="Reels from watched creators, filtered by a pattern learned from them"
+      />
+      <CreatorPatternPanel />
 
       <Card>
         <CardHeader>
