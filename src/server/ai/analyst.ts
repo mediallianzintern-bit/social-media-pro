@@ -19,6 +19,7 @@ import {
 } from "./tool-workflow";
 import { costOf, type GenerationCost } from "@/lib/ai-cost";
 import { laneShapesBlock, withLaneCta } from "@/lib/script-families";
+import { linkedInShapesBlock } from "@/lib/linkedin-shapes";
 import { NO_RULES, type LearnedRules } from "@/lib/reel-learning-types";
 import { coveredCampaignsBlock } from "@/lib/covered-campaigns";
 import { saveSuggestedIdeas } from "../store";
@@ -644,7 +645,7 @@ function deliverableRules(written: boolean): string {
 not notes for someone else to expand:
 - hook: the first line, which is all LinkedIn shows above "see more". It has to earn the click
   on its own: a specific claim, a figure from the data, or a named story — never a warm-up.
-- text_post: post.body is the complete post, 120-250 words, with the hook as its first line.
+- text_post: post.body is the complete post, 150-300 words, with the hook as its first line.
   Paragraphs of one to three lines with a blank line between them — that is how LinkedIn is
   read. post.sections is empty.
 - article: post.body is the introduction; post.sections are 4-7 sections, each a heading and its
@@ -653,8 +654,8 @@ not notes for someone else to expand:
 - document: post.body is the short post that sits above the PDF; post.sections are 6-10 pages,
   each a heading and two to four lines. One idea per page — a page someone has to read twice
   is a page they swipe past.
-- End on ONE clear ask that serves the goal: a question worth answering in the comments, or a
-  reason to save or share. One, not three.
+- End the way the LINKEDIN POST SHAPE above says: a question worth answering, then one closing
+  line. Never a stack of asks.
 - hashtags: three to five, specific to the story. A wall of tags reads as spam on LinkedIn.
 - Write as the creator, in the first person, in the rhythm of their own captions. LinkedIn
   readers can tell a ghostwriter.`;
@@ -747,13 +748,18 @@ export function buildIdeaRequest(
   // names are descriptive enough to place every one of them. scriptFamily
   // reads the name first anyway, so passing a definition would not change
   // these answers.
+  // LinkedIn has its own shapes, read from his LinkedIn posts (linkedin-shapes.ts).
   const laneShapes = voice
     ? laneShapesBlock(
         (owner.lanes ?? [])
           .filter((lane) => !isAiToolWorkflowLane(lane.lane))
           .map((lane) => ({ name: lane.lane, definition: "" })),
       )
-    : "";
+    : written
+      ? linkedInShapesBlock(
+          (owner.lanes ?? []).map((lane) => ({ name: lane.lane, definition: "" })),
+        )
+      : "";
   const covered = voice ? coveredCampaignsBlock() : "";
   const blocked = owner.pastSuggestions?.blocked ?? [];
   const blockedLanes = new Set(
