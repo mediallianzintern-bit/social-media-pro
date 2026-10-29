@@ -20,6 +20,7 @@ import {
 import { costOf, type GenerationCost } from "@/lib/ai-cost";
 import { laneShapesBlock, withLaneCta } from "@/lib/script-families";
 import { linkedInShapesBlock } from "@/lib/linkedin-shapes";
+import { fitLinkedInPosts } from "./linkedin-length";
 import { NO_RULES, type LearnedRules } from "@/lib/reel-learning-types";
 import { coveredCampaignsBlock } from "@/lib/covered-campaigns";
 import { saveSuggestedIdeas } from "../store";
@@ -1560,12 +1561,26 @@ Write it again and make sure each of these is fixed. Everything else above still
     );
   }
 
+  // LinkedIn: a post outside his length, or breaking his voice rules, is
+  // rewritten in his voice before it is shown (linkedin-length.ts).
+  const fitted = request.written
+    ? await fitLinkedInPosts(review.data, sources, extra.deadline)
+    : { data: review.data, cost: undefined, fixed: 0, failed: 0 };
+  if (fitted.fixed || fitted.failed) {
+    console.info(
+      `[ai:${platform}] fitted ${fitted.fixed} post(s) to his length and voice, ${fitted.failed} kept as drafted`,
+    );
+  }
+
   // Reported by OpenAI with the reply. Absent only when it sends no usage
   // block, in which case the panel shows no cost rather than an estimate.
   // The review's own cost is added, so the panel shows what the script cost.
-  const cost = addCosts(result.usage ? costOf(result.usage, result.model) : undefined, review.cost);
+  const cost = addCosts(
+    addCosts(result.usage ? costOf(result.usage, result.model) : undefined, review.cost),
+    fitted.cost,
+  );
 
-  const { ideas, dropped } = finalizeIdeas(review.data, {
+  const { ideas, dropped } = finalizeIdeas(fitted.data, {
     sources,
     blocked: request.blocked,
     written: request.written,

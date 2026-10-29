@@ -161,6 +161,28 @@ const POINTS_TO_ARTICLE = /\b(article|read the full|full breakdown)\b/i;
 const PROMISED_RESOURCE =
   /\b(comment|dm|message)\b[^.!?]{0,60}\b(i'?ll|i will|we'?ll|we will)\s+send\b|\blink in (my |the )?bio\b|\b(free|full) (guide|template|checklist|playbook)\b/i;
 
+/**
+ * A LinkedIn text post's length against his own: 150-300 words for a post,
+ * 75-125 for a teaser pointing to his article. Null for an empty body.
+ */
+export function linkedInLength(body: string): {
+  count: number;
+  min: number;
+  max: number;
+  kind: "a post" | "an article teaser";
+  ok: boolean;
+} | null {
+  if (!body.trim()) return null;
+  const range = POINTS_TO_ARTICLE.test(body) ? TEASER_WORDS : POST_WORDS;
+  const count = words(body);
+  return {
+    count,
+    ...range,
+    kind: range === TEASER_WORDS ? "an article teaser" : "a post",
+    ok: count >= range.min && count <= range.max,
+  };
+}
+
 /** Only the words actually SPOKEN — what §6's word count and §12's dash rule govern. */
 function voiceoverText(idea: ContentIdea): string {
   const spoken = (idea.shots ?? []).map((shot) => shot.voiceover ?? "").filter(Boolean);
@@ -305,12 +327,12 @@ export function voiceFlags(
   }
 
   // A LinkedIn text post: the length his own posts run to.
-  if (idea.post && idea.format === "text_post" && idea.post.body.trim()) {
-    const count = words(idea.post.body);
-    const range = POINTS_TO_ARTICLE.test(idea.post.body) ? TEASER_WORDS : POST_WORDS;
-    const kind = range === TEASER_WORDS ? "an article teaser" : "a post";
-    if (count < range.min || count > range.max) {
-      flags.push(`${count} words: ${kind} of his runs ${range.min} to ${range.max}`);
+  if (idea.post && idea.format === "text_post") {
+    const length = linkedInLength(idea.post.body);
+    if (length && !length.ok) {
+      flags.push(
+        `${length.count} words: ${length.kind} of his runs ${length.min} to ${length.max}`,
+      );
     }
   }
 

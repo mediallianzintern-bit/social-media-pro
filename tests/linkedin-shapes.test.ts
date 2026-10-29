@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ContentIdea } from "@/lib/ai-types";
 import { linkedInShapeFor, linkedInShapesBlock } from "@/lib/linkedin-shapes";
-import { voiceFlags } from "@/lib/voice-check";
+import { linkedInLength, voiceFlags } from "@/lib/voice-check";
 
 describe("LinkedIn lane shapes", () => {
   it("has a shape for each of his LinkedIn lanes", () => {
@@ -57,5 +57,14 @@ describe("LinkedIn voice check", () => {
   it("holds a post to his length, and an article teaser to its own", () => {
     expect(voiceFlags(post(words(90))).some((flag) => flag.startsWith("90 words"))).toBe(true);
     expect(voiceFlags(post(`${words(90)} I've written an article on it.`))).toEqual([]);
+  });
+});
+
+describe("LinkedIn length", () => {
+  const words = (count: number) => Array.from({ length: count }, () => "word").join(" ");
+  it("measures a post against 150-300 and a teaser against 75-125", () => {
+    expect(linkedInLength(words(97))).toMatchObject({ count: 97, min: 150, ok: false });
+    expect(linkedInLength(`${words(95)} Read the article.`)).toMatchObject({ min: 75, ok: true });
+    expect(linkedInLength("")).toBeNull();
   });
 });
