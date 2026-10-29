@@ -164,6 +164,12 @@ export interface WrittenPost {
   body: string;
   /** Article sections, or document pages. Empty for a plain text post. */
   sections: Array<{ heading: string; text: string }>;
+  /**
+   * From the review-and-rewrite pass (server/ai/linkedin-review.ts): what it
+   * changed, and each claim to check before posting. Absent on posts written
+   * before the review existed.
+   */
+  notes?: string[] | undefined;
 }
 
 /**

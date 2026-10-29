@@ -21,6 +21,7 @@ import { costOf, type GenerationCost } from "@/lib/ai-cost";
 import { laneShapesBlock, withLaneCta } from "@/lib/script-families";
 import { linkedInShapesBlock } from "@/lib/linkedin-shapes";
 import { fitLinkedInPosts } from "./linkedin-length";
+import { reviewLinkedInDrafts } from "./linkedin-review";
 import { factSheetText } from "@/lib/research";
 import { NO_RULES, type LearnedRules } from "@/lib/reel-learning-types";
 import { coveredCampaignsBlock } from "@/lib/covered-campaigns";
@@ -1575,8 +1576,18 @@ Write it again and make sure each of these is fixed. Everything else above still
 
   // LinkedIn: a post outside his length, or breaking his voice rules, is
   // rewritten in his voice before it is shown (linkedin-length.ts).
+  // LinkedIn's review-and-rewrite pass first (linkedin-review.ts), then the
+  // length fit as the last check.
+  const reviewedPosts = request.written
+    ? await reviewLinkedInDrafts(review.data, sources, extra.deadline)
+    : { data: review.data, cost: undefined, reviewed: 0, failed: 0 };
+  if (reviewedPosts.reviewed || reviewedPosts.failed) {
+    console.info(
+      `[ai:${platform}] reviewed ${reviewedPosts.reviewed} post(s), ${reviewedPosts.failed} kept as drafted`,
+    );
+  }
   const fitted = request.written
-    ? await fitLinkedInPosts(review.data, sources, extra.deadline)
+    ? await fitLinkedInPosts(reviewedPosts.data, sources, extra.deadline)
     : { data: review.data, cost: undefined, fixed: 0, failed: 0 };
   if (fitted.fixed || fitted.failed) {
     console.info(
@@ -1588,7 +1599,10 @@ Write it again and make sure each of these is fixed. Everything else above still
   // block, in which case the panel shows no cost rather than an estimate.
   // The review's own cost is added, so the panel shows what the script cost.
   const cost = addCosts(
-    addCosts(result.usage ? costOf(result.usage, result.model) : undefined, review.cost),
+    addCosts(
+      addCosts(result.usage ? costOf(result.usage, result.model) : undefined, review.cost),
+      reviewedPosts.cost,
+    ),
     fitted.cost,
   );
 

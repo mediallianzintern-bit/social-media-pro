@@ -197,6 +197,7 @@ function toPlainText(idea: ContentIdea): string {
         "",
       );
     });
+    if (idea.post.notes?.length) lines.push("--- REVIEW NOTES ---", ...idea.post.notes, "");
   }
 
   if (p?.editorNotes.length) {
@@ -647,6 +648,13 @@ export function AiIdeaCards({
                           </li>
                         ))}
                       </ol>
+                    ) : null}
+                    {open.post.notes?.length ? (
+                      <ul className="mt-3 list-inside list-disc space-y-1.5 text-sm leading-relaxed text-muted-foreground">
+                        {open.post.notes.map((note) => (
+                          <li key={note}>{note}</li>
+                        ))}
+                      </ul>
                     ) : null}
                   </section>
                 ) : null}
