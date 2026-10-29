@@ -8,7 +8,7 @@ const ref = (
   id: string,
   lane: string,
   postedAt: string,
-  script = `Brand did this. ${words(98)}`,
+  script = `Brand did this. ${words(118)}`,
 ) => ({
   id,
   title: `Reel ${id}`,
@@ -28,7 +28,7 @@ describe("tone references", () => {
     expect(conflicts.join(" ")).toMatch(/exclamation/);
     expect(conflicts.join(" ")).toMatch(/agreed line/);
     expect(
-      conflictsWithBrief({ lane: "Marketing stunts", script: `Brand did this. ${words(98)}` }),
+      conflictsWithBrief({ lane: "Marketing stunts", script: `Brand did this. ${words(118)}` }),
     ).toEqual([]);
   });
 
