@@ -146,15 +146,21 @@ export async function refreshLinkedInAnalytics(
     );
   }
 
-  // His posts, the ones due, newest first.
-  const { data } = await db()
-    .from("linkedin_post_analytics")
-    .select("post_id,share_urn,published_at,fetched_at");
-  const tracked: TrackedPost[] = ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+  // His posts, the ones due, newest first. "*" so this still runs before 0027
+  // adds impressions_at.
+  const { data } = await db().from("linkedin_post_analytics").select("*");
+  const rows = (data ?? []) as Array<Record<string, unknown>>;
+  const hasImpressionsAt = rows.some((row) => "impressions_at" in row);
+  const tracked: TrackedPost[] = rows.map((row) => ({
     postId: String(row["post_id"]),
     shareUrn: String(row["share_urn"]),
     publishedAt: (row["published_at"] as string | null) ?? null,
     fetchedAt: (row["fetched_at"] as string | null) ?? null,
+    // Without the column there is no record of an impressions-only read, so
+    // none is done: it would repeat on every sync.
+    impressionsAt: hasImpressionsAt
+      ? ((row["impressions_at"] as string | null) ?? null)
+      : new Date().toISOString(),
   }));
   const field: Record<PostMetric, string> = {
     IMPRESSION: "impressions",
@@ -162,11 +168,11 @@ export async function refreshLinkedInAnalytics(
     POST_SAVE: "saves",
     POST_SEND: "sends",
   };
-  for (const post of duePosts(tracked, budget)) {
+  for (const { post, metrics } of duePosts(tracked, budget)) {
     const entity = entityParam(post.shareUrn)!;
     const figures: Record<string, number | null> = {};
     let stop = false;
-    for (const metric of POST_METRICS) {
+    for (const metric of metrics) {
       result.calls += 1;
       try {
         const body = await linkedInGet<{ elements?: Array<{ count?: number }> }>(
@@ -182,10 +188,15 @@ export async function refreshLinkedInAnalytics(
     }
     if (stop) return { ...result, reason: "LinkedIn refused: the connection or the daily limit." };
     // Only a complete set is stored, so a half-fetched post is asked again next time.
-    if (Object.keys(figures).length !== POST_METRICS.length) continue;
+    if (Object.keys(figures).length !== metrics.length) continue;
+    const at = new Date().toISOString();
+    const stamps =
+      metrics.length === POST_METRICS.length
+        ? { fetched_at: at, ...(hasImpressionsAt ? { impressions_at: at } : {}) }
+        : { impressions_at: at };
     const { error } = await db()
       .from("linkedin_post_analytics")
-      .update({ ...figures, fetched_at: new Date().toISOString() })
+      .update({ ...figures, ...stamps })
       .eq("post_id", post.postId);
     if (!error) result.posts += 1;
   }
@@ -209,10 +220,7 @@ export async function readLinkedInAnalytics(): Promise<LinkedInAnalytics> {
   if (!hasDurableStore()) return empty;
   const [token, posts, account] = await Promise.all([
     readToken(),
-    db()
-      .from("linkedin_post_analytics")
-      .select("post_id,impressions,members_reached,saves,sends,fetched_at")
-      .not("fetched_at", "is", null),
+    db().from("linkedin_post_analytics").select("*").not("fetched_at", "is", null),
     db()
       .from("linkedin_account_daily")
       .select("day,followers,impressions_30d,members_reached_30d")
@@ -229,7 +237,12 @@ export async function readLinkedInAnalytics(): Promise<LinkedInAnalytics> {
       membersReached: num(row["members_reached"]),
       saves: num(row["saves"]),
       sends: num(row["sends"]),
-      fetchedAt: (row["fetched_at"] as string | null) ?? null,
+      // The latest read of any figure: impressions are read more often.
+      fetchedAt:
+        [row["fetched_at"], row["impressions_at"]]
+          .filter((at): at is string => typeof at === "string")
+          .sort()
+          .at(-1) ?? null,
     })),
     account: latest
       ? {

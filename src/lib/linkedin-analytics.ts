@@ -4,9 +4,12 @@
 // LinkedIn's Development tier allows 100 calls per member per day (and 500 per
 // app). Each post costs one call per figure, so asking about every post on
 // every sync would run out within a day. Instead:
-//   - a post under 7 days old is refreshed once a day: its figures still move,
-//   - a post 7-30 days old every 3 days: they have mostly settled,
+//   - a post under 7 days old has all four figures refreshed once a day,
+//   - a post 7-30 days old has its impressions refreshed once a day, so the
+//     number on his own Top performing posts matches, and the other three
+//     (reach, saves, sends, which have mostly settled) every 3 days,
 //   - an older post is not asked about again and keeps its last figures,
+//   - a post never measured at all is measured once, whatever its age,
 // newest first, within a fixed budget per run.
 import type { PostRecord } from "@/lib/analytics-types";
 
@@ -31,21 +34,46 @@ export interface TrackedPost {
   postId: string;
   shareUrn: string;
   publishedAt: string | null;
+  /** When all four figures were last read. */
   fetchedAt: string | null;
+  /** When impressions alone were last read, if later. */
+  impressionsAt?: string | null;
+}
+
+/** A post due a refresh, and which of its figures to ask for. */
+export interface DuePost {
+  post: TrackedPost;
+  metrics: PostMetric[];
 }
 
 /** The posts due a refresh now, newest first, as many as `budget` calls cover. */
-export function duePosts(posts: TrackedPost[], budget: number, now = Date.now()): TrackedPost[] {
-  const hours = (iso: string | null) => (iso ? (now - Date.parse(iso)) / 3_600_000 : Infinity);
-  const due = posts
-    .filter((post) => {
-      const age = hours(post.publishedAt) / 24;
-      if (!Number.isFinite(age) || age > TRACK_DAYS) return false;
-      const since = hours(post.fetchedAt);
-      return since >= (age < FRESH_DAYS ? FRESH_EVERY_HOURS : SETTLED_EVERY_HOURS);
-    })
-    .sort((a, b) => Date.parse(b.publishedAt ?? "") - Date.parse(a.publishedAt ?? ""));
-  return due.slice(0, Math.max(0, Math.floor(budget / POST_METRICS.length)));
+export function duePosts(posts: TrackedPost[], budget: number, now = Date.now()): DuePost[] {
+  const hours = (iso: string | null | undefined) =>
+    iso ? (now - Date.parse(iso)) / 3_600_000 : Infinity;
+  const due: DuePost[] = [];
+  for (const post of posts) {
+    const age = hours(post.publishedAt) / 24;
+    if (!post.fetchedAt) {
+      due.push({ post, metrics: [...POST_METRICS] });
+      continue;
+    }
+    if (!Number.isFinite(age) || age > TRACK_DAYS) continue;
+    const since = hours(post.fetchedAt);
+    if (since >= (age < FRESH_DAYS ? FRESH_EVERY_HOURS : SETTLED_EVERY_HOURS)) {
+      due.push({ post, metrics: [...POST_METRICS] });
+    } else if (Math.min(since, hours(post.impressionsAt)) >= FRESH_EVERY_HOURS) {
+      due.push({ post, metrics: ["IMPRESSION"] });
+    }
+  }
+  due.sort((a, b) => Date.parse(b.post.publishedAt ?? "") - Date.parse(a.post.publishedAt ?? ""));
+  const chosen: DuePost[] = [];
+  let left = budget;
+  for (const item of due) {
+    if (item.metrics.length > left) continue;
+    chosen.push(item);
+    left -= item.metrics.length;
+  }
+  return chosen;
 }
 
 /**
