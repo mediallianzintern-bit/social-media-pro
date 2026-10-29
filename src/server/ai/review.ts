@@ -32,7 +32,7 @@ import { brandRule, ctaRule } from "@/lib/script-families";
 
 import { isAiToolWorkflowLane, toolWorkflowIssues, toolWorkflowPrompt } from "./tool-workflow";
 import { workflowCtaIssue } from "@/lib/tool-workflow";
-import { hookIssue } from "@/lib/hook-check";
+import { HYPOTHETICAL_OPENER, hookIssue } from "@/lib/hook-check";
 import { NO_RULES, type LearnedRules } from "@/lib/reel-learning-types";
 import { HOOK_TYPE_LABEL, hookTypeOf } from "@/lib/reel-parts";
 import { DASHBOARD_HANDOVER, INSTAGRAM_MASTER_PROMPT, INSTAGRAM_REVIEW_PROMPT } from "./voice";
@@ -225,6 +225,24 @@ const WORDS_PER_SECOND = 2;
 
 /** Two rounds at most: the first rewrite, and one more if it misses a hard rule. */
 const REVIEW_ROUNDS = 2;
+/**
+ * One more round, only when the best rewrite so far is still short of the
+ * reel length: two rounds left scripts at 101 words, short of 110 (29 Oct
+ * 2026), and length is the rule the model most often misses.
+ */
+const MAX_REVIEW_ROUNDS = 3;
+const isLengthProblem = (problem: string) => /spoken words; it needs/.test(problem);
+
+/**
+ * A closing line that is still the example, not the point. Checked loosely on
+ * purpose: his own posted reels close on takeaways in many shapes ("Making it
+ * profitable is.", "Is the website updated?"), and a stricter word test
+ * rejected four of them. What it catches is the one clear miss, a reel that
+ * goes from "Imagine…" straight to the sign-off.
+ */
+const STILL_THE_EXAMPLE = /\b(imagine|let'?s say|for example|for instance|suppose|picture this)\b/i;
+/** A last line that is the reel's sign-off rather than its point. */
+const SIGN_OFF = /follow for daily|see you tomorrow|\bcomment \W*[A-Z]{2,}/i;
 
 const LENGTH_GUIDANCE = `LENGTH WITHOUT INVENTING: reach ${REEL_WORDS.min}–${REEL_WORDS.max} spoken words (a ${REEL_MIN_SECONDS}–${REEL_MAX_SECONDS} second reel) through the Explanation and the Example,
 never through invented facts or filler. When the source is only a headline, the Example is a
@@ -322,6 +340,19 @@ function problemsOf(
   const problems: string[] = [];
   const count = spokenWords(review);
   const spoken = review.shots.map((shot) => shot.voiceover).join("\n");
+
+  // Every reel closes on its point before the sign-off, as his posted reels
+  // do ("Here's what matters for your business…", "The lesson? …"): an
+  // example followed straight by the CTA leaves the viewer without one.
+  const lines = review.shots.map((shot) => shot.voiceover.trim()).filter(Boolean);
+  const point = SIGN_OFF.test(lines.at(-1) ?? "") ? lines.at(-2) : lines.at(-1);
+  if (point && (STILL_THE_EXAMPLE.test(point) || HYPOTHETICAL_OPENER.test(point))) {
+    problems.push(
+      `the line before the sign-off is not a takeaway ("${point.slice(0, 80)}"); end on what this ` +
+        `means for the viewer's business or work, or the lesson, as his posted reels do ` +
+        `("Here's what matters for your business…", "The lesson? …"). An example is not a takeaway`,
+    );
+  }
 
   // A word or formula his voice rules out (voice-check.ts), sent back to be
   // fixed instead of only flagged on the idea afterwards.
@@ -488,7 +519,8 @@ export async function reviewDrafts(
         // problems listed. The reply with the fewest problems is kept.
         let best: { review: ReviewResult; problems: string[] } | null = null;
         let feedback: { previous: ReviewResult; problems: string[] } | null = null;
-        for (let round = 0; round < REVIEW_ROUNDS; round += 1) {
+        for (let round = 0; round < MAX_REVIEW_ROUNDS; round += 1) {
+          if (round >= REVIEW_ROUNDS && !best?.problems.some(isLengthProblem)) break;
           if (deadline && deadline - Date.now() < REVIEW_ROUND_MIN_MS) break;
           const result = await completeJson<unknown>({
             system: [reviewSystem(lane), toneReferencesBlock(toneReferences)]

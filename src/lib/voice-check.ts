@@ -81,6 +81,7 @@ const BANNED_WORDS: Array<{ word: string; pattern: RegExp }> = [
   { word: "game-changer", pattern: /\bgame[- ]?changers?\b|\bgame[- ]?changing\b/i },
   { word: "revolutionary", pattern: /\brevolutionar(y|ise|ize|ised|ized)\b/i },
   { word: "groundbreaking", pattern: /\bground[- ]?breaking\b/i },
+  { word: "reshaping", pattern: /\breshap(e|es|ed|ing)\b/i },
   { word: "seamless", pattern: /\bseamless(ly)?\b/i },
   { word: "leverage", pattern: /\bleverag(e|es|ed|ing)\b/i },
   { word: "harness", pattern: /\bharness(es|ed|ing)?\b/i },
