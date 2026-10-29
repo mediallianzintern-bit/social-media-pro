@@ -241,10 +241,21 @@ const isLengthProblem = (problem: string) => /spoken words; it needs/.test(probl
  * goes from "Imagine…" straight to the sign-off.
  */
 const STILL_THE_EXAMPLE = /\b(imagine|let'?s say|for example|for instance|suppose|picture this)\b/i;
+/**
+ * A takeaway that names a general benefit instead of something to do or a
+ * lesson ("engage with customers in a more empathetic way, enhancing their
+ * experience", 29 Oct 2026). His posted reels end on advice ("So add one
+ * question to every client check-in") or a lesson ("Making it profitable is").
+ */
+const GENERAL_BENEFIT =
+  /\b(enhanc\w*|in a more \w+ way|better (customer |user )?experiences?|more (engaging|genuine|meaningful|personal)|seamless\w*|elevat\w*)\b/i;
 /** A last line that is the reel's sign-off rather than its point. */
 const SIGN_OFF = /follow for daily|see you tomorrow|\bcomment \W*[A-Z]{2,}/i;
 
-const LENGTH_GUIDANCE = `LENGTH WITHOUT INVENTING: reach ${REEL_WORDS.min}–${REEL_WORDS.max} spoken words (a ${REEL_MIN_SECONDS}–${REEL_MAX_SECONDS} second reel) through the Explanation and the Example,
+const LENGTH_GUIDANCE = `THE TEAM'S LENGTH REPLACES HIS: the 90–110 words (maximum 115) in his brief and in his review
+prompt above are replaced by the team's ${REEL_WORDS.min}–${REEL_WORDS.max} words, matching the reels he actually posted. Aim for about
+${Math.round((REEL_WORDS.min + REEL_WORDS.max) / 2)} spoken words. A script under ${REEL_WORDS.min} words is too short, whatever his brief says.
+LENGTH WITHOUT INVENTING: reach ${REEL_WORDS.min}–${REEL_WORDS.max} spoken words (a ${REEL_MIN_SECONDS}–${REEL_MAX_SECONDS} second reel) through the Explanation and the Example,
 never through invented facts or filler. When the source is only a headline, the Example is a
 clearly hypothetical business situation ("Let's say you run a small bakery…") showing how the
 viewer would use it. Count the words across every shot's voiceover before returning.`;
@@ -346,6 +357,18 @@ function problemsOf(
   // example followed straight by the CTA leaves the viewer without one.
   const lines = review.shots.map((shot) => shot.voiceover.trim()).filter(Boolean);
   const point = SIGN_OFF.test(lines.at(-1) ?? "") ? lines.at(-2) : lines.at(-1);
+  if (
+    point &&
+    !STILL_THE_EXAMPLE.test(point) &&
+    !HYPOTHETICAL_OPENER.test(point) &&
+    GENERAL_BENEFIT.test(point)
+  ) {
+    problems.push(
+      `the takeaway names a general benefit ("${point.slice(0, 80)}"); make it practical: one thing ` +
+        `the viewer can do or check this week, or a specific lesson, as his posted reels end ` +
+        `("So add one question to every client check-in. Is the website updated?")`,
+    );
+  }
   if (point && (STILL_THE_EXAMPLE.test(point) || HYPOTHETICAL_OPENER.test(point))) {
     problems.push(
       `the line before the sign-off is not a takeaway ("${point.slice(0, 80)}"); end on what this ` +
@@ -402,7 +425,8 @@ function problemsOf(
   // he posted run that long, and shorter scripts came out too thin.
   if (count < REEL_WORDS.min) {
     problems.push(
-      `${count} spoken words; it needs ${REEL_WORDS.min}–${REEL_WORDS.max} for a ${REEL_MIN_SECONDS}–${REEL_MAX_SECONDS} second reel, never more than ${REEL_WORDS.max}`,
+      `${count} spoken words; it needs ${REEL_WORDS.min}–${REEL_WORDS.max} for a ${REEL_MIN_SECONDS}–${REEL_MAX_SECONDS} second reel, never more than ${REEL_WORDS.max}. ` +
+        `The team's ${REEL_WORDS.min}–${REEL_WORDS.max} replaces the 90–115 in his brief: add about ${Math.round((REEL_WORDS.min + REEL_WORDS.max) / 2) - count} words of substance from the source`,
     );
   }
   if (count > REEL_WORDS.max)
