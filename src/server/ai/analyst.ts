@@ -455,7 +455,12 @@ export function buildBrief(
     postsAnalysed: posts.length,
     medianViews: Math.round(medianViews(posts)),
     medianInteractions: Math.round(median(posts.map((post) => engagementsOf(post)))),
-    engagementRatePct: Number((engagementRate(allPosts, followers) * 100).toFixed(2)),
+    // LinkedIn: on impressions, as LinkedIn counts it. Against followers it
+    // read as 0.13% and the model quoted it as the account's engagement rate.
+    engagementRatePct:
+      linkedin && owned?.engagementRateOnImpressionsPct !== undefined
+        ? owned.engagementRateOnImpressionsPct
+        : Number((engagementRate(allPosts, followers) * 100).toFixed(2)),
     postsPerWeek: Number(cadence(allPosts).toFixed(1)),
     byFormat: [...byFormat.entries()].map(([format, group]) => ({
       format,
@@ -514,6 +519,9 @@ function groundRules(source: "Instagram" | "LinkedIn" | undefined): string {
    competitor's anything. Compare owner-to-owner, or public metrics side by side.
    For the owner, judge a post by its impressions and its engagement rate on
    impressions, not by likes alone and never by engagement against followers.
+   On LinkedIn every "views" figure IS impressions: always write "impressions",
+   never "views" ("a typical post gets 215 impressions"). The account's
+   engagement rate is on impressions too: say so ("5.11% of impressions").
    Audience demographics, watch time and in-network vs out-of-network reach are
    NOT available: never mention them.`
       : source

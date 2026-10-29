@@ -126,7 +126,9 @@ ${
    readers actually WANTED: a save means they meant to come back, a send means they passed it to
    someone by name. Weight them above likes, which cost nothing. Never judge engagement against
    followers when impressions are given, and never mention audience demographics, watch time or
-   in-network vs out-of-network reach: they are not in the data.`
+   in-network vs out-of-network reach: they are not in the data. Every "views" figure here IS
+   impressions: write "impressions", never "views" ("a typical post gets 215 impressions"), and
+   the engagement rate is on impressions ("5.11% of impressions").`
     : `6. This account's saves, shares, watch time and reach are measured by the platform itself.
    They are the only signals that say what an audience actually WANTED: a save means someone
    intended to come back to it, a share means they attached their own name to it. Weight them
