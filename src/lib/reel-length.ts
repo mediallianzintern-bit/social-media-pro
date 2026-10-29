@@ -11,6 +11,14 @@
 // Every rule that holds a reel to a length reads it from here. Client-safe.
 export const REEL_WORDS = { min: 110, max: 140 } as const;
 
+/**
+ * The word count the writer and the review are told to aim for. Above the
+ * middle of the range on purpose: the model counts its own words high (it
+ * reported 114-116 for drafts of 93-105, 29 Oct 2026), so aiming at the middle
+ * lands it short. The code still holds the real limit, REEL_WORDS.
+ */
+export const REEL_AIM_WORDS = 135;
+
 /** The longest a reel may run, in seconds: 140 words at two words a second. */
 export const REEL_MAX_SECONDS = 70;
 

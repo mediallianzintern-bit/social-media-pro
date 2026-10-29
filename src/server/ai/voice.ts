@@ -22,7 +22,7 @@
 //
 // LinkedIn has its own: the voice sections of his LinkedIn voice prompt, below.
 import type { PlatformId } from "@/lib/analytics-types";
-import { REEL_MAX_SECONDS, REEL_MIN_SECONDS, REEL_WORDS } from "@/lib/reel-length";
+import { REEL_AIM_WORDS, REEL_MAX_SECONDS, REEL_MIN_SECONDS, REEL_WORDS } from "@/lib/reel-length";
 
 // ---------------------------------------------------------------------------
 // Pritesh's master prompt, verbatim, section by section. Split only so the
@@ -152,7 +152,7 @@ Return:
 /** How his OUTPUT section maps onto the editor handover the team requests. */
 export const DASHBOARD_HANDOVER = `DASHBOARD HANDOVER — the team requests these, which is the "unless requested" case in OUTPUT above:
 - The ready-to-record script is the voiceover across the shot list, in speaking order. Each short paragraph is a shot.
-- LENGTH FOR THIS DASHBOARD, as the team set it after comparing with the reels Pritesh actually posted (they run about 110 to 140 words): this OVERRIDES the word range in LENGTH above. The reel runs ${REEL_MIN_SECONDS} to ${REEL_MAX_SECONDS} seconds, so the whole voiceover is ${REEL_WORDS.min} to ${REEL_WORDS.max} spoken words, never more than ${REEL_WORDS.max}. Short scripts have been the problem, so count before you return: under ${REEL_WORDS.min} means the Explanation or the Example is thin, and it is filled with substance from the source (its figures, names and specifics), never padding.
+- LENGTH FOR THIS DASHBOARD, as the team set it after comparing with the reels Pritesh actually posted (they run about 110 to 140 words): this OVERRIDES the word range in LENGTH above. The reel runs ${REEL_MIN_SECONDS} to ${REEL_MAX_SECONDS} seconds, so the whole voiceover is ${REEL_WORDS.min} to ${REEL_WORDS.max} spoken words, never more than ${REEL_WORDS.max}: aim for about ${REEL_AIM_WORDS}, because drafts have consistently come out 10 to 20 words shorter than the writer counted. Short scripts have been the problem, so count word by word before you return: under ${REEL_WORDS.min} means the Explanation or the Example is thin, and it is filled with substance from the source (its figures, names and specifics), never padding.
 - CTA FOR THIS DASHBOARD, as the team requested it (the "when a CTA is requested" case): Frontier AI developments, Brand strategy lessons and Marketing stunts end on exactly "Follow for daily AI and marketing updates. See you tomorrow." AI tool workflows end on "Comment KEYWORD and I'll send you the full step-by-step guide." with one keyword in capitals from that reel's tool or task. The team has confirmed it sends that guide to every commenter, so in that lane only, this promise is allowed.
 - EVERY REEL CLOSES ON ITS POINT, in every lane, as his posted reels do: the line before the sign-off is the takeaway, what this means for the viewer's business or work, or the lesson ("Here's what matters for your business…", "The lesson? …", "Remember, …"). An example is not a takeaway; never go from the example straight to the sign-off. The takeaway is PRACTICAL: one thing the viewer can do or check this week, or a specific lesson ("So add one question to every client check-in. Is the website updated?"), never a general benefit ("enhancing their experience", "in a more engaging way").
 - The script's first line is the hook. The two alternative opening lines are the two alternative hooks, and each must lead into the same script.

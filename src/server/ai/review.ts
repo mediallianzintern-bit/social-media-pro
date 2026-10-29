@@ -36,7 +36,7 @@ import { HYPOTHETICAL_OPENER, hookIssue } from "@/lib/hook-check";
 import { NO_RULES, type LearnedRules } from "@/lib/reel-learning-types";
 import { HOOK_TYPE_LABEL, hookTypeOf } from "@/lib/reel-parts";
 import { DASHBOARD_HANDOVER, INSTAGRAM_MASTER_PROMPT, INSTAGRAM_REVIEW_PROMPT } from "./voice";
-import { REEL_MAX_SECONDS, REEL_MIN_SECONDS, REEL_WORDS } from "@/lib/reel-length";
+import { REEL_AIM_WORDS, REEL_MAX_SECONDS, REEL_MIN_SECONDS, REEL_WORDS } from "@/lib/reel-length";
 
 const REVIEW_MODEL_DEFAULT = "gpt-4o";
 
@@ -254,7 +254,8 @@ const SIGN_OFF = /follow for daily|see you tomorrow|\bcomment \W*[A-Z]{2,}/i;
 
 const LENGTH_GUIDANCE = `THE TEAM'S LENGTH REPLACES HIS: the 90–110 words (maximum 115) in his brief and in his review
 prompt above are replaced by the team's ${REEL_WORDS.min}–${REEL_WORDS.max} words, matching the reels he actually posted. Aim for about
-${Math.round((REEL_WORDS.min + REEL_WORDS.max) / 2)} spoken words. A script under ${REEL_WORDS.min} words is too short, whatever his brief says.
+${REEL_AIM_WORDS} spoken words: your own counts have run 10 to 20 words high, so count word by word. A script
+under ${REEL_WORDS.min} words is too short, whatever his brief says.
 LENGTH WITHOUT INVENTING: reach ${REEL_WORDS.min}–${REEL_WORDS.max} spoken words (a ${REEL_MIN_SECONDS}–${REEL_MAX_SECONDS} second reel) through the Explanation and the Example,
 never through invented facts or filler. When the source is only a headline, the Example is a
 clearly hypothetical business situation ("Let's say you run a small bakery…") showing how the
@@ -325,6 +326,29 @@ const words = (text: string) =>
 
 const spokenWords = (review: ReviewResult) =>
   words(review.shots.map((shot) => shot.voiceover).join(" "));
+
+/** How much a problem counts when choosing between review rounds. */
+function weightOf(problem: string): number {
+  if (/spoken words; it needs|the maximum is|the script uses “|formula|opener/.test(problem))
+    return 3;
+  if (
+    /hook ".*" (opens on|never names)|takeaway|specific researched facts|workflow/.test(problem)
+  ) {
+    return 2;
+  }
+  return 1;
+}
+
+/** Whether one review round beats another: lower weighted problems, then nearer the aim. */
+function betterRound(
+  a: { review: ReviewResult; problems: string[] },
+  b: { review: ReviewResult; problems: string[] },
+): boolean {
+  const score = (round: typeof a) => round.problems.reduce((sum, p) => sum + weightOf(p), 0);
+  if (score(a) !== score(b)) return score(a) < score(b);
+  const off = (round: typeof a) => Math.abs(spokenWords(round.review) - REEL_AIM_WORDS);
+  return off(a) <= off(b);
+}
 
 /** Specific facts a script should carry from its research, not general ones. */
 const SPECIFIC_FACTS = new Set<FactCategory>(["who", "where", "figure", "how", "result"]);
@@ -425,8 +449,9 @@ function problemsOf(
   // he posted run that long, and shorter scripts came out too thin.
   if (count < REEL_WORDS.min) {
     problems.push(
-      `${count} spoken words; it needs ${REEL_WORDS.min}–${REEL_WORDS.max} for a ${REEL_MIN_SECONDS}–${REEL_MAX_SECONDS} second reel, never more than ${REEL_WORDS.max}. ` +
-        `The team's ${REEL_WORDS.min}–${REEL_WORDS.max} replaces the 90–115 in his brief: add about ${Math.round((REEL_WORDS.min + REEL_WORDS.max) / 2) - count} words of substance from the source`,
+      `${count} spoken words by exact count${review.spokenWordCount && review.spokenWordCount !== count ? `, not ${review.spokenWordCount} as you counted` : ""}; ` +
+        `it needs ${REEL_WORDS.min}–${REEL_WORDS.max} for a ${REEL_MIN_SECONDS}–${REEL_MAX_SECONDS} second reel, never more than ${REEL_WORDS.max}. ` +
+        `The team's ${REEL_WORDS.min}–${REEL_WORDS.max} replaces the 90–115 in his brief: add about ${REEL_AIM_WORDS - count} words of substance from the source`,
     );
   }
   if (count > REEL_WORDS.max)
@@ -577,9 +602,13 @@ export async function reviewDrafts(
               `${spokenWords(parsed.data)} spoken words (reply said ${parsed.data.spokenWordCount})` +
               (problems.length ? `; ${problems.join("; ")}` : "; meets the hard rules"),
           );
-          if (!best || problems.length < best.problems.length) {
-            best = { review: parsed.data, problems };
-          }
+          // The best round by what matters, not by a plain count: a round
+          // that was too short or used a banned word lost to one that merely
+          // had a weaker ending only when counted equally (29 Oct 2026, a
+          // 93-word round kept over a 105-word one). Ties go to the round
+          // closer to the aim.
+          const candidate = { review: parsed.data, problems };
+          if (!best || betterRound(candidate, best)) best = candidate;
           if (!problems.length) break;
           feedback = { previous: parsed.data, problems };
         }
