@@ -86,7 +86,16 @@ export function IdeaScriptBody({ idea }: { idea: ContentIdea }) {
             <ExternalLink className="size-3 shrink-0" aria-hidden />
           </a>
           . Anything in [square brackets] is a detail to take from the article before filming.
-          {idea.source.readFrom ? (
+          {idea.source.research ? (
+            <>
+              {" "}
+              Researched across {idea.source.research.sources.length} outlets (
+              {idea.source.research.sources
+                .map((outlet) => outlet.publisher ?? "unknown")
+                .join(", ")}
+              ), {idea.source.research.facts.length} facts.
+            </>
+          ) : idea.source.readFrom ? (
             <>
               {" "}
               Written from{" "}

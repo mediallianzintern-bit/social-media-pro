@@ -24,6 +24,7 @@ import type { PlatformId } from "@/lib/analytics-types";
 import type { SourceItem } from "@/lib/sources";
 
 import { completeJson } from "./client";
+import { factSheetText } from "@/lib/research";
 import type { ContentIdea } from "@/lib/ai-types";
 import { brandRule, ctaRule } from "@/lib/script-families";
 
@@ -185,7 +186,14 @@ function sourceBlock(idea: RawIdea, sources: SourceItem[]): string {
   if (!source) {
     return "SOURCE MATERIAL: none beyond the draft itself. Any figure, date, capability or result in the draft that is not common knowledge goes in needsVerification.";
   }
-  if (source.article) {
+  if (source.research) {
+    return `SOURCE MATERIAL — the only facts available. The story was researched across several outlets; each fact names the outlets that state it:
+Headline: ${source.title}
+${factSheetText(source.research)}
+
+Keep every specific fact the draft uses, and where the draft is thin, add the fact sheet's specifics (who, where, the figures, how it was done, the result) in Pritesh's words. A fact marked CONFLICTING is said only as its outlet reported it. Anything not in the fact sheet goes in needsVerification, never into the script as fact.`;
+  }
+  if (source.article?.text) {
     return `SOURCE MATERIAL — the only facts available. The article was read from ${source.article.publisher ?? "another outlet"}${source.publisher && source.article.publisher !== source.publisher ? ` (the story's own outlet, ${source.publisher}, could not be read)` : ""}:
 Headline: ${source.title}
 Article text:

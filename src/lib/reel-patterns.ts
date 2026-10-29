@@ -45,6 +45,9 @@ export interface ReviewedReel {
   seconds?: number | null;
   captionWords?: number | null;
   hashtags?: string[] | null;
+  /** Outlets the script's research read, and the share of its facts the reel used. */
+  researchSources?: number | null;
+  researchUsed?: number | null;
   /** Views ÷ typical views. */
   ratio: number;
   worked: boolean;
@@ -66,6 +69,26 @@ const DIMENSIONS: Array<{ name: string; of: (reel: ReviewedReel) => string | nul
   },
   { name: "What was used", of: (reel) => (reel.usage ? REEL_USAGE_LABEL[reel.usage] : null) },
   { name: "Lane", of: (reel) => reel.lane },
+  {
+    name: "Sources researched",
+    of: (reel) =>
+      reel.researchSources == null
+        ? null
+        : reel.researchSources <= 1
+          ? "One outlet"
+          : reel.researchSources <= 3
+            ? "2 to 3 outlets"
+            : "4 or more outlets",
+  },
+  {
+    name: "Research used",
+    of: (reel) =>
+      reel.researchUsed == null
+        ? null
+        : reel.researchUsed >= 0.5
+          ? "Half or more of the facts"
+          : "Under half of the facts",
+  },
   { name: "Hook type", of: (reel) => (reel.hookType ? HOOK_TYPE_LABEL[reel.hookType] : null) },
   { name: "Body shape", of: (reel) => reel.bodyShape ?? null },
   { name: "Example", of: (reel) => reel.exampleType ?? null },

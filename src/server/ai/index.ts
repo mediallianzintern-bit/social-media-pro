@@ -16,6 +16,7 @@ import { questionFeedActor, trendFeedActor, trendFeedInAnalysis } from "./feeds"
 import { currentNiche, recordPredictions } from "../predict";
 import { hasOpenAi, OpenAiError, openAiKeyIsPlaceholder } from "./client";
 import { addCosts } from "./review";
+import type { GenerationCost } from "@/lib/ai-cost";
 import { workflowLaneForSource } from "./tool-workflow";
 import { isAiToolWorkflowLane } from "@/lib/tool-workflow";
 import { discoverCompetitors, type DiscoveryResult } from "./discover";
@@ -639,41 +640,79 @@ export interface MoreResult {
  * don't-repeat list, so the fresh set will not hand back the old one.
  */
 /**
- * The one story a script is being written from, with its article text where
- * it can be read — from its own outlet, or another outlet covering the same
- * story. See server/sources/article.ts. Never throws.
+ * The one story a script is being written from, read before it is written.
+ *
+ * A news story is researched across up to five outlets and written from the
+ * combined fact sheet (server/ai/research.ts). A creator's reel, and a story
+ * that research could not read, is read the way it always was: one article,
+ * from its own outlet or another covering the same story. Never throws.
  */
-async function withArticle(platform: PlatformId, sources: SourceItem[]): Promise<SourceItem[]> {
+async function withArticle(
+  platform: PlatformId,
+  sources: SourceItem[],
+  deadline?: number,
+): Promise<{ sources: SourceItem[]; cost?: GenerationCost | undefined }> {
   const [source] = sources;
-  if (!source) return sources;
+  if (!source) return { sources };
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const inbox = await readSourceItems(platform, since).catch(() => []);
+  const titles = inbox.map((item) => item.title);
+
+  if (source.kind !== "video") {
+    try {
+      const { researchStory } = await import("./research");
+      const found = await researchStory(source, titles, deadline);
+      const first = found?.research.sources[0];
+      if (found && first && found.research.facts.length) {
+        const { research } = found;
+        console.info(
+          `[ai:${platform}] researched across ${research.sources.length} outlet(s) in ${research.stages} stage(s): ` +
+            `${research.facts.length} facts, ${research.sufficient ? "sufficient" : `missing ${research.missing.join(", ") || "a second outlet"}`}` +
+            (research.unreadable ? `; ${research.unreadable} outlet(s) unreadable` : ""),
+        );
+        return {
+          sources: [
+            // `article` keeps the first outlet read, for the idea's "read from" link.
+            {
+              ...source,
+              research,
+              article: { publisher: first.publisher, url: first.url, text: "" },
+            },
+            ...sources.slice(1),
+          ],
+          cost: found.cost,
+        };
+      }
+    } catch (error) {
+      console.warn(`[ai:${platform}] research failed, reading one article instead:`, error);
+    }
+  }
+
   try {
     const { readStory } = await import("../sources/article");
-    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const inbox = await readSourceItems(platform, since).catch(() => []);
-    const article = await readStory(
-      source,
-      inbox.map((item) => item.title),
-    );
+    const article = await readStory(source, titles);
     if (!article) {
       console.info(
         `[ai:${platform}] article not readable, writing from the headline: ${source.title}`,
       );
-      return sources;
+      return { sources };
     }
     console.info(
       `[ai:${platform}] article read from ${article.publisher ?? "unknown"} (${article.words} words)` +
         (article.sameOutlet ? "" : `; ${source.publisher ?? "its own outlet"} could not be read`),
     );
-    return [
-      {
-        ...source,
-        article: { publisher: article.publisher, url: article.url, text: article.text },
-      },
-      ...sources.slice(1),
-    ];
+    return {
+      sources: [
+        {
+          ...source,
+          article: { publisher: article.publisher, url: article.url, text: article.text },
+        },
+        ...sources.slice(1),
+      ],
+    };
   } catch (error) {
     console.warn(`[ai:${platform}] article read failed, writing from the headline:`, error);
-    return sources;
+    return { sources };
   }
 }
 
@@ -706,6 +745,8 @@ export async function generateMore(
   const { ownerBrief, goal } = prepared;
 
   let sources;
+  // What researching the story cost, added to the script's own cost below.
+  let researchCost: GenerationCost | undefined;
   if (options.sourceId) {
     sources = await readSourceItemsById([options.sourceId]).catch(() => []);
     if (!sources.length) {
@@ -718,7 +759,9 @@ export async function generateMore(
     // "Write script" on one story: read the article behind the headline, so
     // the script can say what actually happened. Free, never stored, and a
     // story that cannot be read is written from its headline as before.
-    sources = await withArticle(platform, sources);
+    const read = await withArticle(platform, sources, deadline);
+    sources = read.sources;
+    researchCost = read.cost;
   } else {
     await refreshSources(platform).catch(() => null);
     sources = await sourceCandidates(platform).catch(() => []);
@@ -826,6 +869,8 @@ export async function generateMore(
         : `OpenAI could not write this script: ${error.message}`,
     };
   }
+
+  if (researchCost) result = { ...result, cost: addCosts(researchCost, result.cost) };
 
   const niche = await currentNiche(platform).catch(() => platform);
   const ideas = await recordPredictions(

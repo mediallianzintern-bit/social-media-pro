@@ -9,6 +9,8 @@
 // from the stored row — so a fabricated URL is structurally impossible, not
 // merely discouraged.
 
+import type { StoryResearch } from "@/lib/research";
+
 export type SourceKind = "article" | "video";
 
 export interface SourceItem {
@@ -33,6 +35,12 @@ export interface SourceItem {
    * (see server/sources/article.ts). Never stored, never on inbox rows.
    */
   article?: { publisher: string | null; url: string; text: string } | undefined;
+  /**
+   * The story read from several outlets and combined into one fact sheet with
+   * sources (server/ai/research.ts). Written from in place of `article` when
+   * present. The fact sheet is kept with the idea; the article texts are not.
+   */
+  research?: StoryResearch | undefined;
 }
 
 /** The fields a fetch produces, before storage assigns an id. */

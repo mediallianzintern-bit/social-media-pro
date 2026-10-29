@@ -54,6 +54,10 @@ async function reviewedReels(rows: ReelLearningRow[]): Promise<ReviewedReel[]> {
         seconds: comparison?.reel?.seconds ?? null,
         captionWords: comparison?.captionStats?.words ?? null,
         hashtags: comparison ? [...comparison.hashtags.used, ...comparison.hashtags.added] : null,
+        researchSources: comparison?.research?.sources ?? null,
+        researchUsed: comparison?.research?.facts
+          ? comparison.research.factsUsed / comparison.research.facts
+          : null,
         ratio: row.review!.primaryRatio,
         worked: Boolean(row.worked),
       };

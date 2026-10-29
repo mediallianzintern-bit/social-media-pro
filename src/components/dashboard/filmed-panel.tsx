@@ -387,6 +387,21 @@ function Comparison({
         <ChangeList label="Added by the team" items={comparison.script.added} />
       </div>
 
+      {comparison.research ? (
+        <div className="space-y-1">
+          <span className="text-sm font-medium">Research</span>
+          <p className="text-xs text-muted-foreground">
+            {comparison.research.factsUsed} of {comparison.research.facts} researched facts reached
+            the reel, from {comparison.research.sources}{" "}
+            {comparison.research.sources === 1 ? "outlet" : "outlets"}
+            {comparison.research.fromOtherOutlets
+              ? `; ${comparison.research.fromOtherOutlets} of them only other outlets reported, details one article would have missed`
+              : ""}
+            .
+          </p>
+        </div>
+      ) : null}
+
       <div className="space-y-1.5">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium">Caption</span>

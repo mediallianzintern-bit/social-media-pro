@@ -33,6 +33,7 @@ import { reviewModel } from "../ai/review";
 import { readIdeaById } from "../store";
 import { confirmMatch, linkedPost, rejectMatch } from "./match";
 import { readReelLearning, updateReelLearning, type ReelLearningRow } from "./store";
+import { researchUsage } from "@/lib/research";
 
 /** Rough cost of one transcript run, for the row's running total. Apify caps it at 5¢. */
 const TRANSCRIPT_COST_USD = 0.015;
@@ -291,6 +292,11 @@ ${post.caption}`,
   const ctaType = ctaTypeOf(closing, idea.contentLane);
   const seconds = hadTranscript ? reelSeconds(transcript) : null;
 
+  // Which researched facts reached the reel: said, or shown in the caption.
+  const research = idea.source?.research
+    ? researchUsage(idea.source.research, `${spokenText}\n${post.caption}`)
+    : null;
+
   const comparison: ReelComparison = {
     topic: { same: answer.topicSame, note: answer.topicNote },
     hook: {
@@ -321,6 +327,7 @@ ${post.caption}`,
     },
     teamStyle: answer.teamStyle,
     hadTranscript,
+    ...(research ? { research } : {}),
     parts: {
       hook: part(ours.hook, answer.spokenHook),
       body: part(ours.body, answer.theirBody),

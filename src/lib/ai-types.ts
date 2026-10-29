@@ -8,6 +8,7 @@ import type { ReactionFields } from "@/lib/reaction";
 import type { GenerationCost } from "@/lib/ai-cost";
 import type { PlatformId } from "@/lib/analytics-types";
 import type { Prediction } from "@/lib/prediction";
+import type { StoryResearch } from "@/lib/research";
 
 export type GapTone = "good" | "bad" | "warn" | "neutral";
 
@@ -211,6 +212,12 @@ export interface IdeaSource {
    * outlet and link are kept; the article text itself is never stored.
    */
   readFrom?: { publisher: string | null; url: string } | undefined;
+  /**
+   * The story researched across several outlets: the outlets read and the
+   * fact sheet, each fact with the outlets that state it (lib/research.ts).
+   * The article texts themselves are never stored.
+   */
+  research?: StoryResearch | undefined;
 }
 
 /**

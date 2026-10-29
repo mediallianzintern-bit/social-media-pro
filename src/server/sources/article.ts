@@ -306,6 +306,97 @@ async function readReel(source: SourceItem): Promise<ArticleText | null> {
   };
 }
 
+/**
+ * More outlets covering the same story, for research: every anchor word is
+ * searched (not only until the first one finds something, as for readStory),
+ * with the same strict matching, until `want` candidates are found.
+ */
+async function moreCoverage(
+  source: SourceItem,
+  inboxTitles: string[],
+  want: number,
+): Promise<Array<{ url: string; publisher: string | null }>> {
+  const original = stem(titleTokens(source.title));
+  const frequency = new Map<string, number>();
+  for (const title of inboxTitles) {
+    for (const word of stem(titleTokens(title))) {
+      frequency.set(word, (frequency.get(word) ?? 0) + 1);
+    }
+  }
+  const anchors = [...original]
+    .sort((a, b) => (frequency.get(a) ?? 0) - (frequency.get(b) ?? 0))
+    .slice(0, 4);
+  const seen = new Set([source.url, (source.publisher ?? "").toLowerCase()]);
+  const found: Array<{ url: string; publisher: string | null }> = [];
+  for (const anchor of anchors) {
+    const results = await searchNews(anchor, null, { days: 14 }).catch(() => []);
+    for (const result of results) {
+      const words = stem(titleTokens(result.title));
+      const shared = [...original].filter((word) => word !== anchor && words.has(word));
+      const outlet = (result.publisher ?? "").toLowerCase();
+      if (!words.has(anchor) || shared.length < 2 || seen.has(result.url) || seen.has(outlet)) {
+        continue;
+      }
+      seen.add(result.url);
+      seen.add(outlet);
+      found.push({ url: result.url, publisher: result.publisher });
+    }
+    if (found.length >= want) break;
+  }
+  return found;
+}
+
+/**
+ * Reading one story from several outlets, in stages (server/ai/research.ts).
+ *
+ * Returns a reader: each call to `next(count)` reads up to `count` more
+ * outlets that cover the story, the story's own outlet first, others found by
+ * news search and kept only when their text covers the same story. Pages are
+ * read a few at a time; a site that refuses is skipped, never worked around.
+ * Free: plain page fetches and news searches.
+ */
+export async function coverageReader(source: SourceItem, inboxTitles: string[] = []) {
+  const candidates: Array<{ url: string; publisher: string | null; own: boolean }> = [
+    { url: source.url, publisher: source.publisher, own: true },
+    ...(await moreCoverage(source, inboxTitles, 10)).map((other) => ({ ...other, own: false })),
+  ];
+  let cursor = 0;
+  let unreadable = 0;
+  const read = async (candidate: (typeof candidates)[number]): Promise<ArticleText | null> => {
+    const url = candidate.own ? source.url : await publisherUrl(candidate.url);
+    if (!url) return null;
+    const text = await readPage(url);
+    if (!text || (!candidate.own && !coversStory(text, source.title))) return null;
+    return {
+      publisher: candidate.publisher,
+      url: (await publisherUrl(url)) ?? url,
+      text,
+      words: countWords(text),
+      sameOutlet: candidate.own,
+    };
+  };
+  return {
+    /** Up to `count` more readable reports of the story. */
+    async next(count: number): Promise<ArticleText[]> {
+      const got: ArticleText[] = [];
+      while (got.length < count && cursor < candidates.length) {
+        const batch = candidates.slice(cursor, cursor + (count - got.length));
+        cursor += batch.length;
+        const results = await Promise.all(
+          batch.map((candidate) => read(candidate).catch(() => null)),
+        );
+        for (const result of results) {
+          if (result) got.push(result);
+          else unreadable += 1;
+        }
+      }
+      return got;
+    },
+    /** Outlets found for the story that could not be read. */
+    unreadable: () => unreadable,
+  };
+}
+
 export async function readStory(
   source: SourceItem,
   inboxTitles: string[] = [],

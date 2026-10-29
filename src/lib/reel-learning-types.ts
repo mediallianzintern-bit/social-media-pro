@@ -116,6 +116,18 @@ export interface ReelComparison {
   captionStats?: CaptionStats;
   /** False when the reel has no speech to transcribe; the caption stands in. */
   hadTranscript: boolean;
+  /**
+   * How much of the story's research reached the reel, when the script was
+   * written from a multi-outlet fact sheet (lib/research.ts). Matched in code
+   * against what was said and shown. Absent on reels written before research.
+   */
+  research?: {
+    sources: number;
+    facts: number;
+    factsUsed: number;
+    /** Facts only outlets other than the first stated: what one article alone would have missed. */
+    fromOtherOutlets: number;
+  };
 }
 
 /** One part of the reel, ours against the team's. */

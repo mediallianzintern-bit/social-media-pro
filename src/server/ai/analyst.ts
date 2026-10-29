@@ -21,6 +21,7 @@ import { costOf, type GenerationCost } from "@/lib/ai-cost";
 import { laneShapesBlock, withLaneCta } from "@/lib/script-families";
 import { linkedInShapesBlock } from "@/lib/linkedin-shapes";
 import { fitLinkedInPosts } from "./linkedin-length";
+import { factSheetText } from "@/lib/research";
 import { NO_RULES, type LearnedRules } from "@/lib/reel-learning-types";
 import { coveredCampaignsBlock } from "@/lib/covered-campaigns";
 import { saveSuggestedIdeas } from "../store";
@@ -1041,9 +1042,15 @@ workflow it demonstrates, in his voice, with his own example; never copy the cre
 never name or credit the creator in the script.`
           : ""
       } ${
-        sources.some((source) => source.article)
-          ? "A source with an `article` field comes with the article's text, read from the outlet in `articleFrom`; for any other source you have the headline only:"
-          : "You have the headline only; you have not read the article:"
+        sources.some((source) => source.research)
+          ? `A source with a \`factSheet\` was researched across several outlets: every fact there names the outlets that state it. Use ALL of it, so the script carries the specifics no single report had (the who, the where, the figures, how it was done, the result), not a summary of one article. State a fact marked CONFLICTING only as reported by its outlet, never as confirmed. Anything the fact sheet does not contain is a bracketed "[verify: …]" note, never stated as fact. ${
+              sources.some((source) => source.article?.text)
+                ? "A source with an `article` field comes with one article's text, read from the outlet in `articleFrom`. "
+                : ""
+            }For any other source you have the headline only:`
+          : sources.some((source) => source.article)
+            ? "A source with an `article` field comes with the article's text, read from the outlet in `articleFrom`; for any other source you have the headline only:"
+            : "You have the headline only; you have not read the article:"
       }
 ${JSON.stringify(
   sources.map((source) => ({
@@ -1054,9 +1061,11 @@ ${JSON.stringify(
     lane: source.lane,
     ...(source.kind === "video" ? { kind: "reel" } : {}),
     coverage: source.coverage,
-    ...(source.article
-      ? { articleFrom: source.article.publisher, article: source.article.text }
-      : {}),
+    ...(source.research
+      ? { factSheet: factSheetText(source.research) }
+      : source.article?.text
+        ? { articleFrom: source.article.publisher, article: source.article.text }
+        : {}),
   })),
   null,
   2,
@@ -1400,6 +1409,9 @@ export function finalizeIdeas(
           ...(fetched.article
             ? { readFrom: { publisher: fetched.article.publisher, url: fetched.article.url } }
             : {}),
+          // The fact sheet it was written from, kept for the drawer and for
+          // "I filmed this" to check which facts reached the reel.
+          ...(fetched.research ? { research: fetched.research } : {}),
         }
       : {
           verified: false,

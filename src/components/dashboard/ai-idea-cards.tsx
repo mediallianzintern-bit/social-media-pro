@@ -61,6 +61,8 @@ import { voiceFlags } from "@/lib/voice-check";
 import { computeInsights } from "@/lib/insights";
 import { usePlatform } from "@/lib/use-dashboard";
 import { PIVOT_LABEL, RIGHTS_LABEL, SOURCE_PLATFORM_LABEL } from "@/lib/reaction";
+import { ResearchBlock } from "@/components/dashboard/research-block";
+import { factSheetText } from "@/lib/research";
 
 /**
  * The handover document, as plain text.
@@ -107,7 +109,15 @@ function toPlainText(idea: ContentIdea): string {
     lines.push(`Link:      ${source.url}`);
     // Which article the script was actually written from — the story's own
     // outlet, or another outlet's report of it when that one blocks reading.
-    if (source.readFrom) {
+    if (source.research) {
+      lines.push(
+        `Researched: ${source.research.sources.length} outlets — ${source.research.sources
+          .map((outlet, index) => `${index + 1}. ${outlet.publisher ?? "unknown"} ${outlet.url}`)
+          .join("; ")}`,
+      );
+      lines.push("Facts, with the outlets that state them:");
+      lines.push(factSheetText(source.research).split("\n").slice(1).join("\n"));
+    } else if (source.readFrom) {
       lines.push(
         `Read from: ${source.readFrom.publisher ?? "another outlet"} — ${source.readFrom.url}`,
       );
@@ -531,6 +541,7 @@ export function AiIdeaCards({
 
                 {/* Read the story first — so it sits above the script. */}
                 {open.source ? <SourceBlock source={open.source} /> : null}
+                {open.source?.research ? <ResearchBlock research={open.source.research} /> : null}
 
                 <HookChoice
                   idea={open}
@@ -934,8 +945,11 @@ function SourceBlock({ source }: { source: NonNullable<ContentIdea["source"]> })
             ) : null}
           </div>
           <p className="text-xs leading-relaxed text-muted-foreground">
-            The script was written from this headline, not the full article. Anything in [square
-            brackets] is a detail to take from the article before filming.
+            {source.research
+              ? "The script was written from the research below, across several outlets. Anything in [square brackets] is a detail none of them confirmed."
+              : source.readFrom
+                ? `The script was written from ${source.readFrom.publisher ?? "another outlet"}'s article. Anything in [square brackets] is a detail to take from the article before filming.`
+                : "The script was written from this headline, not the full article. Anything in [square brackets] is a detail to take from the article before filming."}
           </p>
         </div>
       </section>
