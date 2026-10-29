@@ -231,7 +231,7 @@ const REVIEW_ROUNDS = 2;
  * 2026), and length is the rule the model most often misses.
  */
 const MAX_REVIEW_ROUNDS = 3;
-const isLengthProblem = (problem: string) => /spoken words; it needs/.test(problem);
+const isLengthProblem = (problem: string) => /spoken words.*it needs|the maximum is/.test(problem);
 
 /**
  * A closing line that is still the example, not the point. Checked loosely on
@@ -329,8 +329,7 @@ const spokenWords = (review: ReviewResult) =>
 
 /** How much a problem counts when choosing between review rounds. */
 function weightOf(problem: string): number {
-  if (/spoken words; it needs|the maximum is|the script uses “|formula|opener/.test(problem))
-    return 3;
+  if (isLengthProblem(problem) || /the script uses “|formula|opener/.test(problem)) return 3;
   if (
     /hook ".*" (opens on|never names)|takeaway|specific researched facts|workflow/.test(problem)
   ) {
