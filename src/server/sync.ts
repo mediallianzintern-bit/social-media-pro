@@ -284,7 +284,15 @@ export async function syncLinkedIn(trigger: "manual" | "schedule"): Promise<Sync
   // reached, saves, sends), for the posts just scraped. Free, and never fatal:
   // the scraped data above is already stored whatever happens here.
   const owner = OWNER_ACCOUNTS.linkedin.handle.toLowerCase();
-  const { refreshLinkedInAnalytics } = await import("./linkedin-analytics");
+  const { refreshLinkedInAnalytics, saveLinkedInArticles } = await import("./linkedin-analytics");
+  // His articles, from the posts that share them. Free and never fatal.
+  const { articleOf } = await import("@/lib/linkedin-articles");
+  await saveLinkedInArticles(
+    posts
+      .filter((post) => authorOf(post)?.toLowerCase() === owner && post.id)
+      .map((post) => articleOf(post.id!, post.article, post.postedAt?.date ?? null))
+      .filter((article) => article !== null),
+  ).catch((error: unknown) => console.error("[sync:linkedin] articles not saved:", error));
   await refreshLinkedInAnalytics(
     posts
       .filter((post) => authorOf(post)?.toLowerCase() === owner && post.id && post.shareUrn)

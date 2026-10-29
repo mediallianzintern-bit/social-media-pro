@@ -16,6 +16,7 @@
 import { datasetItems, runActor } from "./client";
 import { POSTS_PER_SYNC, type TrackedAccount } from "./accounts";
 import type { AccountSnapshot, PostRecord } from "@/lib/analytics-types";
+import type { ScrapedArticle } from "@/lib/linkedin-articles";
 
 export const LINKEDIN_PROFILE_ACTOR = "harvestapi/linkedin-profile-scraper";
 export const LINKEDIN_POSTS_ACTOR = "harvestapi/linkedin-profile-posts";
@@ -48,6 +49,8 @@ interface LiPost {
    * answers to this one. harvestapi supplies it; the fallback does not.
    */
   shareUrn?: string;
+  /** The LinkedIn article this post shares, when it shares one: title, link, read time. */
+  article?: ScrapedArticle;
 }
 
 /**
@@ -86,7 +89,8 @@ export function normalizeLinkedInPosts(posts: LiPost[], handle?: string): PostRe
       postId: post.id!,
       ...(post.linkedinUrl ? { url: post.linkedinUrl } : {}),
       caption: (post.content ?? "").replace(/\s+/g, " ").trim().slice(0, 300),
-      format: "text" as const,
+      // A post sharing one of the author's LinkedIn articles is an article.
+      format: post.article?.title ? ("article" as const) : ("text" as const),
       publishedAt: post.postedAt!.date!,
       views: 0,
       likes: post.engagement?.likes ?? 0,

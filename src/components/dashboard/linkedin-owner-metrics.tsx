@@ -8,12 +8,13 @@
 // LinkedIn is connected and has figures. The audience breakdowns stay locked:
 // LinkedIn offers no API for them on a personal profile.
 import { useQuery } from "@tanstack/react-query";
-import { Bookmark, ChevronRight, Eye, Percent, Users } from "lucide-react";
+import { Bookmark, ChevronRight, Eye, FileText, Percent, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { KpiTile } from "@/components/dashboard/kpi-tile";
 import { LinkedInDiscovery } from "@/components/dashboard/linkedin-discovery";
 import { LockedPanel } from "@/components/dashboard/locked-panel";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { PostRecord } from "@/lib/analytics-types";
 import type { ResolvedRange } from "@/lib/date-range";
@@ -25,6 +26,7 @@ import {
   trueEngagementRate,
   type LinkedInPostFigures,
 } from "@/lib/linkedin-analytics";
+import { articlesVsPosts, type LinkedInArticle } from "@/lib/linkedin-articles";
 import { linkedInAnalyticsQueryOptions } from "@/lib/linkedin-api.functions";
 
 const AUDIENCE_PANEL = {
@@ -56,10 +58,13 @@ const IMPRESSIONS_PANEL = {
 export function LinkedInPostCard({
   post,
   figures,
+  article,
   detail = false,
 }: {
   post: PostRecord;
   figures: LinkedInPostFigures;
+  /** The LinkedIn article this post shares, when it shares one. */
+  article?: LinkedInArticle | undefined;
   detail?: boolean;
 }) {
   const engaged = post.likes + post.comments + post.shares;
@@ -80,6 +85,28 @@ export function LinkedInPostCard({
         </a>
       </div>
       <div className="space-y-1.5 px-4 py-3">
+        {article ? (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <Badge variant="secondary" className="gap-1 text-[10px] font-medium">
+              <FileText className="size-3" aria-hidden />
+              Article
+            </Badge>
+            <span className="text-sm font-semibold leading-snug">{article.title}</span>
+            {article.readMinutes ? (
+              <span className="text-xs text-muted-foreground">{article.readMinutes} min read</span>
+            ) : null}
+            {article.url ? (
+              <a
+                href={article.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                Open article
+              </a>
+            ) : null}
+          </div>
+        ) : null}
         <a
           href={post.url}
           target="_blank"
@@ -121,11 +148,23 @@ export function LinkedInPostList({
 }) {
   const [open, setOpen] = useState(false);
   const shown = open ? rows : rows.slice(0, first);
+  // His articles, by the post that shares each one. Cached with the figures.
+  const { data } = useQuery(linkedInAnalyticsQueryOptions);
+  const articles = useMemo(
+    () => new Map((data?.articles ?? []).map((article) => [article.postId, article])),
+    [data],
+  );
   return (
     <div className="space-y-3">
       <ol className="space-y-3">
         {shown.map(({ post, figures }) => (
-          <LinkedInPostCard key={post.postId} post={post} figures={figures} detail={detail} />
+          <LinkedInPostCard
+            key={post.postId}
+            post={post}
+            figures={figures}
+            article={articles.get(post.postId)}
+            detail={detail}
+          />
         ))}
       </ol>
       {rows.length > first ? (
@@ -236,8 +275,66 @@ export function LinkedInOwnerMetrics({
         </CardContent>
       </Card>
 
+      <ArticlesVsPosts rows={measured} />
+
       <LinkedInDiscovery range={range} />
       <LockedPanel {...AUDIENCE_PANEL} />
     </div>
+  );
+}
+
+/**
+ * His LinkedIn articles against his other posts, on the impressions LinkedIn
+ * measured for the post that shares each one. Hidden until he has both.
+ */
+function ArticlesVsPosts({
+  rows,
+}: {
+  rows: Array<{ post: PostRecord; figures: LinkedInPostFigures }>;
+}) {
+  const { articles, posts } = useMemo(() => articlesVsPosts(rows), [rows]);
+  if (!articles.posts || !posts.posts) return null;
+  const column = (label: string, group: typeof articles) => (
+    <div className="space-y-2 rounded-lg border p-4">
+      <p className="text-sm font-semibold">
+        {label}{" "}
+        <span className="font-normal text-muted-foreground">
+          ({group.posts} {group.posts === 1 ? "post" : "posts"})
+        </span>
+      </p>
+      <dl className="space-y-1.5 text-sm">
+        <div className="flex justify-between gap-3">
+          <dt className="text-muted-foreground">Typical impressions</dt>
+          <dd className="font-semibold tabular-nums">{fullNumber(group.medianImpressions)}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-muted-foreground">Typical engagements</dt>
+          <dd className="font-semibold tabular-nums">{fullNumber(group.medianEngagements)}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-muted-foreground">Engagement on impressions</dt>
+          <dd className="font-semibold tabular-nums">
+            {group.engagementRate === null ? "—" : percent(group.engagementRate, 1)}
+          </dd>
+        </div>
+      </dl>
+    </div>
+  );
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Articles vs posts</CardTitle>
+        <CardDescription>
+          His LinkedIn articles against his other posts, in the period shown. An article is measured
+          by the post that shares it: LinkedIn&rsquo;s API reports that post&rsquo;s impressions,
+          not the article page&rsquo;s own views, which only his LinkedIn screen shows.
+          {articles.posts < 3 ? " Fewer than 3 articles so far: a direction, not a result." : ""}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3 sm:grid-cols-2">
+        {column("Articles", articles)}
+        {column("Posts", posts)}
+      </CardContent>
+    </Card>
   );
 }

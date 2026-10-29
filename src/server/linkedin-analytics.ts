@@ -31,6 +31,8 @@ import {
   type PeriodTotals,
 } from "@/lib/linkedin-analytics";
 
+import type { LinkedInArticle } from "@/lib/linkedin-articles";
+
 import { linkedInGet, readToken } from "./linkedin-api";
 import { hasDurableStore } from "./store";
 
@@ -203,9 +205,33 @@ export async function refreshLinkedInAnalytics(
   return result;
 }
 
+/**
+ * His LinkedIn articles, from the posts that share them. Free: the scraper
+ * already returned them. Never fatal: before 0028 the write simply fails.
+ */
+export async function saveLinkedInArticles(articles: LinkedInArticle[]): Promise<number> {
+  if (!hasDurableStore() || !articles.length) return 0;
+  const { error } = await db()
+    .from("linkedin_articles")
+    .upsert(
+      articles.map((article) => ({
+        post_id: article.postId,
+        title: article.title,
+        url: article.url,
+        read_minutes: article.readMinutes,
+        published_at: article.publishedAt,
+        updated_at: new Date().toISOString(),
+      })),
+      { onConflict: "post_id" },
+    );
+  return error ? 0 : articles.length;
+}
+
 export interface LinkedInAnalytics {
   connected: boolean;
   posts: LinkedInPostFigures[];
+  /** His LinkedIn articles, by the post that shares each one. */
+  articles: LinkedInArticle[];
   account: {
     day: string;
     followers: number | null;
@@ -216,9 +242,9 @@ export interface LinkedInAnalytics {
 
 /** Every stored figure, for the LinkedIn page. Free: stored rows only. */
 export async function readLinkedInAnalytics(): Promise<LinkedInAnalytics> {
-  const empty: LinkedInAnalytics = { connected: false, posts: [], account: null };
+  const empty: LinkedInAnalytics = { connected: false, posts: [], articles: [], account: null };
   if (!hasDurableStore()) return empty;
-  const [token, posts, account] = await Promise.all([
+  const [token, posts, account, articles] = await Promise.all([
     readToken(),
     db().from("linkedin_post_analytics").select("*").not("fetched_at", "is", null),
     db()
@@ -226,11 +252,20 @@ export async function readLinkedInAnalytics(): Promise<LinkedInAnalytics> {
       .select("day,followers,impressions_30d,members_reached_30d")
       .order("day", { ascending: false })
       .limit(1),
+    // Empty before 0028 is applied.
+    db().from("linkedin_articles").select("post_id,title,url,read_minutes,published_at"),
   ]);
   const num = (value: unknown) => (value == null ? null : Number(value));
   const latest = ((account.data ?? []) as Array<Record<string, unknown>>)[0];
   return {
     connected: Boolean(token),
+    articles: ((articles.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+      postId: String(row["post_id"]),
+      title: String(row["title"]),
+      url: (row["url"] as string | null) ?? null,
+      readMinutes: num(row["read_minutes"]),
+      publishedAt: (row["published_at"] as string | null) ?? null,
+    })),
     posts: ((posts.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
       postId: String(row["post_id"]),
       impressions: num(row["impressions"]),
