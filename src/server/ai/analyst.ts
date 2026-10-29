@@ -739,8 +739,8 @@ export function buildIdeaRequest(
   const topPerformers = owner.topPosts.slice(0, 4);
 
   const written = platform === "linkedin";
-  // Pritesh Sir's voice — Instagram first; LinkedIn keeps its existing prompt
-  // until its module is wired (voiceFor returns "" there). See voice.ts.
+  // Pritesh Sir's voice: his reel brief on Instagram, the voice sections of his
+  // LinkedIn prompt on LinkedIn. See voice.ts.
   const voice = voiceFor(platform);
   // Each lane's own shape and ending, and the campaigns covered before this
   // dashboard existed. Instagram only, alongside the voice.
@@ -749,18 +749,16 @@ export function buildIdeaRequest(
   // reads the name first anyway, so passing a definition would not change
   // these answers.
   // LinkedIn has its own shapes, read from his LinkedIn posts (linkedin-shapes.ts).
-  const laneShapes = voice
-    ? laneShapesBlock(
-        (owner.lanes ?? [])
-          .filter((lane) => !isAiToolWorkflowLane(lane.lane))
-          .map((lane) => ({ name: lane.lane, definition: "" })),
-      )
-    : written
-      ? linkedInShapesBlock(
-          (owner.lanes ?? []).map((lane) => ({ name: lane.lane, definition: "" })),
+  const laneShapes = written
+    ? linkedInShapesBlock((owner.lanes ?? []).map((lane) => ({ name: lane.lane, definition: "" })))
+    : voice
+      ? laneShapesBlock(
+          (owner.lanes ?? [])
+            .filter((lane) => !isAiToolWorkflowLane(lane.lane))
+            .map((lane) => ({ name: lane.lane, definition: "" })),
         )
       : "";
-  const covered = voice ? coveredCampaignsBlock() : "";
+  const covered = voice && !written ? coveredCampaignsBlock() : "";
   const blocked = owner.pastSuggestions?.blocked ?? [];
   const blockedLanes = new Set(
     blocked.filter((entry) => entry.kind === "lane").map((entry) => entry.value),

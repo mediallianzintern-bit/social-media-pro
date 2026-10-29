@@ -57,6 +57,15 @@ const BANNED_PHRASES = [
   "you won't believe this",
   "today i am going to talk about",
   "today i'm going to talk about",
+  // His LinkedIn voice prompt's "Avoid AI hype" list (Oct 2026), and the weak
+  // question it names.
+  "ai is changing everything",
+  "this will completely transform your business",
+  "you cannot afford to ignore ai",
+  "you can't afford to ignore ai",
+  "the possibilities are endless",
+  "the future of everything",
+  "what do you think about ai?",
 ];
 
 /**
@@ -70,6 +79,7 @@ const BANNED_PHRASES = [
 const BANNED_WORDS: Array<{ word: string; pattern: RegExp }> = [
   { word: "game-changer", pattern: /\bgame[- ]?changers?\b|\bgame[- ]?changing\b/i },
   { word: "revolutionary", pattern: /\brevolutionar(y|ise|ize|ised|ized)\b/i },
+  { word: "groundbreaking", pattern: /\bground[- ]?breaking\b/i },
   { word: "seamless", pattern: /\bseamless(ly)?\b/i },
   { word: "leverage", pattern: /\bleverag(e|es|ed|ing)\b/i },
   { word: "harness", pattern: /\bharness(es|ed|ing)?\b/i },
@@ -131,6 +141,17 @@ const THOUGHTS = /(^|[\s.!])thoughts\?/i;
 
 /** Emoji, which the brief bans from everything spoken or shown. */
 const EMOJI = /\p{Extended_Pictographic}/u;
+
+/** His LinkedIn posts end "♻️ Repost to help …": that one emoji is his, not a slip. */
+const REPOST_EMOJI = /♻️?\s*(?=repost\b)/giu;
+
+/**
+ * A LinkedIn post's length, read from his own posts (linkedin-shapes.ts): a
+ * full post runs 150-300 words, a teaser for his article 75-125.
+ */
+const POST_WORDS = { min: 150, max: 300 };
+const TEASER_WORDS = { min: 75, max: 125 };
+const POINTS_TO_ARTICLE = /\b(article|read the full|full breakdown)\b/i;
 
 /**
  * A promised guide, resource or link. The brief allows one only once it is
@@ -213,7 +234,7 @@ export function voiceFlags(
   }
   if (AGREE.test(text)) flags.push("uses “Agree?”");
   if (THOUGHTS.test(text)) flags.push("uses “Thoughts?”");
-  if (EMOJI.test(text)) flags.push("uses an emoji");
+  if (EMOJI.test(idea.post ? text.replace(REPOST_EMOJI, "") : text)) flags.push("uses an emoji");
   for (const { word, pattern } of BANNED_WORDS) {
     if (pattern.test(text)) flags.push(`uses “${word}”`);
   }
@@ -281,6 +302,16 @@ export function voiceFlags(
     if (count < MIN_WORDS) flags.push(`only ${count} words of voice over — under about 50 seconds`);
     else if (count > MAX_WORDS)
       flags.push(`${count} words of voice over — over 115, likely to run past a minute`);
+  }
+
+  // A LinkedIn text post: the length his own posts run to.
+  if (idea.post && idea.format === "text_post" && idea.post.body.trim()) {
+    const count = words(idea.post.body);
+    const range = POINTS_TO_ARTICLE.test(idea.post.body) ? TEASER_WORDS : POST_WORDS;
+    const kind = range === TEASER_WORDS ? "an article teaser" : "a post";
+    if (count < range.min || count > range.max) {
+      flags.push(`${count} words: ${kind} of his runs ${range.min} to ${range.max}`);
+    }
   }
 
   return flags;

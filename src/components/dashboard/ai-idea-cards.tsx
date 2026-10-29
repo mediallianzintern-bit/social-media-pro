@@ -545,7 +545,7 @@ export function AiIdeaCards({
                   }
                 />
 
-                {platform === "instagram" ? <VoiceFlags idea={open} /> : null}
+                <VoiceFlags idea={open} platform={platform} />
 
                 {open.production ? (
                   <section>
@@ -1188,14 +1188,14 @@ function HookChoice({
  * public "that doesn't sound like him" later. Nothing renders when the script
  * is clean — a green "all good" badge on every idea would be noise.
  *
- * Instagram only: that is where the voice is wired so far, and holding a
- * LinkedIn script to rules it was never given would flag it unfairly.
+ * Both platforms: Instagram against his reel brief, LinkedIn against his
+ * LinkedIn voice prompt and the length of his own LinkedIn posts.
  */
-function VoiceFlags({ idea }: { idea: ContentIdea }) {
+function VoiceFlags({ idea, platform }: { idea: ContentIdea; platform: PlatformId }) {
   // A rule filmed reels have lifted (hypothetical hooks that proved they work)
-  // is no longer flagged here either.
+  // is no longer flagged here either. Filmed reels are Instagram's alone.
   const { data: rules } = useQuery(learnedRulesQueryOptions("instagram"));
-  const allowHypotheticalHooks = Boolean(rules?.allowHypotheticalHooks);
+  const allowHypotheticalHooks = platform === "instagram" && Boolean(rules?.allowHypotheticalHooks);
   const flags = useMemo(
     () => voiceFlags(idea, { allowHypotheticalHooks }),
     [idea, allowHypotheticalHooks],
@@ -1204,7 +1204,8 @@ function VoiceFlags({ idea }: { idea: ContentIdea }) {
   return (
     <section className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
       <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
-        Doesn&rsquo;t sound like Pritesh Sir yet — fix before filming
+        Doesn&rsquo;t sound like Pritesh Sir yet — fix before{" "}
+        {platform === "instagram" ? "filming" : "posting"}
       </p>
       <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
         {flags.map((flag) => (
