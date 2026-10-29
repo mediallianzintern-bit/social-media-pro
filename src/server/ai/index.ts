@@ -4,7 +4,7 @@
 // because every run costs money and the answer only changes when the underlying
 // posts change.
 import { trackedCompetitorSnapshots, withoutUntracked } from "../competitors";
-import { buildBrief, generateIdeas, type AccountBrief } from "./analyst";
+import { buildBrief, generateIdeas, type AccountBrief, type LinkedInOwned } from "./analyst";
 import {
   analystRead,
   audienceQuestions,
@@ -46,7 +46,8 @@ import {
 } from "../store";
 import { refreshSources, sourceCandidates } from "../sources";
 import type { AiAnalysis } from "@/lib/ai-types";
-import { PLATFORM_IDS, type PlatformId } from "@/lib/analytics-types";
+import { PLATFORM_IDS, type PlatformId, type PostRecord } from "@/lib/analytics-types";
+import type { PeriodTotals } from "@/lib/linkedin-analytics";
 import { DEFAULT_PRIMARY_METRIC, DEFAULT_SECONDARY_METRICS, growthTrajectory } from "@/lib/growth";
 import { goalScorecard } from "@/lib/goal-scorecard";
 import { plainFiguresDeep } from "@/lib/plain-figures";
@@ -183,7 +184,12 @@ async function prepareOwner(
   // data was a decision.
   const eras = await readEras(platform, owner.handle).catch(() => []);
   const scoped = scopeToEra(ownerPosts, currentEra(eras));
-  const comparisonPosts = scoped.posts;
+  let comparisonPosts = scoped.posts;
+
+  // LinkedIn: his own figures from LinkedIn's API, so the analysis judges
+  // posts by impressions rather than by likes against followers. Never fatal.
+  const linkedin = platform === "linkedin" ? await linkedInOwned(comparisonPosts) : undefined;
+  if (linkedin) comparisonPosts = linkedin.posts;
 
   // The team's own calendar: the only record of topics that are planned but
   // not yet posted, which no platform data can show.
@@ -327,10 +333,88 @@ async function prepareOwner(
           }
         : {}),
       ...(goal ? { goal } : {}),
+      ...(linkedin ? { linkedin: linkedin.owned } : {}),
     },
   );
 
   return { ownerBrief, goal, rivals };
+}
+
+/** Below this many measured posts, LinkedIn's figures are left out of the brief. */
+const MIN_MEASURED_LINKEDIN = 8;
+
+/**
+ * Pritesh Sir's LinkedIn posts carrying LinkedIn's own figures, and his whole
+ * account over the last 30 days. Each measured post gets an `insight`:
+ * impressions as views, members reached as reach, saves, and private sends in
+ * the shares slot (public reposts stay on post.shares).
+ *
+ * Only the measured posts are compared, once there are enough of them: an
+ * unmeasured post has no impressions, and scoring it as zero would make it
+ * look like a miss. Free: stored rows, plus at most one call for the 30-day
+ * members reached when it is not cached.
+ */
+async function linkedInOwned(
+  posts: PostRecord[],
+): Promise<{ posts: PostRecord[]; owned: LinkedInOwned } | undefined> {
+  try {
+    const { readLinkedInAnalytics, readLinkedInPeriod } = await import("../linkedin-analytics");
+    const stored = await readLinkedInAnalytics();
+    if (!stored.connected) return undefined;
+    const byId = new Map(stored.posts.map((row) => [row.postId, row]));
+    const measured: PostRecord[] = [];
+    for (const post of posts) {
+      const row = byId.get(post.postId);
+      if (row?.impressions == null) continue;
+      measured.push({
+        ...post,
+        insight: {
+          views: row.impressions,
+          reach: row.membersReached ?? 0,
+          saved: row.saves ?? 0,
+          shares: row.sends ?? 0,
+        },
+      });
+    }
+    if (measured.length < MIN_MEASURED_LINKEDIN) return undefined;
+
+    const end = new Date(Date.now() + 86_400_000);
+    const day = (date: Date) => date.toISOString().slice(0, 10);
+    const figures = await readLinkedInPeriod({
+      start: day(new Date(end.getTime() - 30 * 86_400_000)),
+      end: day(end),
+    }).catch(() => null);
+    const change = (now: number, before: number | undefined) =>
+      before ? Number((((now - before) / before) * 100).toFixed(1)) : null;
+    const engaged = (totals: PeriodTotals) =>
+      totals.reactions + totals.comments + totals.reposts + totals.saves + totals.sends;
+    const period = figures?.period;
+    return {
+      posts: measured,
+      owned: {
+        last30Days: period
+          ? {
+              impressions: period.impressions,
+              impressionsChangePct: change(period.impressions, figures?.prior?.impressions),
+              membersReached: figures?.membersReached ?? null,
+              socialEngagements: engaged(period),
+              socialEngagementsChangePct: change(
+                engaged(period),
+                figures?.prior ? engaged(figures.prior) : undefined,
+              ),
+              reactions: period.reactions,
+              comments: period.comments,
+              reposts: period.reposts,
+              saves: period.saves,
+              sends: period.sends,
+            }
+          : null,
+      },
+    };
+  } catch (error) {
+    console.error("[ai:linkedin] LinkedIn's own figures unavailable:", error);
+    return undefined;
+  }
 }
 
 /**

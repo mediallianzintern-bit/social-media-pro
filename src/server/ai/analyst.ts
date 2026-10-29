@@ -38,6 +38,7 @@ import {
   medianViews,
   organicPosts,
   reachEngagementRate,
+  viewsOf,
   type InstagramInsights,
   type LanePerformance,
   type NicheLane,
@@ -92,6 +93,36 @@ export interface BriefPost {
   saveRatePct?: number;
   /** Shares ÷ reach, as a percentage. What drives distribution beyond followers. */
   shareRatePct?: number;
+  /**
+   * LinkedIn only, measured by LinkedIn's own API for the owner's posts: how
+   * many times the post was seen, how many sent it on in a private message,
+   * how many reposted it, and the interactions on it as a share of impressions.
+   */
+  impressions?: number;
+  sends?: number;
+  reposts?: number;
+  sendRatePct?: number;
+  engagementRateOnImpressionsPct?: number;
+}
+
+/**
+ * LinkedIn's own figures for the owner, from its Member Post Analytics API
+ * (server/linkedin-analytics.ts): his whole account over the last 30 days. The
+ * per-post figures arrive on each post's `insight`.
+ */
+export interface LinkedInOwned {
+  last30Days: {
+    impressions: number;
+    impressionsChangePct: number | null;
+    membersReached: number | null;
+    socialEngagements: number;
+    socialEngagementsChangePct: number | null;
+    reactions: number;
+    comments: number;
+    reposts: number;
+    saves: number;
+    sends: number;
+  } | null;
 }
 
 /** Everything the model is allowed to know about one account. */
@@ -237,10 +268,19 @@ export interface AccountBrief {
    * that account, and the prompt has to be able to say so.
    */
   owned?: {
+    /** Which platform measured these figures. */
+    source: "Instagram" | "LinkedIn";
     postsMeasured: number;
     medianReach: number;
     medianSaves: number;
-    medianShares: number;
+    /** Instagram: shares. LinkedIn reports private sends instead (medianSends). */
+    medianShares?: number;
+    medianImpressions?: number;
+    medianSends?: number;
+    /** LinkedIn: interactions ÷ impressions, as a percentage. */
+    engagementRateOnImpressionsPct?: number;
+    /** LinkedIn: his whole account over the last 30 days, as LinkedIn reports it. */
+    last30Days?: NonNullable<LinkedInOwned["last30Days"]>;
     reachEngagementRatePct: number;
     medianWatchSeconds?: number;
     audienceTopAges?: string[];
@@ -253,9 +293,32 @@ export interface AccountBrief {
 function ownedMetrics(
   allPosts: PostRecord[],
   insights?: InstagramInsights | undefined,
+  linkedin?: LinkedInOwned,
 ): AccountBrief["owned"] {
   const measured = measuredPosts(organicPosts(allPosts));
   if (!measured.length) return undefined;
+
+  if (linkedin) {
+    const impressions = measured.reduce((sum, post) => sum + (post.insight?.views ?? 0), 0);
+    const interactions = measured.reduce(
+      (sum, post) =>
+        sum + engagementsOf(post) + (post.insight?.saved ?? 0) + (post.insight?.shares ?? 0),
+      0,
+    );
+    return {
+      source: "LinkedIn",
+      postsMeasured: measured.length,
+      medianImpressions: Math.round(median(measured.map((post) => post.insight?.views ?? 0))),
+      medianReach: Math.round(median(measured.map((post) => post.insight?.reach ?? 0))),
+      medianSaves: Math.round(median(measured.map((post) => post.insight?.saved ?? 0))),
+      medianSends: Math.round(median(measured.map((post) => post.insight?.shares ?? 0))),
+      engagementRateOnImpressionsPct: impressions
+        ? Number(((interactions / impressions) * 100).toFixed(2))
+        : 0,
+      reachEngagementRatePct: Number(((reachEngagementRate(allPosts) ?? 0) * 100).toFixed(2)),
+      ...(linkedin.last30Days ? { last30Days: linkedin.last30Days } : {}),
+    };
+  }
 
   const watch = measured
     .map((post) => post.insight?.avgWatchMs)
@@ -263,6 +326,7 @@ function ownedMetrics(
   const rate = reachEngagementRate(allPosts);
 
   const owned: NonNullable<AccountBrief["owned"]> = {
+    source: "Instagram",
     postsMeasured: measured.length,
     medianReach: Math.round(median(measured.map((post) => post.insight?.reach ?? 0))),
     medianSaves: Math.round(median(measured.map((post) => post.insight?.saved ?? 0))),
@@ -306,20 +370,25 @@ export function buildBrief(
         calendarSubjects?: AccountBrief["calendarSubjects"];
         teamPreferences?: AccountBrief["teamPreferences"];
         era?: AccountBrief["era"];
+        /** LinkedIn's own figures for the owner, when LinkedIn is connected. */
+        linkedin?: LinkedInOwned;
       }
     | undefined,
 ): AccountBrief {
   const posts = organicPosts(allPosts);
   const insights = computeInsights(allPosts);
   const useViews = insights.useViews;
-  const primary = (post: PostRecord) => (useViews ? post.views : engagementsOf(post));
+  const linkedin = learning?.linkedin;
+  // LinkedIn: impressions, measured by LinkedIn, are each post's headline figure.
+  const primary = (post: PostRecord) =>
+    linkedin ? viewsOf(post) : useViews ? post.views : engagementsOf(post);
 
   const byFormat = new Map<string, PostRecord[]>();
   for (const post of posts) {
     byFormat.set(post.format, [...(byFormat.get(post.format) ?? []), post]);
   }
 
-  const owned = ownedMetrics(allPosts, graphInsights);
+  const owned = ownedMetrics(allPosts, graphInsights, linkedin);
   const lanes = lanePerformance(allPosts);
   const expectations = laneExpectations(allPosts, lanes);
 
@@ -333,13 +402,31 @@ export function buildBrief(
       format: post.format,
       publishedAt: post.publishedAt.slice(0, 10),
       weekday: WEEKDAYS[new Date(post.publishedAt).getUTCDay()] ?? "?",
-      views: post.views,
+      views: linkedin ? viewsOf(post) : post.views,
       likes: post.likes,
       comments: post.comments,
       caption: post.caption.slice(0, captionChars),
       vsMedian: Number((primary(post) / medianPrimary).toFixed(2)),
     };
-    if (post.insight) {
+    if (post.insight && linkedin) {
+      // LinkedIn: insight.views is impressions and insight.shares is private
+      // sends; the public reposts stay on post.shares.
+      const { reach, saved, shares: sends, views: impressions } = post.insight;
+      brief.impressions = impressions;
+      brief.reach = reach;
+      brief.saves = saved;
+      brief.sends = sends;
+      brief.reposts = post.shares;
+      if (impressions > 0) {
+        brief.engagementRateOnImpressionsPct = Number(
+          (((engagementsOf(post) + saved + sends) / impressions) * 100).toFixed(2),
+        );
+      }
+      if (reach > 0) {
+        brief.saveRatePct = Number(((saved / reach) * 100).toFixed(2));
+        brief.sendRatePct = Number(((sends / reach) * 100).toFixed(2));
+      }
+    } else if (post.insight) {
       const { reach, saved, shares, avgWatchMs } = post.insight;
       brief.reach = reach;
       brief.saves = saved;
@@ -414,9 +501,23 @@ export function buildBrief(
  * become asymmetric rather than disappear, or the model will start comparing the
  * owner's measured reach against a competitor number it invented.
  */
-function groundRules(hasOwnedMetrics: boolean): string {
-  const third = hasOwnedMetrics
-    ? `3. Reach, saves, shares, watch time and audience demographics exist ONLY in
+function groundRules(source: "Instagram" | "LinkedIn" | undefined): string {
+  const third =
+    source === "LinkedIn"
+      ? `3. Impressions, members reached, saves and sends exist ONLY in the owner's
+   "owned" block and the "impressions"/"reach"/"saves"/"sends"/"reposts" fields
+   of the owner's topPosts and weakestPosts. They are measured by LinkedIn itself
+   (its Member Post Analytics API), and "last30Days" is his whole account as
+   LinkedIn reports it. Competitors have NONE of these and never will: they are
+   scraped from public pages. Never state, estimate or imply such a figure for
+   a competitor, and never compare the owner's impressions against a
+   competitor's anything. Compare owner-to-owner, or public metrics side by side.
+   For the owner, judge a post by its impressions and its engagement rate on
+   impressions, not by likes alone and never by engagement against followers.
+   Audience demographics, watch time and in-network vs out-of-network reach are
+   NOT available: never mention them.`
+      : source
+        ? `3. Reach, saves, shares, watch time and audience demographics exist ONLY in
    the owner's "owned" block and the "reach"/"saves"/"shares"/"avgWatchSeconds"
    fields of the owner's topPosts. They are measured by Instagram itself.
    Competitors have NONE of these and never will — they are scraped from public
@@ -424,7 +525,7 @@ function groundRules(hasOwnedMetrics: boolean): string {
    never compare the owner's reach against a competitor's anything. Compare
    owner-to-owner over time, or compare public metrics side by side.
    Never mention impressions: the metric no longer exists.`
-    : `3. Never refer to impressions, reach, saves, shares, audience demographics,
+        : `3. Never refer to impressions, reach, saves, shares, audience demographics,
    watch time or retention. Those metrics are NOT in the data and are not
    available for these accounts. Referring to them makes the analysis unusable.`;
 
@@ -469,9 +570,11 @@ ${third}
 
 function dataBlock(owner: AccountBrief, rivals: AccountBrief[]): string {
   return [
-    owner.owned
-      ? "DATA — the only figures that exist. Competitor figures are scraped from public pages. The owner's `owned` block and the reach/saves/shares/avgWatchSeconds fields on the owner's topPosts come from Instagram's own analytics and have no competitor equivalent."
-      : "DATA — the only figures that exist. All engagement is public data.",
+    owner.owned?.source === "LinkedIn"
+      ? "DATA — the only figures that exist. Competitor figures are scraped from public pages. The owner's `owned` block and the impressions/reach/saves/sends fields on the owner's posts come from LinkedIn's own analytics and have no competitor equivalent."
+      : owner.owned
+        ? "DATA — the only figures that exist. Competitor figures are scraped from public pages. The owner's `owned` block and the reach/saves/shares/avgWatchSeconds fields on the owner's topPosts come from Instagram's own analytics and have no competitor equivalent."
+        : "DATA — the only figures that exist. All engagement is public data.",
     "",
     "OWNER ACCOUNT:",
     JSON.stringify(owner, null, 2),
@@ -680,7 +783,7 @@ export function buildIdeaRequest(
   } for a
 creator, based on their own measured performance.
 
-${groundRules(Boolean(owner.owned))}
+${groundRules(owner.owned?.source)}
 ${voice ? `\n${voice}\n` : ""}${laneShapes ? `\n${laneShapes}\n` : ""}${covered ? `\n${covered}\n` : ""}${workflow ? `\n${workflow}\n` : ""}
 Additional requirements:
 - EVERY IDEA MUST HAVE A CONCRETE SUBJECT. Name the specific brand, campaign, product, tool,
@@ -773,8 +876,13 @@ ${
   published, grouped by this label. A vague or topic-shaped trait ("AI content") makes that
   check meaningless; a real trait ("names the stakes in the first line") makes it possible to
   learn, months from now, which traits this account's audience actually rewards.${
-    owner.owned
+    owner.owned?.source === "LinkedIn"
       ? `
+- Rank what worked by impressions and engagementRateOnImpressionsPct FIRST, then saveRatePct and
+  sendRatePct, likes last. A post LinkedIn showed to many people is the stronger model to
+  copy, and a save or a send means a reader wanted it later or passed it to someone by name.`
+      : owner.owned
+        ? `
 - Rank what worked by saveRatePct and shareRatePct FIRST, likes last. A save means the viewer
   wanted it later; a share means they staked their own name on it. Both drive reach far harder
   than a like, which costs nothing. If a post has a high saveRatePct but ordinary views, it is a
@@ -784,7 +892,7 @@ ${
   do not write a 60-second script for an account whose median watch time is 13 seconds.
 - Write for the audience in audienceTopAges, audienceGenderSplit and audienceTopCountries.
   Examples, references, idiom and pacing should land for those specific people.`
-      : ""
+        : ""
   }${
     owner.lanes?.length
       ? `

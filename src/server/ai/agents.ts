@@ -78,6 +78,10 @@ export function publicOnly(brief: AccountBrief): AccountBrief {
         avgWatchSeconds: _watch,
         saveRatePct: _saveRate,
         shareRatePct: _shareRate,
+        impressions: _impressions,
+        sends: _sends,
+        sendRatePct: _sendRate,
+        engagementRateOnImpressionsPct: _impressionRate,
         ...publicFields
       } = post;
       return publicFields;
@@ -113,10 +117,21 @@ there are no other accounts in this task.
 
 ${SHARED_RULES}
 
-6. This account's saves, shares, watch time and reach are measured by the platform itself.
+${
+  owner.owned?.source === "LinkedIn"
+    ? `6. This account's impressions, members reached, saves and sends are measured by LinkedIn
+   itself, per post and for the whole account ("last30Days"). Judge a post first by its
+   impressions and its engagement rate on impressions: a post with few likes can still have been
+   seen widely, and a post with many likes can have been seen by few. Saves and sends say what
+   readers actually WANTED: a save means they meant to come back, a send means they passed it to
+   someone by name. Weight them above likes, which cost nothing. Never judge engagement against
+   followers when impressions are given, and never mention audience demographics, watch time or
+   in-network vs out-of-network reach: they are not in the data.`
+    : `6. This account's saves, shares, watch time and reach are measured by the platform itself.
    They are the only signals that say what an audience actually WANTED: a save means someone
    intended to come back to it, a share means they attached their own name to it. Weight them
-   above likes, which cost nothing.
+   above likes, which cost nothing.`
+}
 7. For lanes, the figure that matters is medianVsMedian, never postCount. A lane can be most
    of what this account publishes and still be its weakest work. Where shareOfOutputPct runs well
    ahead of shareOfPerformancePct, say so plainly — that lane is absorbing effort it is not
@@ -136,7 +151,11 @@ making the content. This is the part a busy team reads instead of the lists abov
   limit is more useful to a team than an invented instruction.`;
 
   const user = `DATA — the only figures that exist. All of it belongs to this one account and is
-measured by the platform, so you may cite reach, saves, shares and watch time freely.
+measured by the platform, so you may cite ${
+    owner.owned?.source === "LinkedIn"
+      ? "impressions, members reached, saves and sends"
+      : "reach, saves, shares and watch time"
+  } freely.
 
 ACCOUNT:
 ${JSON.stringify(owner, null, 2)}
