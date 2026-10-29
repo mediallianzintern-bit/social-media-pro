@@ -791,7 +791,15 @@ export async function generateMore(
   const newsLane = newsInWorkflowLane
     ? accountLanes.find((lane) => /\bai\b/i.test(lane) && !isAiToolWorkflowLane(lane))
     : undefined;
-  const requestedLane = workflowLane ?? newsLane ?? options.lane;
+  // A script for one story stays in that story's own lane. The writer could
+  // otherwise file it anywhere, and a Frontier AI news story filed under AI
+  // tool workflows was held to the workflow format and discarded twice (29 Oct
+  // 2026, Claude Haiku 5.5).
+  const storyLane =
+    options.sourceId && sources[0]?.lane && accountLanes.includes(sources[0].lane)
+      ? sources[0].lane
+      : undefined;
+  const requestedLane = workflowLane ?? newsLane ?? options.lane ?? storyLane;
   // Regeneration rewrites ONE story's script, so it needs that story. Any
   // lane may be regenerated; it used to be AI tool workflows only.
   if (options.regenerate && (!options.sourceId || options.fresh)) {

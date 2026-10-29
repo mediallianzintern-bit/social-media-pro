@@ -24,7 +24,8 @@ import type { PlatformId } from "@/lib/analytics-types";
 import type { SourceItem } from "@/lib/sources";
 
 import { completeJson } from "./client";
-import { factSheetText } from "@/lib/research";
+import { factSheetText, factUsed, type FactCategory, type StoryResearch } from "@/lib/research";
+import { voiceFlags } from "@/lib/voice-check";
 import { toneReferencesBlock, type ToneReference } from "@/lib/tone-references";
 import type { ContentIdea } from "@/lib/ai-types";
 import { brandRule, ctaRule } from "@/lib/script-families";
@@ -295,6 +296,17 @@ const words = (text: string) =>
 const spokenWords = (review: ReviewResult) =>
   words(review.shots.map((shot) => shot.voiceover).join(" "));
 
+/** Specific facts a script should carry from its research, not general ones. */
+const SPECIFIC_FACTS = new Set<FactCategory>(["who", "where", "figure", "how", "result"]);
+/** Specific researched facts a reel must use, when the research has that many. */
+const MIN_FACTS_USED = 4;
+
+/** The multi-outlet research behind a draft, when its story was researched. */
+function researchFor(idea: RawIdea, sources: SourceItem[]): StoryResearch | undefined {
+  const id = typeof idea.source?.sourceId === "string" ? idea.source.sourceId : null;
+  return id ? sources.find((item) => item.id === id)?.research : undefined;
+}
+
 /**
  * The hard rules a rewrite can be held to in code. Judgement rules — voice,
  * one idea, a good example — are left to the model; these are counted.
@@ -304,9 +316,47 @@ function problemsOf(
   lane: string | null,
   subject: string,
   rules: LearnedRules = NO_RULES,
+  research?: StoryResearch,
 ): string[] {
   const problems: string[] = [];
   const count = spokenWords(review);
+  const spoken = review.shots.map((shot) => shot.voiceover).join("\n");
+
+  // A word or formula his voice rules out (voice-check.ts), sent back to be
+  // fixed instead of only flagged on the idea afterwards.
+  const probe = {
+    hook: review.hook,
+    altHooks: review.altHooks,
+    shots: review.shots,
+    caption: review.caption,
+    title: subject,
+    angle: "",
+  } as unknown as ContentIdea;
+  for (const flag of voiceFlags(probe)) {
+    if (/^uses “|formula|opener/.test(flag) && !/emoji/.test(flag)) {
+      problems.push(`the script ${flag}; rewrite that line in plain words`);
+    }
+  }
+
+  // The research is only worth doing if the script carries it. Fewer than
+  // MIN_FACTS_USED specific facts (a figure, a name, a place, how it works,
+  // the result) and the rewrite goes back with the unused ones listed.
+  if (research) {
+    const specific = research.facts.filter((fact) => SPECIFIC_FACTS.has(fact.category));
+    const used = specific.filter((fact) => factUsed(fact, spoken));
+    const needed = Math.min(MIN_FACTS_USED, specific.length);
+    if (used.length < needed) {
+      const unused = specific
+        .filter((fact) => !used.includes(fact) && !fact.conflict)
+        .sort((a, b) => Number(b.category === "figure") - Number(a.category === "figure"))
+        .slice(0, 6);
+      problems.push(
+        `the script uses only ${used.length} of the specific researched facts; it needs at least ${needed}. ` +
+          `Work in the strongest of these, in Pritesh's words, in place of general statements: ` +
+          unused.map((fact) => `"${fact.text}"`).join("; "),
+      );
+    }
+  }
   // The shots are what the editor cuts from, so they are what is counted. A
   // script whose words did not all make it into the shots is a lost paragraph.
   const scripted = words(review.script);
@@ -460,6 +510,7 @@ export async function reviewDrafts(
             lane,
             `${String(idea["title"] ?? "")} ${String(idea["angle"] ?? "")}`,
             rules,
+            researchFor(idea, sources),
           );
           console.info(
             `[ai:review] "${String(idea["title"])}" round ${round + 1}: ` +
