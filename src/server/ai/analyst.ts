@@ -1491,6 +1491,15 @@ export async function generateIdeas(
   /** Restrict every idea to this one lane — the per-lane buttons. */
   onlyLane?: string | undefined,
   regenerate = false,
+  extra: {
+    /** When the whole request must be done (epoch ms); see completeJson. */
+    deadline?: number;
+    /**
+     * Why the previous draft for this story was discarded, so the second try
+     * fixes exactly that rather than rolling the dice again.
+     */
+    discarded?: string[];
+  } = {},
 ): Promise<{
   ideas: ContentIdea[];
   model: string;
@@ -1509,9 +1518,16 @@ export async function generateIdeas(
     regenerate,
   );
 
+  const retry = extra.discarded?.length
+    ? `
+
+YOUR PREVIOUS DRAFT FOR THIS STORY WAS DISCARDED, for these reasons:
+${extra.discarded.map((reason) => `- ${reason}`).join("\n")}
+Write it again and make sure each of these is fixed. Everything else above still applies.`
+    : "";
   const result = await completeJson<unknown>({
     system: request.system,
-    user: request.user,
+    user: `${request.user}${retry}`,
     schemaName: "content_ideas",
     // Higher temperature: this half is copywriting, not measurement. Reasoning
     // models ignore it and take the effort dial instead.
@@ -1524,6 +1540,7 @@ export async function generateIdeas(
     effort: "medium",
     schema: request.schema,
     timeoutMs: 420_000,
+    ...(extra.deadline ? { deadline: extra.deadline } : {}),
   });
 
   // Pritesh's own review-and-rewrite prompt, on a small request to a stronger
@@ -1535,6 +1552,7 @@ export async function generateIdeas(
     sources,
     reads.filmed ?? "",
     reads.filmedRules ?? NO_RULES,
+    extra.deadline,
   );
   if (review.reviewed || review.failed) {
     console.info(

@@ -14,7 +14,8 @@ import {
 } from "./agents";
 import { questionFeedActor, trendFeedActor, trendFeedInAnalysis } from "./feeds";
 import { currentNiche, recordPredictions } from "../predict";
-import { hasOpenAi, openAiKeyIsPlaceholder } from "./client";
+import { hasOpenAi, OpenAiError, openAiKeyIsPlaceholder } from "./client";
+import { addCosts } from "./review";
 import { workflowLaneForSource } from "./tool-workflow";
 import { isAiToolWorkflowLane } from "@/lib/tool-workflow";
 import { discoverCompetitors, type DiscoveryResult } from "./discover";
@@ -676,6 +677,15 @@ async function withArticle(platform: PlatformId, sources: SourceItem[]): Promise
   }
 }
 
+/**
+ * The time one "Write script" request may take, inside Vercel's 300-second
+ * limit with half a minute left to save the result.
+ */
+const WRITE_BUDGET_MS = 270_000;
+
+/** Below this much time left, a discarded script is not written a second time. */
+const RETRY_MIN_MS = 150_000;
+
 export async function generateMore(
   platform: PlatformId,
   options: { sourceId?: string; fresh?: boolean; lane?: string; regenerate?: boolean } = {},
@@ -683,6 +693,11 @@ export async function generateMore(
   if (!hasOpenAi()) {
     return { analysis: null, idea: null, reason: "OPENAI_API_KEY is not set." };
   }
+  // One deadline for the whole request, inside the 300 seconds Vercel allows
+  // (vite.config.ts), with room left to save. Every OpenAI call, rate-limit
+  // wait and review round is fitted inside it, so a slow minute ends in a
+  // clear message instead of the server being stopped and the script lost.
+  const deadline = Date.now() + WRITE_BUDGET_MS;
 
   const prepared = await prepareOwner(platform, { classify: false });
   if (!prepared) {
@@ -758,22 +773,59 @@ export async function generateMore(
     };
   }
 
-  const result = await generateIdeas(
-    platform,
-    ownerBrief,
-    rivalBriefs,
-    {
-      analyst: cached?.analyst ?? null,
-      competitive: cached?.competitors ?? null,
-      reflection: cached?.reflection ?? null,
-      filmed: await filmedLessonsBlock(platform).catch(() => ""),
-      filmedRules: await learnedRules(platform).catch(() => null),
-    },
-    options.fresh ? 3 : 1,
-    sources,
-    requestedLane,
-    options.regenerate,
-  );
+  const reads = {
+    analyst: cached?.analyst ?? null,
+    competitive: cached?.competitors ?? null,
+    reflection: cached?.reflection ?? null,
+    filmed: await filmedLessonsBlock(platform).catch(() => ""),
+    filmedRules: await learnedRules(platform).catch(() => null),
+  };
+  const write = (discarded?: string[]) =>
+    generateIdeas(
+      platform,
+      ownerBrief,
+      rivalBriefs,
+      reads,
+      options.fresh ? 3 : 1,
+      sources,
+      requestedLane,
+      options.regenerate,
+      { deadline, ...(discarded ? { discarded } : {}) },
+    );
+
+  let result: Awaited<ReturnType<typeof generateIdeas>>;
+  try {
+    result = await write();
+    // "Write script" on one story: a draft the checks discarded (most often an
+    // AI tool workflow reel without two demonstrated steps) used to end the
+    // request, and the team clicked again until one passed. It is now written
+    // once more with the reasons, while there is time for a full second try.
+    if (
+      options.sourceId &&
+      !options.fresh &&
+      !result.ideas.length &&
+      deadline - Date.now() > RETRY_MIN_MS
+    ) {
+      const reasons = result.dropped.length ? result.dropped : ["no idea came back"];
+      console.warn(`[ai:${platform}] script discarded, writing it once more:`, reasons);
+      const second = await write(reasons);
+      result = {
+        ...second,
+        dropped: second.ideas.length ? [] : [...result.dropped, ...second.dropped],
+        cost: addCosts(result.cost, second.cost),
+      };
+    }
+  } catch (error) {
+    if (!(error instanceof OpenAiError)) throw error;
+    console.error(`[ai:${platform}] script not written:`, error.message);
+    return {
+      analysis: cached && plainFiguresDeep(cached),
+      idea: null,
+      reason: /rate limit|429|timed out|no time left/i.test(error.message)
+        ? "OpenAI was too slow or busy to finish this script in time. Nothing was saved; try again in a minute."
+        : `OpenAI could not write this script: ${error.message}`,
+    };
+  }
 
   const niche = await currentNiche(platform).catch(() => platform);
   const ideas = await recordPredictions(

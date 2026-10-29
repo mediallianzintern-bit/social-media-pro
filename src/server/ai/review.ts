@@ -384,6 +384,9 @@ export function addCosts(a: GenerationCost | undefined, b: GenerationCost | unde
  * check after it run unchanged on the reviewed script. Carousels and LinkedIn
  * are passed through: his prompt is written for spoken reels.
  */
+/** A review round needs about this long; with less left before the deadline it is skipped. */
+const REVIEW_ROUND_MIN_MS = 45_000;
+
 export async function reviewDrafts(
   platform: PlatformId,
   data: unknown,
@@ -392,6 +395,13 @@ export async function reviewDrafts(
   lessons = "",
   /** Rules learned from filmed reels, enforced in the checks below. */
   rules: LearnedRules = NO_RULES,
+  /**
+   * When the whole request must be done (epoch ms). A round that cannot
+   * finish before it is not started, and the draft or the best round so far
+   * is kept: a reviewed script is better, but an unreviewed one is better
+   * than none.
+   */
+  deadline?: number,
 ): Promise<{ data: unknown; cost: GenerationCost | undefined; reviewed: number; failed: number }> {
   const ideas = (data as { ideas?: unknown })?.ideas;
   if (platform !== "instagram" || !reviewEnabled() || !Array.isArray(ideas)) {
@@ -414,6 +424,7 @@ export async function reviewDrafts(
         let best: { review: ReviewResult; problems: string[] } | null = null;
         let feedback: { previous: ReviewResult; problems: string[] } | null = null;
         for (let round = 0; round < REVIEW_ROUNDS; round += 1) {
+          if (deadline && deadline - Date.now() < REVIEW_ROUND_MIN_MS) break;
           const result = await completeJson<unknown>({
             system: reviewSystem(lane),
             user: reviewUser(idea, sources, feedback, lessons),
@@ -423,6 +434,7 @@ export async function reviewDrafts(
             temperature: 0.6,
             effort: "medium",
             timeoutMs: 180_000,
+            ...(deadline ? { deadline } : {}),
           });
           if (result.usage) cost = addCosts(cost, costOf(result.usage, result.model));
           const parsed = reviewResult.safeParse(result.data);

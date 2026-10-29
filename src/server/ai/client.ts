@@ -122,6 +122,9 @@ const RATE_LIMIT_ATTEMPTS = 3;
 /** Longest we will wait on one 429, whatever the server suggests. */
 const MAX_BACKOFF_MS = 65_000;
 
+/** Less time than this left before a deadline, and a call is not started. */
+const MIN_ATTEMPT_MS = 15_000;
+
 /**
  * How long to wait before retrying a 429.
  *
@@ -173,6 +176,9 @@ export async function completeJson<T>(
       if (tooLarge || attempt >= RATE_LIMIT_ATTEMPTS - 1) throw error;
 
       const wait = retryDelayMs(error.message, error.retryAfter ?? null, attempt);
+      // A wait that would run past the caller's deadline cannot help: the
+      // server would be stopped before the retry answered.
+      if (options.deadline && Date.now() + wait + MIN_ATTEMPT_MS > options.deadline) throw error;
       console.warn(
         `[openai] rate limited, waiting ${Math.round(wait / 1000)}s then retrying ` +
           `(attempt ${attempt + 2} of ${RATE_LIMIT_ATTEMPTS})`,
@@ -198,6 +204,13 @@ async function completeJsonOnce<T>(options: {
    */
   model?: string;
   timeoutMs?: number;
+  /**
+   * When the whole job must be finished, as epoch ms. Each attempt's timeout
+   * and each rate-limit wait is cut to fit inside it, so a request ends with a
+   * clear error instead of the server being stopped mid-call (Vercel stops a
+   * request at 300 seconds, maxDuration in vite.config.ts).
+   */
+  deadline?: number;
 }): Promise<CompletionResult<T>> {
   const key = openAiKey();
   if (!key) throw new OpenAiError("OPENAI_API_KEY is not set");
@@ -207,10 +220,10 @@ async function completeJsonOnce<T>(options: {
   const controller = new AbortController();
   // Reasoning models think before they answer, so they need a longer leash than
   // the 2 minutes that was ample for gpt-4o.
-  const timer = setTimeout(
-    () => controller.abort(),
-    options.timeoutMs ?? (reasoning ? 300_000 : 120_000),
-  );
+  const limit = options.timeoutMs ?? (reasoning ? 300_000 : 120_000);
+  const left = options.deadline ? options.deadline - Date.now() : limit;
+  if (left < MIN_ATTEMPT_MS) throw new OpenAiError("No time left to ask OpenAI for this step");
+  const timer = setTimeout(() => controller.abort(), Math.min(limit, left));
 
   try {
     const response = await fetch(API, {
