@@ -265,7 +265,7 @@ const HYPOTHETICAL_LINE = /\b(imagine|let['’]?s say|suppose|picture this)\b/gi
  * apostrophes included: his scripts use them.
  */
 const TURN_LINE =
-  /\b(here['’]?s (the|what|where|why|how)|but here['’]?s|but there['’]?s|but notice|now (think|notice|here)|sounds like|this is where|the (really |most )?(clever|smart|interesting|real|important|bigger) (part|picture|plan)|why does (this|it) matter|what (this|that) means|here is (the|what))\b|,\s*right\?/i;
+  /\b(here['’]?s (the|what|where|why|how)|but here['’]?s|the (really |most )?(clever|smart|interesting|real|important|bigger) (part|picture)|why does (this|it) matter|what (this|that) means|here is (the|what))\b/i;
 /** A last line that is the reel's sign-off rather than its point. */
 const SIGN_OFF = /follow for daily|see you tomorrow|\bcomment \W*[A-Z]{2,}/i;
 
@@ -407,15 +407,16 @@ function problemsOf(
     GENERAL_BENEFIT.test(point)
   ) {
     problems.push(
-      `the closing thought names a general benefit ("${point.slice(0, 80)}"); end on something ` +
-        `specific and memorable instead: what it means, the bigger point, or a lesson where the ` +
-        `story carries one ("Amul isn't abandoning affordability to go premium.")`,
+      `the takeaway names a general benefit ("${point.slice(0, 80)}"); make it practical: one thing ` +
+        `the viewer can do or check this week, or a specific lesson, as his posted reels end ` +
+        `("So add one question to every client check-in. Is the website updated?")`,
     );
   }
   if (point && (STILL_THE_EXAMPLE.test(point) || HYPOTHETICAL_OPENER.test(point))) {
     problems.push(
-      `the line before the sign-off is still the example ("${point.slice(0, 80)}"); end on a ` +
-        `memorable thought: what it means or the bigger point. An example is not a closing thought`,
+      `the line before the sign-off is not a takeaway ("${point.slice(0, 80)}"); end on what this ` +
+        `means for the viewer's business or work, or the lesson, as his posted reels do ` +
+        `("Here's what matters for your business…", "The lesson? …"). An example is not a takeaway`,
     );
   }
 
@@ -432,7 +433,7 @@ function problemsOf(
   }
   if (!(lane && isAiToolWorkflowLane(lane)) && !TURN_LINE.test(spoken)) {
     problems.push(
-      `the script lists facts with no conversational transition; connect them the way he talks ("Sounds like two very different strategies, right?", "But there's a bigger plan here.", "But notice something important.")`,
+      `the script has no turn line before the insight; add one short line as his posted reels do ("But here's the clever part.", "Here's what I find smart.", "But here's where I'd be careful.")`,
     );
   }
 
@@ -480,7 +481,7 @@ function problemsOf(
         `every paragraph of the script must be one shot's voiceover, word for word`,
     );
   }
-  // The team's length (lib/reel-length.ts), not his brief's 90-115: the reels
+  // The team's 110-140 (lib/reel-length.ts), not his brief's 90-115: the reels
   // he posted run that long, and shorter scripts came out too thin.
   if (count < REEL_WORDS.min) {
     problems.push(

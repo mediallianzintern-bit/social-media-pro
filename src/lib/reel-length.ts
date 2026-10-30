@@ -8,11 +8,8 @@
 // a relaxed two words a second. His brief's own LENGTH section is still sent
 // word for word; the dashboard's handover states this as the team's request.
 //
-// The team's Tone brief (30 Oct 2026) set about 100-140, depending on how
-// complex the topic is, and never cutting context to hit a count.
-//
 // Every rule that holds a reel to a length reads it from here. Client-safe.
-export const REEL_WORDS = { min: 100, max: 140 } as const;
+export const REEL_WORDS = { min: 110, max: 140 } as const;
 
 /**
  * The word count the writer and the review are told to aim for. Above the
@@ -20,10 +17,10 @@ export const REEL_WORDS = { min: 100, max: 140 } as const;
  * reported 114-116 for drafts of 93-105, 29 Oct 2026), so aiming at the middle
  * lands it short. The code still holds the real limit, REEL_WORDS.
  */
-export const REEL_AIM_WORDS = 130;
+export const REEL_AIM_WORDS = 135;
 
 /** The longest a reel may run, in seconds: 140 words at two words a second. */
 export const REEL_MAX_SECONDS = 70;
 
-/** The shortest, in seconds: 100 words at two words a second. */
-export const REEL_MIN_SECONDS = 50;
+/** The shortest, in seconds: 110 words at two words a second. */
+export const REEL_MIN_SECONDS = 55;

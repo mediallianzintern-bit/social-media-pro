@@ -67,10 +67,6 @@ const BANNED_PHRASES = [
   "the possibilities are endless",
   "the future of everything",
   "what do you think about ai?",
-  // The team's Tone brief (30 Oct 2026): stock phrases that make a reel
-  // sound like a template or a news read.
-  "here's what i find smart",
-  "in today's digital world",
 ];
 
 /**
@@ -138,7 +134,7 @@ const BANNED_SHAPES: Array<{ label: string; pattern: RegExp }> = [
  * 90-110, never more than 115, under a minute. It replaced the SOP's 110-135.
  * The flag fires only outside the range and says what it means in seconds.
  */
-// The team's length, not his brief's 90-115 (lib/reel-length.ts).
+// The team's 110-140 since 29 Oct 2026, matching his posted reels (lib/reel-length.ts).
 const MIN_WORDS = REEL_WORDS.min;
 const MAX_WORDS = REEL_WORDS.max;
 

@@ -152,9 +152,9 @@ Return:
 /** How his OUTPUT section maps onto the editor handover the team requests. */
 export const DASHBOARD_HANDOVER = `DASHBOARD HANDOVER — the team requests these, which is the "unless requested" case in OUTPUT above:
 - The ready-to-record script is the voiceover across the shot list, in speaking order. Each short paragraph is a shot.
-- LENGTH FOR THIS DASHBOARD, as the team set it (about 100 to 140 words depending on how complex the topic is, never cutting important context to hit a count): this OVERRIDES the word range in LENGTH above. The reel runs ${REEL_MIN_SECONDS} to ${REEL_MAX_SECONDS} seconds, so the whole voiceover is ${REEL_WORDS.min} to ${REEL_WORDS.max} spoken words, never more than ${REEL_WORDS.max}: aim for about ${REEL_AIM_WORDS}, because drafts have consistently come out 10 to 20 words shorter than the writer counted. Short scripts have been the problem, so count word by word before you return: under ${REEL_WORDS.min} means the Explanation or the Example is thin, and it is filled with substance from the source (its figures, names and specifics), never padding.
+- LENGTH FOR THIS DASHBOARD, as the team set it after comparing with the reels Pritesh actually posted (they run about 110 to 140 words): this OVERRIDES the word range in LENGTH above. The reel runs ${REEL_MIN_SECONDS} to ${REEL_MAX_SECONDS} seconds, so the whole voiceover is ${REEL_WORDS.min} to ${REEL_WORDS.max} spoken words, never more than ${REEL_WORDS.max}: aim for about ${REEL_AIM_WORDS}, because drafts have consistently come out 10 to 20 words shorter than the writer counted. Short scripts have been the problem, so count word by word before you return: under ${REEL_WORDS.min} means the Explanation or the Example is thin, and it is filled with substance from the source (its figures, names and specifics), never padding.
 - CTA FOR THIS DASHBOARD, as the team requested it (the "when a CTA is requested" case): Frontier AI developments, Brand strategy lessons and Marketing stunts end on exactly "Follow for daily AI and marketing updates. See you tomorrow." AI tool workflows end on "Comment KEYWORD and I'll send you the full step-by-step guide." with one keyword in capitals from that reel's tool or task. The team has confirmed it sends that guide to every commenter, so in that lane only, this promise is allowed.
-- EVERY REEL CLOSES ON A MEMORABLE THOUGHT, in every lane, before the sign-off: what it means, the bigger point, or a lesson where the story genuinely carries one; a lesson is never forced in. An example is not a closing thought; never go from the example straight to the sign-off. Never a general benefit ("enhancing their experience", "in a more engaging way").
+- EVERY REEL CLOSES ON ITS POINT, in every lane, as his posted reels do: the line before the sign-off is the takeaway, what this means for the viewer's business or work, or the lesson ("Here's what matters for your business…", "The lesson? …", "Remember, …"). An example is not a takeaway; never go from the example straight to the sign-off. The takeaway is PRACTICAL: one thing the viewer can do or check this week, or a specific lesson ("So add one question to every client check-in. Is the website updated?"), never a general benefit ("enhancing their experience", "in a more engaging way").
 - The script's first line is the hook. The two alternative opening lines are the two alternative hooks, and each must lead into the same script.
 - EVERY HOOK IS ABOUT THE SCRIPT'S SUBJECT, in every lane: it names the tool, brand, campaign or development the reel is about ("X just launched a tool that writes your ads for you."). A hook never opens on the everyday example or a hypothetical ("Imagine…", "Let's say you run a bakery…", "What if…", "Picture…"): that is the Example's job, after the subject is on the table. A hook that could open a reel about something else is wrong.
 - The on-screen text suggestions go in the shots' onScreenText: at most three across the whole reel, empty in every other shot.
@@ -174,41 +174,26 @@ export const DASHBOARD_HANDOVER = `DASHBOARD HANDOVER — the team requests thes
 export const PRITESH_VOICE = [INTRO, MY_VOICE, DELIVERY, AVOID, ACCURACY].join("\n");
 
 /**
- * How a reel should sound: Pritesh explaining an interesting development to
- * one person, not a news report (the team's brief, 30 Oct 2026). The team set
- * two of the dashboard's scripts side by side: "Tone 1" (Amul playing both
- * ends of the market) is how he sounds; "Tone 2" (Apple Music's rebrand) is
- * what the dashboard was writing: facts one after another, "Here's what I
- * find smart", a lesson bolted on. This replaces the earlier block of posted-
- * reel patterns, which asked for that phrase and a lesson in every reel.
- * Labelled, never edited into his brief; his brief still governs everything
- * it covers.
+ * What the reels he actually posted do that his brief does not spell out
+ * (added by the dashboard, 30 Oct 2026). Read from the nine scripts in the
+ * Master Tracker (14-26 Oct) against 39 the dashboard wrote: his have a turn
+ * line before the insight (6 of 9), his own view, one question answered at
+ * once, the real story as the example (he uses "Imagine" in 2 of 9, the
+ * dashboard in most), an everyday picture for a technical term, an honest
+ * caveat, and the lesson said out loud. Labelled, and never edited into his
+ * brief; where it could seem to differ, his brief still governs accuracy.
  */
-export const POSTED_REEL_PATTERNS = `HOW A REEL SHOULD SOUND (the team's brief, added by the dashboard; his brief above still governs everything it covers):
-Pritesh is personally explaining an interesting development to one person. A conversation, never a news report, an article summary or someone reading a prepared summary.
-- BUILD CURIOSITY BEFORE THE DETAILS. Do not list the facts one after another. Let the story unfold: an interesting observation, then what happened in simple words, then the surprising details one at a time, then why they matter.
-- CONNECT THE FACTS with conversational transitions, never a list: "Sounds like two very different strategies, right?" / "But there's a bigger plan here." / "But notice something important." / "Now think about why." / "And this is where it gets interesting."
-- EXPLAIN WHY IT IS INTERESTING, not only what happened, and give enough context that someone new to the story follows it.
-- HIS INTERPRETATION: look beyond the news to the business or marketing strategy behind it, as an experienced marketer would, in plain words. Never through a stock phrase.
-- A QUESTION NOW AND THEN to keep curiosity: one or two, each answered.
-- A TECHNICAL TERM IS EXPLAINED, in everyday words, the moment it appears.
-- SHORT, NATURAL SENTENCES, one idea per line, everyday English, spoken to "you".
-- KEEP TONE 2'S STRENGTHS: concise, strong factual detail from the source, good pacing, clear structure, made for short video.
-- A flexible flow, never a template: hook (an interesting observation or a curious question), context, discovery (the details revealed progressively), explanation (why they matter), perspective (the marketing or business point), closing (a memorable thought).
-- DO NOT FORCE A MARKETING LESSON INTO EVERY SCRIPT. End on a memorable thought; a lesson only where the story genuinely carries one.
-- NEVER: "Here's what I find smart", "This is a game changer", "In today's digital world", formal news-reporting language, or the same idea repeated in different words.
-- THE MODEL TO SOUND LIKE (his tone, for HOW it is written; never reuse its facts or sentences):
-"How is Amul playing both ends of the market?
-On one side, it sells affordable ice cream that millions of Indians can enjoy.
-On the other, it is opening premium ice cream lounges and offering flavours like Belgian Biscoff and Peruvian Toffee.
-Sounds like two very different strategies, right?
-But there's a bigger plan here.
-Amul has built its brand around value for money. It wants ice cream to be accessible, not just an occasional luxury.
-And now, it's also targeting consumers who are willing to pay more for a premium experience.
-But notice something important.
-Amul isn't abandoning affordability to go premium.
-It's expanding its market while keeping its core promise intact."
-- FINAL TEST, silently, before returning: would Pritesh naturally say these sentences while explaining this to someone? If it sounds like a journalist reading the news, or an AI summarising an article, rewrite it. It is ready when it sounds like an experienced marketer sharing an interesting observation and explaining why it matters.`;
+export const POSTED_REEL_PATTERNS = `HOW HIS POSTED REELS ARE WRITTEN (added by the dashboard from the reels Pritesh actually posted; his brief above still governs everything it covers):
+- A TURN LINE before the insight, in its own short line: "But here's the clever part." / "Here's the smart part." / "But Auto Browse is the really interesting part." / "But here's where I'd be careful."
+- HIS OWN VIEW, once, in the first person: "Here's what I find smart." / "Here's where I'd be careful." He judges the story; he does not only report it.
+- ONE QUESTION, answered in the next line: "Why Oreo? The two brands already have a fun rivalry on social media." / "Why does this matter?" Never more than one, never left unanswered.
+- THE REAL STORY IS THE EXAMPLE. The specifics of the story itself (the agency, the city, the billboard, the campaign name, the figure) make it concrete. Use "Imagine…" or "Let's say…" only when the source gives nothing concrete to show, at most once, clearly marked as hypothetical.
+- A TECHNICAL TERM GETS AN EVERYDAY PICTURE right after it: "Think of these as the parts that help AI learn." / "Think of it like a restaurant kitchen. Not every chef needs to work on every order." / "Running AI is like running a large office."
+- ONE HONEST CAVEAT where the story has a limit: "Of course, sensitive actions like purchases still require your confirmation." / "That doesn't mean your entire customer support bill drops by 75%."
+- MARKETING REELS NAME THE CREDITS: the agency ("made by agency Courage"), the place ("billboards in Canada"), the campaign name in quotes.
+- A REVEAL IN TWO BEATS where there is one: "The result? 'Hu Dis?' It sounds like 'Who dis?'"
+- RHYTHM: one idea per line, and lines that start with "But", "And", "So" or "Now" carry the story forward ("Now, they're taking that fight to the streets.").
+- THE LESSON SAID OUT LOUD before the sign-off: "The lesson? …" / "That's a lesson for brands: …" / "That's how you turn a brand personality into advertising."`;
 
 /** A carousel is read, not spoken. The same voice, laid out slide by slide. */
 export const INSTAGRAM_CAROUSEL = `
