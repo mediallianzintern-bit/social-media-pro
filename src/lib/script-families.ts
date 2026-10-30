@@ -58,7 +58,7 @@ export const FAMILY: Record<ScriptFamily, FamilyShape> = {
     structure: [
       "opening: a problem the viewer recognises, or an honest question, with the tool or development named naturally",
       "explanation: what it actually does, in simple words, its one most useful capability only, never a feature list",
-      "example: one familiar business situation where it helps (“Let's say…”)",
+      "example: the story's own specifics first (who uses it, what it did, the figure); only when the source gives nothing concrete, one familiar business situation, clearly marked (“Let's say…”)",
       "closing: one practical next step the viewer could take, or a clear takeaway",
     ],
     ending:

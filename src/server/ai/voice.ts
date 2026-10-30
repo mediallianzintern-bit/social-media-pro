@@ -173,6 +173,28 @@ export const DASHBOARD_HANDOVER = `DASHBOARD HANDOVER — the team requests thes
  */
 export const PRITESH_VOICE = [INTRO, MY_VOICE, DELIVERY, AVOID, ACCURACY].join("\n");
 
+/**
+ * What the reels he actually posted do that his brief does not spell out
+ * (added by the dashboard, 30 Oct 2026). Read from the nine scripts in the
+ * Master Tracker (14-26 Oct) against 39 the dashboard wrote: his have a turn
+ * line before the insight (6 of 9), his own view, one question answered at
+ * once, the real story as the example (he uses "Imagine" in 2 of 9, the
+ * dashboard in most), an everyday picture for a technical term, an honest
+ * caveat, and the lesson said out loud. Labelled, and never edited into his
+ * brief; where it could seem to differ, his brief still governs accuracy.
+ */
+export const POSTED_REEL_PATTERNS = `HOW HIS POSTED REELS ARE WRITTEN (added by the dashboard from the reels Pritesh actually posted; his brief above still governs everything it covers):
+- A TURN LINE before the insight, in its own short line: "But here's the clever part." / "Here's the smart part." / "But Auto Browse is the really interesting part." / "But here's where I'd be careful."
+- HIS OWN VIEW, once, in the first person: "Here's what I find smart." / "Here's where I'd be careful." He judges the story; he does not only report it.
+- ONE QUESTION, answered in the next line: "Why Oreo? The two brands already have a fun rivalry on social media." / "Why does this matter?" Never more than one, never left unanswered.
+- THE REAL STORY IS THE EXAMPLE. The specifics of the story itself (the agency, the city, the billboard, the campaign name, the figure) make it concrete. Use "Imagine…" or "Let's say…" only when the source gives nothing concrete to show, at most once, clearly marked as hypothetical.
+- A TECHNICAL TERM GETS AN EVERYDAY PICTURE right after it: "Think of these as the parts that help AI learn." / "Think of it like a restaurant kitchen. Not every chef needs to work on every order." / "Running AI is like running a large office."
+- ONE HONEST CAVEAT where the story has a limit: "Of course, sensitive actions like purchases still require your confirmation." / "That doesn't mean your entire customer support bill drops by 75%."
+- MARKETING REELS NAME THE CREDITS: the agency ("made by agency Courage"), the place ("billboards in Canada"), the campaign name in quotes.
+- A REVEAL IN TWO BEATS where there is one: "The result? 'Hu Dis?' It sounds like 'Who dis?'"
+- RHYTHM: one idea per line, and lines that start with "But", "And", "So" or "Now" carry the story forward ("Now, they're taking that fight to the streets.").
+- THE LESSON SAID OUT LOUD before the sign-off: "The lesson? …" / "That's a lesson for brands: …" / "That's how you turn a brand personality into advertising."`;
+
 /** A carousel is read, not spoken. The same voice, laid out slide by slide. */
 export const INSTAGRAM_CAROUSEL = `
 FORMAT — INSTAGRAM CAROUSEL, when the idea is a carousel rather than a reel. The same voice and the
@@ -483,5 +505,11 @@ export const LINKEDIN_VOICE = [LINKEDIN_VOICE_PROMPT, LINKEDIN_READING].join("\n
 export function voiceFor(platform: PlatformId): string {
   if (platform === "linkedin") return LINKEDIN_VOICE;
   if (platform !== "instagram") return "";
-  return [INSTAGRAM_MASTER_PROMPT, MY_BRIEF, DASHBOARD_HANDOVER, INSTAGRAM_CAROUSEL].join("\n\n");
+  return [
+    INSTAGRAM_MASTER_PROMPT,
+    MY_BRIEF,
+    DASHBOARD_HANDOVER,
+    POSTED_REEL_PATTERNS,
+    INSTAGRAM_CAROUSEL,
+  ].join("\n\n");
 }

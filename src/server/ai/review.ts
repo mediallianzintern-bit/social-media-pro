@@ -35,7 +35,12 @@ import { workflowCtaIssue } from "@/lib/tool-workflow";
 import { HYPOTHETICAL_OPENER, hookIssue } from "@/lib/hook-check";
 import { NO_RULES, type LearnedRules } from "@/lib/reel-learning-types";
 import { HOOK_TYPE_LABEL, hookTypeOf } from "@/lib/reel-parts";
-import { DASHBOARD_HANDOVER, INSTAGRAM_MASTER_PROMPT, INSTAGRAM_REVIEW_PROMPT } from "./voice";
+import {
+  DASHBOARD_HANDOVER,
+  INSTAGRAM_MASTER_PROMPT,
+  INSTAGRAM_REVIEW_PROMPT,
+  POSTED_REEL_PATTERNS,
+} from "./voice";
 import { REEL_AIM_WORDS, REEL_MAX_SECONDS, REEL_MIN_SECONDS, REEL_WORDS } from "@/lib/reel-length";
 
 const REVIEW_MODEL_DEFAULT = "gpt-4o";
@@ -214,7 +219,9 @@ Anything the draft states beyond this headline, such as how the tool works, whic
 function reviewSystem(lane: string | null): string {
   const workflow =
     lane && isAiToolWorkflowLane(lane) ? toolWorkflowPrompt("instagram", [lane]) : "";
-  return [INSTAGRAM_MASTER_PROMPT, DASHBOARD_HANDOVER, workflow].filter(Boolean).join("\n\n");
+  return [INSTAGRAM_MASTER_PROMPT, DASHBOARD_HANDOVER, POSTED_REEL_PATTERNS, workflow]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 /**
@@ -249,6 +256,16 @@ const STILL_THE_EXAMPLE = /\b(imagine|let'?s say|for example|for instance|suppos
  */
 const GENERAL_BENEFIT =
   /\b(enhanc\w*|in a more \w+ way|better (customer |user )?experiences?|more (engaging|genuine|meaningful|personal)|seamless\w*|elevat\w*)\b/i;
+/** A hypothetical example opening, counted across the voiceover. */
+const HYPOTHETICAL_LINE = /\b(imagine|let['’]?s say|suppose|picture this)\b/gi;
+/**
+ * A turn line before the insight, the way his posted reels pivot: "But here's
+ * the clever part.", "But Auto Browse is the really interesting part.",
+ * "Now, think about the bigger picture.", "Here’s what matters…". Curly
+ * apostrophes included: his scripts use them.
+ */
+const TURN_LINE =
+  /\b(here['’]?s (the|what|where|why|how)|but here['’]?s|the (really |most )?(clever|smart|interesting|real|important|bigger) (part|picture)|why does (this|it) matter|what (this|that) means|here is (the|what))\b/i;
 /** A last line that is the reel's sign-off rather than its point. */
 const SIGN_OFF = /follow for daily|see you tomorrow|\bcomment \W*[A-Z]{2,}/i;
 
@@ -257,9 +274,10 @@ prompt above are replaced by the team's ${REEL_WORDS.min}–${REEL_WORDS.max} wo
 ${REEL_AIM_WORDS} spoken words: your own counts have run 10 to 20 words high, so count word by word. A script
 under ${REEL_WORDS.min} words is too short, whatever his brief says.
 LENGTH WITHOUT INVENTING: reach ${REEL_WORDS.min}–${REEL_WORDS.max} spoken words (a ${REEL_MIN_SECONDS}–${REEL_MAX_SECONDS} second reel) through the Explanation and the Example,
-never through invented facts or filler. When the source is only a headline, the Example is a
-clearly hypothetical business situation ("Let's say you run a small bakery…") showing how the
-viewer would use it. Count the words across every shot's voiceover before returning.`;
+never through invented facts or filler. The story's own specifics are the Example; only when the
+source is a headline with nothing concrete to show is the Example a clearly hypothetical business
+situation ("Let's say you run a small bakery…"), and then only once. Count the words across every
+shot's voiceover before returning.`;
 
 const WORKFLOW_GUIDANCE = `AI TOOL WORKFLOW: in this lane the EXAMPLE IS THE WORKFLOW, SHOWN. Set up the example in one
 line ("Let's say you run a small bakery."), then show 2–4 steps the viewer does, each its OWN short
@@ -331,7 +349,9 @@ const spokenWords = (review: ReviewResult) =>
 function weightOf(problem: string): number {
   if (isLengthProblem(problem) || /the script uses “|formula|opener/.test(problem)) return 3;
   if (
-    /hook ".*" (opens on|never names)|takeaway|specific researched facts|workflow/.test(problem)
+    /hook ".*" (opens on|never names)|takeaway|specific researched facts|workflow|hypothetical examples|turn line/.test(
+      problem,
+    )
   ) {
     return 2;
   }
@@ -397,6 +417,23 @@ function problemsOf(
       `the line before the sign-off is not a takeaway ("${point.slice(0, 80)}"); end on what this ` +
         `means for the viewer's business or work, or the lesson, as his posted reels do ` +
         `("Here's what matters for your business…", "The lesson? …"). An example is not a takeaway`,
+    );
+  }
+
+  // How his posted reels are written (voice.ts POSTED_REEL_PATTERNS), held in
+  // code where it can be counted: the real story is the example, so at most
+  // one "Imagine… / Let's say…", and a turn line before the insight. A
+  // workflow reel sets up one scene and shows steps, so the turn line is not
+  // asked of it.
+  const hypotheticals = spoken.match(HYPOTHETICAL_LINE) ?? [];
+  if (hypotheticals.length > 1) {
+    problems.push(
+      `the script uses ${hypotheticals.length} hypothetical examples ("Imagine…", "Let's say…"); his posted reels use the story's own specifics as the example, so keep at most one`,
+    );
+  }
+  if (!(lane && isAiToolWorkflowLane(lane)) && !TURN_LINE.test(spoken)) {
+    problems.push(
+      `the script has no turn line before the insight; add one short line as his posted reels do ("But here's the clever part.", "Here's what I find smart.", "But here's where I'd be careful.")`,
     );
   }
 
