@@ -327,6 +327,12 @@ export async function assignToLanes(
   handle: string,
   posts: PostRecord[],
   lanes: Array<{ name: string; definition: string }>,
+  options: {
+    /** Hold the result as a proposal for approval (his posts), or not (a competitor's). */
+    store?: boolean;
+    /** The default model, for competitors' posts: volume, not his own lanes. */
+    cheap?: boolean;
+  } = {},
 ): Promise<{
   id: string | null;
   counts: Record<string, number>;
@@ -352,7 +358,7 @@ Use a lane name exactly as written. "other" only when a post truly fits none.`,
         .join("\n\n"),
       schemaName: "linkedin_lane_assignment",
       schema: assignSchema as unknown as Record<string, unknown>,
-      model: reviewModel(),
+      ...(options.cheap ? {} : { model: reviewModel() }),
       temperature: 0,
       effort: "low",
       timeoutMs: 120_000,
@@ -375,7 +381,7 @@ Use a lane name exactly as written. "other" only when a post truly fits none.`,
   for (const entry of assignments) counts[entry.lane] = (counts[entry.lane] ?? 0) + 1;
 
   let id: string | null = null;
-  if (hasDurableStore()) {
+  if (options.store !== false && hasDurableStore()) {
     const { data } = await db()
       .from("content_proposals")
       .insert({
