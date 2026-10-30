@@ -118,10 +118,13 @@ export function linkedInProfileInput(accounts: TrackedAccount[]): unknown {
   };
 }
 
-export function linkedInPostsInput(accounts: TrackedAccount[]): unknown {
+export function linkedInPostsInput(
+  accounts: TrackedAccount[],
+  maxPosts: number = POSTS_PER_SYNC,
+): unknown {
   return {
     targetUrls: accounts.map((account) => account.profileUrl),
-    maxPosts: POSTS_PER_SYNC,
+    maxPosts,
     scrapeReactions: false,
     scrapeComments: false,
   };
@@ -221,9 +224,9 @@ async function profilesFromFallback(accounts: TrackedAccount[]) {
   };
 }
 
-async function postsFromHarvest(accounts: TrackedAccount[]) {
-  const run = await runActor(LINKEDIN_POSTS_ACTOR, linkedInPostsInput(accounts));
-  return datasetItems<LiPost>(run.datasetId, POSTS_PER_SYNC * accounts.length);
+async function postsFromHarvest(accounts: TrackedAccount[], maxPosts: number = POSTS_PER_SYNC) {
+  const run = await runActor(LINKEDIN_POSTS_ACTOR, linkedInPostsInput(accounts, maxPosts));
+  return datasetItems<LiPost>(run.datasetId, maxPosts * accounts.length);
 }
 
 async function postsFromFallback(accounts: TrackedAccount[]) {
@@ -263,7 +266,11 @@ async function firstWorking<T>(
   throw firstError;
 }
 
-export async function fetchLinkedIn(accounts: TrackedAccount[]): Promise<{
+export async function fetchLinkedIn(
+  accounts: TrackedAccount[],
+  /** Posts per profile. Competitors are read with fewer, once a week (sync.ts). */
+  maxPosts: number = POSTS_PER_SYNC,
+): Promise<{
   runId: string;
   profiles: LiProfile[];
   posts: LiPost[];
@@ -287,7 +294,7 @@ export async function fetchLinkedIn(accounts: TrackedAccount[]): Promise<{
   const posts = await firstWorking("posts", [
     {
       actor: LINKEDIN_POSTS_ACTOR,
-      run: () => postsFromHarvest(accounts),
+      run: () => postsFromHarvest(accounts, maxPosts),
       empty: (got) => !got.length,
     },
     {

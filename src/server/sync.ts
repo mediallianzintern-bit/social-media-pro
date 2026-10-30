@@ -234,10 +234,44 @@ async function withLastKnown(
   };
 }
 
+/** LinkedIn competitors' posts read per weekly pass. */
+const COMPETITOR_POSTS_PER_WEEK = 10;
+const COMPETITOR_EVERY_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Whether a week has passed since any competitor was last read (or one never was). */
+async function competitorReadDue(
+  platform: PlatformId,
+  competitors: Array<{ handle: string }>,
+): Promise<boolean> {
+  const snapshots = await Promise.all(
+    competitors.map((account) => latestSnapshot(platform, account.handle).catch(() => null)),
+  );
+  return snapshots.some(
+    (snapshot) => !snapshot || Date.now() - Date.parse(snapshot.capturedAt) >= COMPETITOR_EVERY_MS,
+  );
+}
+
 export async function syncLinkedIn(trigger: "manual" | "schedule"): Promise<SyncOutcome> {
-  const accounts = await trackedAccounts("linkedin");
+  const tracked = await trackedAccounts("linkedin");
   const capturedAt = new Date().toISOString();
-  const { runId, profiles, posts, sources } = await fetchLinkedIn(accounts);
+  // His own profile and posts every day; competitors' once a week, ten posts
+  // each. Seven large creators read daily at 30 posts would cost about $12 a
+  // month on Apify, well past the $5 allowance (30 Oct 2026); weekly at 10 is
+  // about $0.60, and a week of their posts is plenty to benchmark against.
+  const competitors = tracked.filter((account) => account.role === "competitor");
+  const competitorsDue =
+    competitors.length > 0 && (await competitorReadDue("linkedin", competitors));
+  const accounts = competitorsDue
+    ? tracked
+    : tracked.filter((account) => account.role !== "competitor");
+  const daily = await fetchLinkedIn(accounts.filter((account) => account.role !== "competitor"));
+  const weekly = competitorsDue
+    ? await fetchLinkedIn(competitors, COMPETITOR_POSTS_PER_WEEK)
+    : null;
+  const runId = daily.runId;
+  const sources = daily.sources;
+  const profiles = [...daily.profiles, ...(weekly?.profiles ?? [])];
+  const posts = [...daily.posts, ...(weekly?.posts ?? [])];
   if (sources.profiles !== LINKEDIN_PROFILE_ACTOR || sources.posts !== LINKEDIN_POSTS_ACTOR) {
     console.info(
       `[sync:linkedin] backup scraper used: profiles from ${sources.profiles}, posts from ${sources.posts}`,
