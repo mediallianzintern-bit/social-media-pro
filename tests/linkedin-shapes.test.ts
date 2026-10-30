@@ -9,7 +9,7 @@ describe("LinkedIn lane shapes", () => {
   it("has a shape for each of his LinkedIn lanes", () => {
     for (const name of [
       "AI launches explained",
-      "AI changing ads and search",
+      "AI X Marketing Bridge",
       "AI risks and security",
       "Marketing fundamentals",
       "Content and creator craft",
@@ -26,7 +26,7 @@ describe("LinkedIn lane shapes", () => {
   });
 
   it("keeps the reel's shot list and sign-off out of a LinkedIn post", () => {
-    const block = linkedInShapesBlock([{ name: "AI changing ads and search", definition: "" }]);
+    const block = linkedInShapesBlock([{ name: "AI X Marketing Bridge", definition: "" }]);
     expect(block).toContain("150 to 300 words");
     expect(block).toContain("♻️ Repost to help");
     expect(block).not.toMatch(/shot list|See you tomorrow|voiceover/i);

@@ -47,7 +47,7 @@ export interface LinkedInShape {
 }
 
 const SHAPES: Record<string, LinkedInShape> = {
-  "ai changing ads and search": {
+  "ai x marketing bridge": {
     is: "how AI is changing advertising, search and shopping (an ad platform's move, AI search, how customers find products), and what it changes for marketers",
     opening:
       "Name the brand or platform and the move in the first line, with its figure where there is one (“McDonald’s wants to make $1 billion from advertising.”). A personal moment works too when it is real (“I almost approved an AI-generated campaign. Then one sentence stopped me.”).",
@@ -133,7 +133,7 @@ const SHAPES: Record<string, LinkedInShape> = {
 const FALLBACK: Array<[RegExp, string]> = [
   [/\b(security|cyber|risks?|breach|vulnerab\w*|safety)\b/i, "ai risks and security"],
   [/\b(reflections?|lessons?|purpose|career|personal)\b/i, "reflections"],
-  [/\b(advertis\w*|ads?|search|shopping|ad tech)\b/i, "ai changing ads and search"],
+  [/\b(advertis\w*|ads?|search|shopping|ad tech|bridge)\b/i, "ai x marketing bridge"],
   [/\b(creators?|content|youtube|video)\b/i, "content and creator craft"],
   [
     /\b(tool|tools|model|models|launch\w*|feature\w*|platform|developments?)\b/i,
