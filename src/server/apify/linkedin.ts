@@ -20,6 +20,8 @@ import type { ScrapedArticle } from "@/lib/linkedin-articles";
 
 export const LINKEDIN_PROFILE_ACTOR = "harvestapi/linkedin-profile-scraper";
 export const LINKEDIN_POSTS_ACTOR = "harvestapi/linkedin-profile-posts";
+/** Characters of a LinkedIn post kept: his longest run about 2,800. */
+const LINKEDIN_CAPTION_MAX = 4000;
 /** Fallbacks, used only when the harvestapi actor above fails or returns nothing. */
 export const LINKEDIN_PROFILE_FALLBACK = "thescrappa/linkedin-profile-scraper";
 export const LINKEDIN_POSTS_FALLBACK = "datadoping/linkedin-profile-posts-scraper";
@@ -88,7 +90,14 @@ export function normalizeLinkedInPosts(posts: LiPost[], handle?: string): PostRe
       platform: "linkedin" as const,
       postId: post.id!,
       ...(post.linkedinUrl ? { url: post.linkedinUrl } : {}),
-      caption: (post.content ?? "").replace(/\s+/g, " ").trim().slice(0, 300),
+      // The whole post, paragraphs kept: lanes, content analysis and the
+      // competitor benchmark read what a post says, not its first 50 words
+      // (the old 300-character cut). Capped well above his longest posts.
+      caption: (post.content ?? "")
+        .replace(/[ \t]+/g, " ")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim()
+        .slice(0, LINKEDIN_CAPTION_MAX),
       // A post sharing one of the author's LinkedIn articles is an article.
       format: post.article?.title ? ("article" as const) : ("text" as const),
       publishedAt: post.postedAt!.date!,
