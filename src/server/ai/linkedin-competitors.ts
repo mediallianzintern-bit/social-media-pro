@@ -39,11 +39,27 @@ import { hasDurableStore, readPosts, readTaxonomy } from "../store";
 const db = () => supabaseAdmin as any;
 
 const POST_SEARCH_ACTOR = "harvestapi/linkedin-post-search";
-const POSTS_PER_QUERY = 25;
+const POSTS_PER_QUERY = 50;
 const CANDIDATES = 12;
 const POSTS_PER_CANDIDATE = 10;
-/** Below this share of posts in his lanes, a candidate does not write what he writes. */
-const MIN_OVERLAP = 0.4;
+/**
+ * Below this share of their own recent posts on his subjects, a candidate
+ * does not write what he writes. Reflections do not count: everyone posts
+ * personal lessons, so they say nothing about a shared subject.
+ */
+const MIN_OVERLAP = 0.5;
+/**
+ * A candidate must have written at least this many of the searched posts: one
+ * post on a topic is chance, not a creator who covers it (the first run's
+ * candidates had one each, 30 Oct 2026).
+ */
+const MIN_MATCHED_POSTS = 2;
+/** Median reactions, comments and reposts per post: below it there is no audience to benchmark. */
+const MIN_MEDIAN_ENGAGEMENT = 20;
+/** The same floor, looser, on the searched posts, before paying to read their own. */
+const MIN_SEARCHED_ENGAGEMENT = 10;
+/** Lanes that say nothing about a shared subject. */
+const NOT_A_SUBJECT = new Set(["other", "reflections"]);
 
 interface SearchedPost {
   id?: string;
@@ -104,8 +120,10 @@ async function searchQueries(
 ): Promise<{ queries: Array<{ lane: string; query: string }>; cost: GenerationCost | undefined }> {
   const result = await completeJson<unknown>({
     system: `Write LinkedIn POST search queries that find posts on the same subjects as one creator's posts.
-One query per lane, 2 to 5 plain keywords, the way someone would type them into LinkedIn's search to
-find posts (not people). Use the subjects his posts actually cover, not job titles, and no hashtags.`,
+Two queries per lane, 2 to 4 CONCRETE keywords each: a real brand, platform, product or named issue
+from the subjects his posts cover ("Meta AI ads", "ChatGPT ads", "AI search SEO", "AI agent security",
+"brand recall advertising"), never an abstract phrase ("AI's potential for business insights"). The
+way someone would type it into LinkedIn's search to find posts, not people. No hashtags.`,
     user: lanes
       .map(
         (lane) =>
@@ -130,14 +148,8 @@ find posts (not people). Use the subjects his posts actually cover, not job titl
  * Finds LinkedIn competitors by their posts and holds the shortlist for
  * approval. Spends Apify credit: only from an explicit request.
  */
-export async function findLinkedInCompetitors(): Promise<{
-  id: string | null;
-  queries: Array<{ lane: string; query: string }>;
-  candidates: CandidateEvidence[];
-  rejected: CandidateEvidence[];
-  cost: GenerationCost | undefined;
-}> {
-  const owner = OWNER_ACCOUNTS.linkedin.handle.toLowerCase();
+/** His lanes, the strict version used to file anyone's posts, his subjects per lane and his formats. */
+async function hisProfile() {
   const [lanes, ownPosts] = await Promise.all([
     readTaxonomy("linkedin", OWNER_ACCOUNTS.linkedin.handle).then((value) => value ?? []),
     readPosts("linkedin", OWNER_ACCOUNTS.linkedin.handle, 400),
@@ -164,35 +176,32 @@ export async function findLinkedInCompetitors(): Promise<{
       .map(([format]) => format),
   );
 
-  // 1-2. Search posts on his subjects; the authors are the candidates.
-  const { queries, cost: queryCost } = await searchQueries(lanes, topicsByLane);
-  let cost = queryCost;
-  const { datasetId } = await runActor(POST_SEARCH_ACTOR, {
-    searchQueries: queries.map((entry) => entry.query),
-    maxPosts: POSTS_PER_QUERY,
-    postedLimit: "month",
-    sortBy: "relevance",
-  });
-  const found = await datasetItems<SearchedPost>(datasetId, 1000);
-  const byAuthor = new Map<string, { name: string; url: string; posts: number }>();
-  for (const post of found) {
-    const handle = post.author?.publicIdentifier?.toLowerCase();
-    // People only: a company page is not a creator to benchmark against.
-    if (!handle || handle === owner || post.author?.type === "company") continue;
-    if (!post.author?.linkedinUrl?.includes("/in/")) continue;
-    const entry = byAuthor.get(handle) ?? {
-      name: post.author.name ?? handle,
-      url: post.author.linkedinUrl,
-      posts: 0,
-    };
-    entry.posts += 1;
-    byAuthor.set(handle, entry);
-  }
-  const shortlist = [...byAuthor].sort((a, b) => b[1].posts - a[1].posts).slice(0, CANDIDATES);
-  if (!shortlist.length) {
-    return { id: null, queries, candidates: [], rejected: [], cost };
-  }
+  const strictLanes = [
+    ...lanes.map((lane) => ({
+      name: lane.name,
+      definition: `${lane.definition} Only when the post is clearly about this subject.`,
+    })),
+    {
+      name: "other",
+      definition:
+        "Anything not clearly about one lane's subject: course or training adverts, job posts, company news, events, greetings.",
+    },
+  ];
+  return { lanes, strictLanes, topicsByLane, hisFormats };
+}
 
+type Shortlisted = [string, { name: string; url: string; posts: number }];
+
+/**
+ * Reads each shortlisted creator's recent posts, analyses them like his, files
+ * them under his lanes and scores them on those posts alone.
+ */
+async function judgeShortlist(
+  shortlist: Shortlisted[],
+  profile: Awaited<ReturnType<typeof hisProfile>>,
+) {
+  const { lanes, strictLanes, hisFormats } = profile;
+  let cost: GenerationCost | undefined;
   // 3. Their own recent posts, read and analysed like his.
   const run = await runActor(LINKEDIN_POSTS_ACTOR, {
     targetUrls: shortlist.map(([, entry]) => entry.url),
@@ -217,11 +226,13 @@ export async function findLinkedInCompetitors(): Promise<{
     postsByHandle.set(handle, theirs);
     const analysed = await analysePosts(handle, theirs);
     cost = addCosts(cost, analysed.cost);
-    const filed = await assignToLanes(handle, theirs, lanes, { store: false, cheap: true });
+    // His lanes, read strictly by the review model: a course advert, a job
+    // post or an event is "other", and a personal lesson is not a subject.
+    const filed = await assignToLanes(handle, theirs, strictLanes, { store: false });
     cost = addCosts(cost, filed.cost);
     const theirAnalyses = await readAnalyses([handle]);
 
-    const inLanes = filed.assignments.filter((row) => row.lane !== "other");
+    const inLanes = filed.assignments.filter((row) => !NOT_A_SUBJECT.has(row.lane.toLowerCase()));
     const laneCounts: Record<string, number> = {};
     for (const row of inLanes) laneCounts[row.lane] = (laneCounts[row.lane] ?? 0) + 1;
     const overlap = theirs.length ? inLanes.length / theirs.length : 0;
@@ -248,28 +259,129 @@ export async function findLinkedInCompetitors(): Promise<{
     });
   }
 
-  const candidates = evidence
-    .filter((candidate) => candidate.overlap >= MIN_OVERLAP)
-    .sort((a, b) => b.score - a.score);
-  const rejected = evidence.filter((candidate) => candidate.overlap < MIN_OVERLAP);
+  const passes = (candidate: CandidateEvidence) =>
+    candidate.overlap >= MIN_OVERLAP && candidate.medianEngagement >= MIN_MEDIAN_ENGAGEMENT;
+  const candidates = evidence.filter(passes).sort((a, b) => b.score - a.score);
+  const rejected = evidence.filter((candidate) => !passes(candidate));
 
-  let id: string | null = null;
-  if (hasDurableStore()) {
-    const { data } = await db()
-      .from("content_proposals")
-      .insert({
-        platform: "linkedin",
-        kind: "competitors",
-        proposal: {
-          queries,
-          candidates,
-          rejected,
-          posts: Object.fromEntries(postsByHandle),
-        },
-      })
-      .select("id")
-      .single();
-    id = (data as { id?: string } | null)?.id ?? null;
+  return { candidates, rejected, postsByHandle, cost };
+}
+
+/** Holds a competitor shortlist for the team to approve. */
+async function storeShortlist(proposal: Record<string, unknown>): Promise<string | null> {
+  if (!hasDurableStore()) return null;
+  const { data } = await db()
+    .from("content_proposals")
+    .insert({ platform: "linkedin", kind: "competitors", proposal })
+    .select("id")
+    .single();
+  return (data as { id?: string } | null)?.id ?? null;
+}
+
+/**
+ * Judges creators the team or research named, by profile URL, on their own
+ * posts, the same way as the search does, and holds the result for approval.
+ * Spends Apify credit (about $0.02 a creator): only from an explicit request.
+ */
+export async function judgeLinkedInProfiles(urls: string[]): Promise<{
+  id: string | null;
+  candidates: CandidateEvidence[];
+  rejected: CandidateEvidence[];
+  missing: string[];
+  cost: GenerationCost | undefined;
+}> {
+  const profile = await hisProfile();
+  const shortlist: Shortlisted[] = urls
+    .map((url) => url.trim().replace(/\/$/, ""))
+    .map((url) => [/\/in\/([^/?#]+)/.exec(url)?.[1]?.toLowerCase() ?? "", url] as const)
+    .filter(([handle]) => handle)
+    .map(([handle, url]) => [handle, { name: handle, url, posts: 0 }]);
+  const judged = await judgeShortlist(shortlist, profile);
+  const seen = new Set([...judged.candidates, ...judged.rejected].map((c) => c.handle));
+  const missing = shortlist.map(([handle]) => handle).filter((handle) => !seen.has(handle));
+  const id = await storeShortlist({
+    source: "researched",
+    candidates: judged.candidates,
+    rejected: judged.rejected,
+    missing,
+    posts: Object.fromEntries(judged.postsByHandle),
+  });
+  return {
+    id,
+    candidates: judged.candidates,
+    rejected: judged.rejected,
+    missing,
+    cost: judged.cost,
+  };
+}
+
+export async function findLinkedInCompetitors(): Promise<{
+  id: string | null;
+  queries: Array<{ lane: string; query: string }>;
+  candidates: CandidateEvidence[];
+  rejected: CandidateEvidence[];
+  cost: GenerationCost | undefined;
+}> {
+  const owner = OWNER_ACCOUNTS.linkedin.handle.toLowerCase();
+  const profile = await hisProfile();
+  const { lanes, topicsByLane } = profile;
+
+  // 1-2. Search posts on his subjects; the authors are the candidates.
+  const { queries, cost: queryCost } = await searchQueries(
+    lanes.filter((lane) => !NOT_A_SUBJECT.has(lane.name.toLowerCase())),
+    topicsByLane,
+  );
+  let cost = queryCost;
+  const { datasetId } = await runActor(POST_SEARCH_ACTOR, {
+    searchQueries: queries.map((entry) => entry.query),
+    maxPosts: POSTS_PER_QUERY,
+    postedLimit: "3months",
+    sortBy: "relevance",
+  });
+  const found = await datasetItems<SearchedPost>(datasetId, 1000);
+  const byAuthor = new Map<
+    string,
+    { name: string; url: string; posts: number; engagement: number[] }
+  >();
+  for (const post of found) {
+    const handle = post.author?.publicIdentifier?.toLowerCase();
+    // People only: a company page is not a creator to benchmark against.
+    if (!handle || handle === owner || post.author?.type === "company") continue;
+    if (!post.author?.linkedinUrl?.includes("/in/")) continue;
+    const entry = byAuthor.get(handle) ?? {
+      name: post.author.name ?? handle,
+      url: post.author.linkedinUrl,
+      posts: 0,
+      engagement: [],
+    };
+    entry.posts += 1;
+    entry.engagement.push(
+      (post.engagement?.likes ?? 0) +
+        (post.engagement?.comments ?? 0) +
+        (post.engagement?.shares ?? 0),
+    );
+    byAuthor.set(handle, entry);
   }
+  // Consistency and an audience before paying to read their own posts.
+  const shortlist = [...byAuthor]
+    .filter(
+      ([, entry]) =>
+        entry.posts >= MIN_MATCHED_POSTS && median(entry.engagement) >= MIN_SEARCHED_ENGAGEMENT,
+    )
+    .sort((a, b) => b[1].posts - a[1].posts || median(b[1].engagement) - median(a[1].engagement))
+    .slice(0, CANDIDATES);
+  if (!shortlist.length) {
+    return { id: null, queries, candidates: [], rejected: [], cost };
+  }
+
+  const judged = await judgeShortlist(shortlist, profile);
+  cost = addCosts(cost, judged.cost);
+  const { candidates, rejected } = judged;
+  const id = await storeShortlist({
+    queries,
+    candidates,
+    rejected,
+    posts: Object.fromEntries(judged.postsByHandle),
+  });
   return { id, queries, candidates, rejected, cost };
 }
