@@ -54,8 +54,16 @@ export const OTHER_LANE = "other";
  */
 export const STALE_OTHER_SHARE = 0.2;
 
+/**
+ * What a post's lane is judged on. A LinkedIn post is read nearly in full: its
+ * opening alone (the old 300 characters, about 50 words of a 250-word post)
+ * filed posts by their first line and made the lanes overlap (Oct 2026).
+ */
 function captionFor(post: PostRecord): string {
-  return post.caption.replace(/\s+/g, " ").trim().slice(0, 300);
+  return post.caption
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, post.platform === "linkedin" ? 1800 : 300);
 }
 
 /** Derives the stable vocabulary for one account from its own captions. */

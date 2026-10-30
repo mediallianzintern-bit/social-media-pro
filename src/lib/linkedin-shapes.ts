@@ -26,9 +26,9 @@
 //   readers and one "♻️ Repost to help …" line, or "Follow for more digital
 //   marketing and AI insights."
 //
-// Keyed by the lane names the LinkedIn taxonomy holds on 29 Oct 2026 (rebuilt
-// from his LinkedIn posts that day), with the lane's subject words as a
-// fallback so a rename does not drop a lane back to no shape at all.
+// Keyed by the six LinkedIn lanes the team approved on 30 Oct 2026, built from
+// his posts read in full (server/ai/linkedin-content.ts), with the lane's
+// subject words as a fallback so a rename does not drop a lane to no shape.
 //
 // Client-safe. No model call.
 import type { ContentLane } from "@/lib/analytics-types";
@@ -47,8 +47,8 @@ export interface LinkedInShape {
 }
 
 const SHAPES: Record<string, LinkedInShape> = {
-  "advertising and ai": {
-    is: "what a brand or ad platform is doing with advertising or AI, and what it changes for marketers",
+  "ai changing ads and search": {
+    is: "how AI is changing advertising, search and shopping (an ad platform's move, AI search, how customers find products), and what it changes for marketers",
     opening:
       "Name the brand or platform and the move in the first line, with its figure where there is one (“McDonald’s wants to make $1 billion from advertising.”). A personal moment works too when it is real (“I almost approved an AI-generated campaign. Then one sentence stopped me.”).",
     middle: [
@@ -61,7 +61,7 @@ const SHAPES: Record<string, LinkedInShape> = {
       "End on the question it leaves a marketer with, specific to their own brand (“What customer touchpoint does your brand own that you are currently treating as ‘just marketing’?”).",
     best: "McDonald’s advertising business, 148 words, 503 impressions",
   },
-  "ai tools and developments": {
+  "ai launches explained": {
     is: "a new AI model, tool or platform feature, and what it means for how businesses and marketers work",
     opening:
       "Name the tool or model in the first line (“Meta just launched Muse, and this could change how we work with AI.”), or set up the obvious question and then the better one (“A new AI model launches and the first question is usually: Is it more powerful?”).",
@@ -75,7 +75,7 @@ const SHAPES: Record<string, LinkedInShape> = {
       "End by reframing the question the reader should be asking (“The interesting question isn’t only ‘How powerful is it?’ It is ‘How much work are we comfortable handing over to AI?’”).",
     best: "a Claude Haiku 5.5 article teaser, 93 words, 462 impressions; Meta Muse, 256 words, 424",
   },
-  "ai security concerns": {
+  "ai risks and security": {
     is: "a real AI security incident or risk, translated into what a business should check",
     opening:
       "Name the incident and its scale in the first line, factually (“AI just uncovered a security flaw that could put 70% of the world’s websites at risk.”). Alarming only as far as the facts go: never fear for its own sake.",
@@ -88,8 +88,8 @@ const SHAPES: Record<string, LinkedInShape> = {
       "End on the responsibility it puts on businesses, not only on IT (“Having a secure website is no longer just an IT responsibility. It is a business responsibility.”).",
     best: "AI agents escaping a sandbox, 183 words, 243 impressions",
   },
-  "digital marketing insights": {
-    is: "a marketing principle or shift (AI search, content quality, YouTube, measurement) argued with an example",
+  "content and creator craft": {
+    is: "how to make content that works: on camera, YouTube, creators, and the quality of AI-generated content",
     opening:
       "Open on a concrete, surprising contrast, never a general principle: “AI can help you create 100 pieces of content instead of 10. But what if those 100 pieces are just average?” or “Your website can rank #1 on Google and still be invisible when your customer asks AI.” Openings like “If everyone has access to AI, what will make a marketer stand out?” are his weakest posts here.",
     middle: [
@@ -101,31 +101,45 @@ const SHAPES: Record<string, LinkedInShape> = {
       "End on a memorable contrast pair (“AI can scale production. Your judgment has to scale quality.” / “SEO asks: Can I rank? AI search asks: Can I become the source?”).",
     best: "AI content volume vs quality, 201 words, 258 impressions; this is his weakest lane by impressions, so the opening rule above matters most here",
   },
-  "ai in business": {
-    is: "what AI changes in a business’s costs, work or competitive position",
+  "marketing fundamentals": {
+    is: "a marketing principle, measurement or a brand's business move, where AI is not the main subject",
     opening:
-      "Name the development and ask the business question in the first line (“OpenAI Just Made AI 50% Cheaper. Should Businesses Pay Attention?”).",
+      "Name the brand and its move, with its figure, in the first line (“McDonald’s wants to make $1 billion from advertising.”), or open on a sharp contrast in two short lines (“Millions of Impressions. Zero brand recall.”).",
     middle: [
-      "why it matters beyond the headline (“Not because AI is getting cheaper. But because tasks that were once too expensive to automate could now become affordable.”)",
-      "the everyday business tasks it touches (invoices, records, documents, repetitive workflows)",
-      "where human judgement still has to lead",
+      "what happened or what the evidence shows, from a named source (“A Gartner survey found that 81% of US consumers try to ignore or tune out ads.”)",
+      "the turn: why the obvious reading misses the point (“But the real opportunity isn't the screens. It is the customer journey.”)",
+      "the principle a marketer can take from it, with a short list of what to look at (“1. Attention 2. Brand recall 3. Business impact”)",
     ],
     ending:
-      "End on a short, quotable line about using AI well (“Use AI to accelerate your thinking. Don’t use it to replace your thinking.”).",
-    best: "too few posts with impressions to name one yet (2 posts)",
+      "End on the question it leaves a marketer with about their own brand (“What customer touchpoint does your brand own that you are currently treating as ‘just marketing’?”).",
+    best: "McDonald’s advertising business, 148 words, 503 impressions",
+  },
+  reflections: {
+    is: "a personal lesson on work, learning, decisions or purpose, told from his own experience",
+    opening:
+      "Open on a plain, honest observation or a real moment, in one or two short lines (“Sometimes we make the wrong decision. And sometimes things simply go wrong.” / “A student asked me this recently.”). Only experiences that really happened; never invent one.",
+    middle: [
+      "the situation, in a few short lines",
+      "where it shows up in business or marketing (“A campaign isn't working, but instead of changing the strategy, we put more money into it.”)",
+      "the turn: what he does differently, or the question that helps",
+    ],
+    ending:
+      "End on one short line worth remembering (“Your last decision doesn't have to decide your next one.”).",
+    best: "“I don't think we are born with one fixed purpose”, 155 words, 137 impressions",
   },
 };
 
 /** Subject words that place a renamed lane on one of the shapes above. */
 const FALLBACK: Array<[RegExp, string]> = [
-  [/\b(security|cyber|risk|breach|vulnerab\w*|safety)\b/i, "ai security concerns"],
-  [/\b(advertis\w*|ads?|brand|brands|campaign\w*|media)\b/i, "advertising and ai"],
+  [/\b(security|cyber|risks?|breach|vulnerab\w*|safety)\b/i, "ai risks and security"],
+  [/\b(reflections?|lessons?|purpose|career|personal)\b/i, "reflections"],
+  [/\b(advertis\w*|ads?|search|shopping|ad tech)\b/i, "ai changing ads and search"],
+  [/\b(creators?|content|youtube|video)\b/i, "content and creator craft"],
   [
     /\b(tool|tools|model|models|launch\w*|feature\w*|platform|developments?)\b/i,
-    "ai tools and developments",
+    "ai launches explained",
   ],
-  [/\b(business|businesses|enterprise|automation|cost|costs|productivity)\b/i, "ai in business"],
-  [/\b(marketing|seo|search|content|marketer\w*)\b/i, "digital marketing insights"],
+  [/\b(marketing|brand|brands|campaign\w*|measurement|marketer\w*)\b/i, "marketing fundamentals"],
 ];
 
 /** The shape for a LinkedIn lane, by name and then by subject; null for "other". */

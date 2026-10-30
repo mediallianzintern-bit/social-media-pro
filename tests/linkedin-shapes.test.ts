@@ -8,11 +8,12 @@ import { linkedInLength, voiceFlags } from "@/lib/voice-check";
 describe("LinkedIn lane shapes", () => {
   it("has a shape for each of his LinkedIn lanes", () => {
     for (const name of [
-      "Advertising and AI",
-      "AI Tools and Developments",
-      "AI Security Concerns",
-      "Digital Marketing Insights",
-      "AI in Business",
+      "AI launches explained",
+      "AI changing ads and search",
+      "AI risks and security",
+      "Marketing fundamentals",
+      "Content and creator craft",
+      "Reflections",
     ]) {
       expect(linkedInShapeFor({ name, definition: "" }), name).not.toBeNull();
     }
@@ -21,11 +22,11 @@ describe("LinkedIn lane shapes", () => {
 
   it("places a renamed lane by its subject", () => {
     const shape = linkedInShapeFor({ name: "Cybersecurity and AI risk", definition: "" });
-    expect(shape).toBe(linkedInShapeFor({ name: "AI Security Concerns", definition: "" }));
+    expect(shape).toBe(linkedInShapeFor({ name: "AI risks and security", definition: "" }));
   });
 
   it("keeps the reel's shot list and sign-off out of a LinkedIn post", () => {
-    const block = linkedInShapesBlock([{ name: "Advertising and AI", definition: "" }]);
+    const block = linkedInShapesBlock([{ name: "AI changing ads and search", definition: "" }]);
     expect(block).toContain("150 to 300 words");
     expect(block).toContain("♻️ Repost to help");
     expect(block).not.toMatch(/shot list|See you tomorrow|voiceover/i);

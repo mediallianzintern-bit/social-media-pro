@@ -26,8 +26,8 @@ import {
 } from "@/lib/linkedin-content";
 
 import { completeJson } from "./client";
-import { addCosts } from "./review";
-import { hasDurableStore } from "../store";
+import { addCosts, reviewModel } from "./review";
+import { hasDurableStore, savePostLanes, saveTaxonomy } from "../store";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = () => supabaseAdmin as any;
@@ -234,7 +234,15 @@ Rules:
   "AI" or both just "marketing"; split by what the posts are actually about.
 - Name each lane plainly in two to four words, from his posts, not from generic marketing terms.
 - The definition says what belongs and what does not.
+- Split by WHAT THE POST IS ABOUT, never by a vague theme. No catch-all lane: names like
+  "Insights", "Strategy", "Trends" or "Customer Journey" that could hold anything are wrong.
+- Decide by the post's main subject: a post about AI changing advertising is an advertising post;
+  a post about an AI security incident is a security post if there are three or more such posts;
+  a post about a new AI model or tool launch is a launch post. Personal reflections on work,
+  decisions or purpose are their own lane when there are three or more, never mixed into a
+  marketing lane.
 - Base every lane on posts he actually wrote. A lane needs at least three of his posts.
+- Before answering, check every pair of lanes: if one post could sit in both, redraw them.
 - Assign every post to exactly one lane, by its postId, using a lane name exactly as you wrote it.
   A post that fits no lane gets "other"; keep "other" small.`,
     user: `HIS POSTS, analysed (${analysed.length}):\n${JSON.stringify(
@@ -254,6 +262,9 @@ Rules:
     )}`,
     schemaName: "linkedin_lane_proposal",
     schema: laneSchema as unknown as Record<string, unknown>,
+    // The stronger model: drawing distinct lanes is judgement, and the
+    // cheaper one returned overlapping AI lanes and a catch-all (30 Oct 2026).
+    model: reviewModel(),
     temperature: 0.2,
     effort: "medium",
     timeoutMs: 150_000,
@@ -288,4 +299,115 @@ Rules:
       });
   }
   return { lanes, unassigned, cost };
+}
+
+const assignSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["assignments"],
+  properties: {
+    assignments: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["postId", "lane"],
+        properties: { postId: { type: "string" }, lane: { type: "string" } },
+      },
+    },
+  },
+} as const;
+
+/**
+ * Files each of his posts under one of a set of lanes the team agreed, read
+ * from the whole post, and holds the result as a proposal. Nothing changes
+ * until applyLaneProposal.
+ */
+export async function assignToLanes(
+  handle: string,
+  posts: PostRecord[],
+  lanes: Array<{ name: string; definition: string }>,
+): Promise<{
+  id: string | null;
+  counts: Record<string, number>;
+  assignments: Array<{ postId: string; lane: string }>;
+  cost: GenerationCost | undefined;
+}> {
+  const names = new Map(lanes.map((lane) => [lane.name.toLowerCase(), lane.name]));
+  const assignments: Array<{ postId: string; lane: string }> = [];
+  let cost: GenerationCost | undefined;
+  const pending = posts.filter((post) => post.caption.trim());
+  for (let index = 0; index < pending.length; index += 15) {
+    const batch = pending.slice(index, index + 15);
+    const result = await completeJson<unknown>({
+      system: `File each LinkedIn post under exactly ONE lane, by its MAIN subject, reading the whole post.
+LANES:
+${lanes.map((lane) => `- ${lane.name}: ${lane.definition}`).join("\n")}
+Use a lane name exactly as written. "other" only when a post truly fits none.`,
+      user: batch
+        .map(
+          (post) =>
+            `--- postId: ${post.postId}\n${post.caption.split(/\s+/).slice(0, MAX_WORDS).join(" ")}`,
+        )
+        .join("\n\n"),
+      schemaName: "linkedin_lane_assignment",
+      schema: assignSchema as unknown as Record<string, unknown>,
+      model: reviewModel(),
+      temperature: 0,
+      effort: "low",
+      timeoutMs: 120_000,
+    });
+    if (result.usage) cost = addCosts(cost, costOf(result.usage, result.model));
+    const reply = z
+      .object({ assignments: z.array(z.object({ postId: z.string(), lane: z.string() })) })
+      .safeParse(result.data);
+    if (!reply.success) continue;
+    const ids = new Set(batch.map((post) => post.postId));
+    for (const entry of reply.data.assignments) {
+      if (!ids.has(entry.postId)) continue;
+      assignments.push({
+        postId: entry.postId,
+        lane: names.get(entry.lane.trim().toLowerCase()) ?? "other",
+      });
+    }
+  }
+  const counts: Record<string, number> = {};
+  for (const entry of assignments) counts[entry.lane] = (counts[entry.lane] ?? 0) + 1;
+
+  let id: string | null = null;
+  if (hasDurableStore()) {
+    const { data } = await db()
+      .from("content_proposals")
+      .insert({
+        platform: "linkedin",
+        kind: "lanes",
+        proposal: { handle, lanes, assignments, counts },
+      })
+      .select("id")
+      .single();
+    id = (data as { id?: string } | null)?.id ?? null;
+  }
+  return { id, counts, assignments, cost };
+}
+
+/** Makes an approved lane proposal the lanes the dashboard uses, and files his posts under them. */
+export async function applyLaneProposal(id: string): Promise<number> {
+  const { data, error } = await db()
+    .from("content_proposals")
+    .select("proposal")
+    .eq("id", id)
+    .single();
+  if (error || !data) throw new Error("That lane proposal was not found.");
+  const proposal = data.proposal as {
+    handle: string;
+    lanes: Array<{ name: string; definition: string }>;
+    assignments: Array<{ postId: string; lane: string }>;
+  };
+  await saveTaxonomy("linkedin", proposal.handle, proposal.lanes);
+  const filed = await savePostLanes("linkedin", proposal.assignments);
+  await db()
+    .from("content_proposals")
+    .update({ status: "approved", decided_at: new Date().toISOString() })
+    .eq("id", id);
+  return filed;
 }
