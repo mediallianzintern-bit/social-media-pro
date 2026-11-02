@@ -156,3 +156,86 @@ export function hookTest(idea: ContentIdea, scores: HookScore[]): HookTest {
 
   return { variants, reason, warning: warnings.length ? warnings.join(" ") : null };
 }
+
+// Picking a hook used to change only the label: "Using this one" moved to B,
+// but the post and the first shot still opened with A, so whoever copied the
+// script posted or filmed the hook nobody chose. The script is written once,
+// with A as its first sentence, so the swap is made wherever it is shown or
+// copied. The stored script keeps A, which is what lets the team switch back.
+
+/** Curly quotes folded and case dropped, without changing the text's length. */
+const fold = (text: string) => text.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').toLowerCase();
+
+const isQuestion = (text: string) => /\?["'’”)]*$/.test(text.trim());
+
+/** Where the sentence running through `from` ends, its closing punctuation included. */
+function sentenceEnd(text: string, from: number): number {
+  const end = /[.!?]["'’”)]*(?=\s|$)/g;
+  end.lastIndex = from;
+  const match = end.exec(text);
+  return match ? match.index + match[0].length : text.length;
+}
+
+/**
+ * `text` opening with `chosen` in place of `original`.
+ *
+ * The opening sentence is replaced whole, not just the words the hook shares
+ * with it: the model sometimes runs the hook on ("…The Odyssey, focusing on
+ * the Greeks' arrival at Troy."), and swapping only the matching part would
+ * leave the chosen hook with the old sentence's tail stuck to it.
+ *
+ * A question in place of a statement keeps the statement after it. A question
+ * does not name the subject, and the next line was written to follow it:
+ * "Could AI agents hack crypto to fund themselves?" then "This warning comes
+ * on the heels of…" leaves "this warning" pointing at nothing, where keeping
+ * "Elon Musk has raised a red flag…" between them answers the question.
+ */
+export function openWithHook(
+  text: string,
+  original: string,
+  chosen: string,
+  joiner: string,
+): string {
+  const start = text.length - text.trimStart().length;
+  const opening = text.slice(start);
+  const stem = (hook: string) => hook.trim().replace(/[.!?]+$/, "");
+  if (fold(opening).startsWith(fold(stem(chosen)))) return text;
+  const originalStem = stem(original);
+  // Where A is the opening, its sentence ends after it; where the model
+  // reworded its own first line, the first sentence is still the hook's place.
+  const end = sentenceEnd(
+    opening,
+    originalStem && fold(opening).startsWith(fold(originalStem)) ? originalStem.length : 0,
+  );
+  const replaced = opening.slice(0, end).trim();
+  const kept = isQuestion(chosen) && !isQuestion(replaced) ? `${joiner}${replaced}` : "";
+  return `${text.slice(0, start)}${chosen.trim()}${kept}${opening.slice(end)}`;
+}
+
+/**
+ * The idea as it will be filmed or posted: opening with the chosen hook.
+ *
+ * A post's hook is the first line of its body; a reel's is the first spoken
+ * line, which is shot 1, or shot 2 on a reaction, whose first shot is the
+ * creator's clip with no voice over of ours.
+ */
+export function withChosenHook(idea: ContentIdea): ContentIdea {
+  const chosen = idea.chosenHook?.trim();
+  if (!chosen || fold(chosen) === fold(idea.hook?.trim() ?? "")) return idea;
+  if (idea.post) {
+    return {
+      ...idea,
+      post: { ...idea.post, body: openWithHook(idea.post.body, idea.hook ?? "", chosen, "\n\n") },
+    };
+  }
+  const first = idea.shots.findIndex((shot) => shot.voiceover?.trim());
+  if (first < 0) return idea;
+  return {
+    ...idea,
+    shots: idea.shots.map((shot, index) =>
+      index === first
+        ? { ...shot, voiceover: openWithHook(shot.voiceover, idea.hook ?? "", chosen, " ") }
+        : shot,
+    ),
+  };
+}

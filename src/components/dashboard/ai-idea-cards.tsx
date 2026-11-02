@@ -56,7 +56,7 @@ import {
 } from "@/lib/ai-types";
 import type { PlatformId } from "@/lib/analytics-types";
 import { hookScores } from "@/lib/double-down";
-import { hookTest, VARIANT_LABELS } from "@/lib/hook-variants";
+import { hookTest, VARIANT_LABELS, withChosenHook } from "@/lib/hook-variants";
 import { voiceFlags } from "@/lib/voice-check";
 import { computeInsights } from "@/lib/insights";
 import { usePlatform } from "@/lib/use-dashboard";
@@ -85,11 +85,10 @@ function toPlainText(idea: ContentIdea): string {
     // The hook the team PICKED, where they picked one. This used to always
     // print the model's first hook, so choosing B in the A/B and then copying
     // the brief handed the editor A — the exact mismatch the choice exists to
-    // prevent. Named as a variant so nobody wonders why it differs from the
-    // first line of shot 1.
+    // prevent. The script below already opens with it (withChosenHook).
     `HOOK:     ${idea.chosenHook?.trim() || idea.hook}`,
     ...(idea.chosenHook?.trim() && idea.chosenHook.trim() !== idea.hook
-      ? [`          (chosen over: "${idea.hook}" — open shot 1 with the line above)`]
+      ? [`          (chosen over: "${idea.hook}")`]
       : []),
     "",
   ];
@@ -336,7 +335,10 @@ export function AiIdeaCards({
   // successful edits and any explicitly requested next idea visible here too.
   const [panelIdeas, setPanelIdeas] = useState<ContentIdea[]>(ideas);
   const displayedIdeas = panelOnly ? panelIdeas : ideas;
-  const open = displayedIdeas.find((idea) => idea.id === openId) ?? null;
+  // As it will be filmed or posted: the post and the first shot open with the
+  // hook the team picked, so what is read, checked and copied is that script.
+  const found = displayedIdeas.find((idea) => idea.id === openId) ?? null;
+  const open = useMemo(() => (found ? withChosenHook(found) : null), [found]);
 
   /** Patches one idea's status in the cached analysis, in place. */
   function patchIdea(ideaId: string, patch: Partial<ContentIdea>) {

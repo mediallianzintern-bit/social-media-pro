@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FORMAT_LABEL, type ContentIdea } from "@/lib/ai-types";
+import { withChosenHook } from "@/lib/hook-variants";
 
 /**
  * One written script, read-only.
@@ -56,17 +57,19 @@ export function IdeaScriptDialog({
  * renders through a portal, which produces nothing in a server render, so a
  * test against the whole component silently passes on an empty string.
  */
-export function IdeaScriptBody({ idea }: { idea: ContentIdea }) {
+export function IdeaScriptBody({ idea: written }: { idea: ContentIdea }) {
+  // The script opens with the hook the team picked, as the drawer shows it.
+  const idea = withChosenHook(written);
   // The hook the team picked, where they picked one — the same rule the
   // handover document follows, so the two never disagree.
   const hook = idea.chosenHook?.trim() || idea.hook;
-  const written = Boolean(idea.post);
+  const isPost = Boolean(idea.post);
 
   return (
     <>
       <div className="space-y-1">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          {written ? "Opening line" : "Hook"}
+          {isPost ? "Opening line" : "Hook"}
         </p>
         <p className="rounded-lg border bg-muted/40 p-3 text-sm font-semibold leading-snug">
           “{hook}”
