@@ -244,6 +244,13 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                             />
                           </a>
                           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 pl-5 text-xs text-muted-foreground">
+                            {/* New topics sit right under the ticked ones;
+                                the label shows where that group ends. */}
+                            {item.isNew && item.preference?.voted !== "like" ? (
+                              <Badge className="bg-sky-600/10 font-semibold text-sky-700 hover:bg-sky-600/10 dark:text-sky-300">
+                                New
+                              </Badge>
+                            ) : null}
                             {item.publisher ? (
                               <span className="font-medium">{item.publisher}</span>
                             ) : null}

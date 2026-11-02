@@ -275,3 +275,19 @@ export function rankSources<T extends { coverage: number; publishedAt: string | 
     return tb - ta;
   });
 }
+
+/**
+ * The topic list's order, the same in every lane and on every platform: the
+ * stories the team ticked, then the stories new in the last day, then the
+ * rest (2 Nov 2026). Each group keeps the order it arrived in (trending, then
+ * newest, then the team's taste), so a refresh only ever adds to the new
+ * group and never shuffles the ticks.
+ */
+export function ticksThenNew<T extends { preference: { voted: string | null }; isNew: boolean }>(
+  items: T[],
+): T[] {
+  const ticked = items.filter((item) => item.preference.voted === "like");
+  const fresh = items.filter((item) => item.preference.voted !== "like" && item.isNew);
+  const rest = items.filter((item) => item.preference.voted !== "like" && !item.isNew);
+  return [...ticked, ...fresh, ...rest];
+}

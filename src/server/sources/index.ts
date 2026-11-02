@@ -3,6 +3,7 @@
 // Free to run: the news feed needs no key and costs nothing, so unlike every
 // other external call in this system it can run on each sync. The only guard is
 // a politeness floor, so a busy afternoon of syncs does not hammer the feed.
+import { newSourceIds } from "./first-seen";
 import { searchNews } from "./news";
 import { isNewsOffLane, OWN_SHARE, queriesForLane } from "./queries";
 import { OWNER_ACCOUNTS } from "../apify/accounts";
@@ -43,6 +44,7 @@ import {
   groupStories,
   outletCount,
   rankSources,
+  ticksThenNew,
   sameStory,
   SOURCE_WINDOW_DAYS,
   TRENDING_COVERAGE,
@@ -226,6 +228,8 @@ export interface TopicInbox {
       outlet: InboxOutlet;
       /** Other reports of this same story folded into this row. */
       repeats: number;
+      /** First seen in the last day, in every report of it (sources/first-seen.ts). */
+      isNew: boolean;
       /**
        * The report the script was written from, when this story already has
        * one. Not always this row's id: the script may come from another
@@ -319,11 +323,12 @@ async function outletSignals(
  */
 export async function topicInbox(platform: PlatformId): Promise<TopicInbox> {
   const since = new Date(Date.now() - SOURCE_WINDOW_DAYS * 86_400_000).toISOString();
-  const [stored, used, last, votes] = await Promise.all([
+  const [stored, used, last, votes, fresh] = await Promise.all([
     readSourceItems(platform, since).catch(() => []),
     readUsedSourceIds(platform).catch(() => []),
     lastSourceFetch(platform).catch(() => null),
     readTopicVotes(platform).catch(() => []),
+    newSourceIds(platform).catch(() => new Set<string>()),
   ]);
   const usedSet = new Set(used);
   // Stories the team ticked, by their latest vote: a later cross un-ticks.
@@ -436,6 +441,9 @@ export async function topicInbox(platform: PlatformId): Promise<TopicInbox> {
         );
     return {
       lead: { ...lead, coverage: Math.max(lead.coverage, outletCount(members)) },
+      // New only when every report of it is: an old story that gained one
+      // more outlet today is not a new topic.
+      isNew: members.every((item) => fresh.has(item.id)),
       repeats: members.length - 1,
       scriptSourceId: written?.id ?? writtenBefore?.id ?? null,
     };
@@ -483,12 +491,15 @@ export async function topicInbox(platform: PlatformId): Promise<TopicInbox> {
       preference: { voted: preference.voted, reason: preference.reason },
       outlet,
       repeats: story.repeats,
+      isNew: story.isNew,
       scriptSourceId: story.scriptSourceId,
     });
   }
 
   return {
-    items: shown,
+    // Ticked first, then new, then the rest: the same in every lane, on
+    // every platform, after every sync and refresh.
+    items: ticksThenNew(shown),
     hidden,
     repeatsMerged,
     outlets: outletSummary(outlets),
