@@ -510,6 +510,11 @@ async function runSyncOnce(
       if (outcome.status === "ok") {
         const { linkFilmedReels } = await import("./reel-learning/match");
         await linkFilmedReels(platform);
+        // Then the found reels are analysed, and reviewed once their 14 days
+        // are up, without anyone pressing a button. Paid, within a monthly cap,
+        // a few steps per sync; never fatal (reel-learning/auto.ts).
+        const { learnFromFilmedReels } = await import("./reel-learning/auto");
+        await learnFromFilmedReels(platform);
       }
       // Fresh metrics are now stored, so this is the moment any matured
       // suggestion can be frozen. Deterministic, and never fatal.

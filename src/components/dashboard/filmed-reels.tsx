@@ -54,9 +54,11 @@ function stageOf(learning: ReelLearning): Stage {
 
 const STAGE_LABEL: Record<Stage, string> = {
   waiting: "Waiting for the reel",
-  found: "Reel found · Analyse next",
-  analysed: `Analysed · results after ${REEL_REVIEW_DAYS} days`,
-  review_ready: "Ready to review",
+  // Analysis and the 14-day review run by themselves after each sync
+  // (reel-learning/auto.ts); the buttons in the drawer still run them sooner.
+  found: "Reel found · analysed on the next sync",
+  analysed: `Analysed · reviewed automatically after ${REEL_REVIEW_DAYS} days`,
+  review_ready: "Reviewed on the next sync",
   reviewed: "Reviewed",
 };
 
@@ -139,7 +141,7 @@ export function FilmedReels() {
           { label: "Filmed", value: items.length },
           { label: "Waiting for reel", value: count("waiting") },
           { label: "To analyse", value: count("found") },
-          { label: "Ready to review", value: count("review_ready") },
+          { label: "Due for review", value: count("review_ready") },
           { label: "Reviewed", value: count("reviewed") },
           { label: "Worked / viral", value: `${worked} / ${viral}` },
         ].map((tile) => (
@@ -225,7 +227,7 @@ export function FilmedReels() {
                           <Search className="mr-1 size-3" aria-hidden />
                         ) : null}
                         {learning.match?.by === "timing" && !learning.match.confirmed
-                          ? "Probably this reel (by timing) · Analyse to confirm"
+                          ? "Probably this reel (by timing) · checked on the next sync"
                           : STAGE_LABEL[stage]}
                         {stage === "analysed" && learning.reviewableAt
                           ? ` (${shortDate(learning.reviewableAt)})`
