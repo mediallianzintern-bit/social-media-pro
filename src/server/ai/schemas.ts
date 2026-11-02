@@ -351,7 +351,7 @@ export function ideasSchemaFor(options: {
       hook: {
         type: "string",
         description: written
-          ? 'The first line of the post — what shows above LinkedIn\'s "see more" fold.'
+          ? 'The first line of the post — what shows above LinkedIn\'s "see more" fold. It makes the reader curious and names the subject (a question, an unexpected possibility or a business situation); never a news-report line such as "X has announced…".'
           : "The literal first line, spoken or on screen.",
       },
       altHooks: {

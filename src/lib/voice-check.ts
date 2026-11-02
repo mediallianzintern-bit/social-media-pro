@@ -17,7 +17,7 @@
 //
 // Client-safe. No model call. See docs/pritesh-voice.md.
 import type { ContentIdea } from "@/lib/ai-types";
-import { hookIssue } from "@/lib/hook-check";
+import { hookIssue, newsOpenerIssue } from "@/lib/hook-check";
 import { isAiToolWorkflowLane, isWorkflowCta, workflowCtaIssue } from "@/lib/tool-workflow";
 import { REEL_MAX_SECONDS, REEL_MIN_SECONDS, REEL_WORDS } from "@/lib/reel-length";
 
@@ -295,6 +295,17 @@ export function voiceFlags(
   if (voiceover && PUNCTUATION_DASH.test(voiceover)) {
     flags.push("uses a dash in the voice over — write the sentence out instead");
   }
+  // A LinkedIn post never uses one either (the team's brief, 2 Nov 2026). Em
+  // and en dashes only: a "- " list marker at the start of a line is not one.
+  const postText = idea.post
+    ? [
+        idea.post.body,
+        ...idea.post.sections.flatMap((section) => [section.heading, section.text]),
+      ].join("\n")
+    : "";
+  if (/[—–]/.test(postText)) {
+    flags.push("uses a dash in the post — write the sentence out instead");
+  }
 
   // An exclamation mark is hype in punctuation: "It's wild!" was offered as a
   // hook. Checked on what is said and shown in the reel, not the caption.
@@ -308,18 +319,25 @@ export function voiceFlags(
     flags.push("uses an exclamation mark — say it calmly instead");
   }
 
-  // Every hook opens on what the reel is about, in every lane.
+  // Every hook opens on what the reel is about, in every lane. On LinkedIn a
+  // question or possibility that names the subject ("What if making AI cheaper
+  // creates a different problem for businesses?") is the opening the team's
+  // brief asks for, so only the missing subject is flagged there.
   const subject = `${idea.title ?? ""} ${idea.angle ?? ""}`;
   const hooks = [...new Set([idea.hook, ...(idea.altHooks ?? [])].filter(Boolean))];
-  if (
-    hooks.some((hook) =>
-      hookIssue(hook, subject, { allowHypothetical: Boolean(options.allowHypotheticalHooks) }),
-    )
-  ) {
+  const allowHypothetical = Boolean(options.allowHypotheticalHooks || idea.post);
+  if (hooks.some((hook) => hookIssue(hook, subject, { allowHypothetical }))) {
     flags.push(
       "a hook opens on a hypothetical or never names the subject; open on what the reel is about",
     );
   }
+  // A LinkedIn post that opens like a news report ("Xsolla has acquired…").
+  const opening = idea.post?.body.trim().split("\n")[0] ?? "";
+  const reported = idea.post ? newsOpenerIssue(opening) : null;
+  if (reported)
+    flags.push(
+      `opens like a news report: ${reported.replace(/^the first line "[^"]*" reads like a news report; /, "")}`,
+    );
 
   // An AI tool workflow reel ends on the comment CTA the team asked for.
   if (voiceover && !idea.post && isAiToolWorkflowLane(idea.contentLane)) {

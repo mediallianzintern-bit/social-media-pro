@@ -63,7 +63,8 @@ function problemsOf(raw: RawPost, body: string): string[] {
   // His voice rules, checked on the post alone. The length flag is the one above.
   const probe = { ...raw, altHooks: [], shots: [], caption: "", post: { body, sections: [] } };
   for (const flag of voiceFlags(probe as unknown as ContentIdea)) {
-    if (!/ words: /.test(flag)) problems.push(`It ${flag}.`);
+    // The opening is the review's to fix: this pass keeps the first line as it is.
+    if (!/ words: |opens like a news report/.test(flag)) problems.push(`It ${flag}.`);
   }
   return problems;
 }

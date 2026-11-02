@@ -71,3 +71,20 @@ export function hookIssue(
   }
   return null;
 }
+
+/**
+ * A LinkedIn first line written like a news report rather than an opening:
+ * "Elon Musk has raised a red flag about…", "Xsolla has acquired…", "In a
+ * recent development…". The team's LinkedIn brief (2 Nov 2026) asks for a
+ * line that makes the reader curious, and his weakest posts read like this.
+ * A question is never one, whatever its verbs.
+ */
+const NEWS_OPENER =
+  /^\s*["“']?(in a recent (development|move|announcement|update|report)|recently\b|in today'?s\b|the (technology|tech|ai|marketing|digital) (industry|world|sector|space) is\b|here (is|are) everything|here'?s everything|[^.?!\n]{1,80}?\b(has|have) (just |recently )?(raised|announced|unveiled|launched|released|warned|expressed|revealed|acquired|appointed|introduced|expanded|partnered|signed|hired|reported|shared|issued|made headlines)\b)/i;
+
+/** Why a LinkedIn first line reads like a news report, or null when it does not. */
+export function newsOpenerIssue(line: string): string | null {
+  const text = line.replace(/[‘’]/g, "'").trim();
+  if (!text || /\?["'”)]*$/.test(text) || !NEWS_OPENER.test(text)) return null;
+  return `the first line "${text}" reads like a news report; open on a question, an unexpected possibility or a business situation that makes the reader curious, with the subject named`;
+}

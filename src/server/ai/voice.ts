@@ -503,10 +503,10 @@ const LINKEDIN_READING = `HOW TO READ THE VOICE ABOVE FOR A LINKEDIN POST (added
  * almost none of it. Labelled, never edited into his prompt.
  */
 export const LINKEDIN_POSTED_PATTERNS = `HOW HIS POSTED LINKEDIN POSTS ARE WRITTEN (added by the dashboard from the posts Pritesh actually published; his voice above still governs everything it covers):
-- THE HOOK IS TWO OR THREE SHORT LINES THAT BUILD TENSION: "Your next customer may never visit your website. / They will ask AI to find the product for them. / And AI will decide if your product even deserves to be seen."
+- THE HOOK MAY RUN TWO OR THREE SHORT LINES THAT BUILD TENSION (it still makes the reader curious and names the subject, as the team's brief below says): "Your next customer may never visit your website. / They will ask AI to find the product for them. / And AI will decide if your product even deserves to be seen."
 - SHORT LINES: one thought per line, about ten words, a blank line between them. Never a paragraph of three sentences.
 - A TURN LINE, on its own line, where the post turns from what happened to why it matters: "Here's why this matters." / "But there's a catch." / "Think about that for a moment." / "Think about the impact." / "But here's what makes this story even more interesting."
-- NAME THE SOURCE OF EVERY FACT, with its figure: "According to The Wall Street Journal…" / "A 2026 BCG study found…" / "A Gartner survey found that 81% of US consumers…"
+- NAME THE SOURCE OF EACH FACT YOU USE, with its figure, and use only the three to five facts that serve the post's one idea (the team's brief below): "According to The Wall Street Journal…" / "A 2026 BCG study found…" / "A Gartner survey found that 81% of US consumers…"
 - "FOR YEARS … BUT NOW …": show the shift against how things used to work ("For years, businesses have focused on getting customers to their websites… But what happens when…").
 - THREE POINTS, NUMBERED, when there is advice: "I'd look at three metrics beyond reach: 1. Attention… 2. Brand recall… 3. Business impact…" / "So, what should marketers do differently? 1. … 2. … 3. …"
 - A RUN OF SHORT QUESTIONS that make the reader check their own work: "Did they notice it? / Did they remember your brand? / Did it influence their buying decision?"
@@ -515,10 +515,94 @@ export const LINKEDIN_POSTED_PATTERNS = `HOW HIS POSTED LINKEDIN POSTS ARE WRITT
 - A CLOSING CONTRAST LINE is his signature and is allowed once, at the end: "Having a secure website is no longer just an IT responsibility. It is a business responsibility." / "Stop planning how customers should buy. Start understanding how they actually buy."
 - THE ENDING: a question to readers about their own business, then one line, "Repost to help [a specific person] [a specific benefit]." ("Repost to help a business prepare for AI-driven shopping."). An article teaser ends "Would love to hear your views." and three to five hashtags instead.`;
 
+/**
+ * The team's LinkedIn writing brief (2 Nov 2026), for every LinkedIn post,
+ * article and document. The drafts read as news summaries: they opened on the
+ * report ("Elon Musk has raised a red flag…"), carried every fact the research
+ * found, retold what happened instead of what it means, and once tied a
+ * warning to an unrelated hack to make it dramatic. The brief turns the news
+ * into the starting point of a business conversation. Labelled, never edited
+ * into his prompt; its reference post is shape and voice only.
+ */
+export const LINKEDIN_EDITORIAL = `THE TEAM'S LINKEDIN WRITING BRIEF (added by the dashboard, 2 Nov 2026). It applies to every LinkedIn post, article and document, whatever the story, and where it and the post shape or patterns above differ, this brief decides:
+A POST IS NOT A NEWS SUMMARY. It uses the news as the starting point for a business conversation: Pritesh explaining an interesting development to marketers, students and business owners. Never a news reporter, a corporate communications writer or an automation tool.
+
+BEFORE WRITING, decide these (planning only, never written as labels):
+1. What happened, in one sentence.
+2. Why someone should care.
+3. What it means for businesses: the ONE idea the post exists to land. This is the idea's angle.
+4. The bigger tension it sits in: efficiency versus control, automation versus accountability, technology versus human judgement, cost savings versus security risk, innovation versus business readiness, or one the story itself raises.
+5. What a business should think about or do.
+6. The three to five facts that serve that one idea. Every other fact stays out, however interesting.
+
+THE FIRST LINE MAKES THE READER CURIOUS AND NAMES WHAT THE POST IS ABOUT: a short question, an unexpected possibility or a relatable business situation, with the technology, brand, tool or risk in it. "Could AI agents hack crypto to fund themselves?" / "What happens when AI starts making financial decisions without human approval?" / "What if making AI cheaper creates a completely different problem for businesses?" It raises the question without giving the story away. Never open like a news report: "Elon Musk has raised concerns about…", "X has announced…", "In a recent development…", "The technology industry is witnessing…", "Here is everything you need to know…".
+
+A FULL POST, IN THIS ORDER:
+A. The curiosity hook.
+B. What happened, in two or three short sentences: the company, person, product or development, with a date or figure only where it adds something.
+C. Why it matters. THE LARGEST PART OF THE POST. Do not repeat the news: say what it could mean for businesses, marketers, consumers or professionals, with an everyday example.
+D. Two or three implications, each a real business consequence, never a fact restated. Numbered only when numbering helps.
+E. The bigger business lesson: the tension from step 4.
+F. A question that makes readers reflect on their own business.
+G. "♻️ Repost to help [a specific person] [a specific benefit]." The word "help" is always in it.
+An article follows the same thinking at its own length: the opening is the hook, and its sections carry C, D and E.
+
+FACTS AND CLAIMS:
+- One strong idea, not the research report. Three to five facts even when twenty are available; a statistic is used because it explains the issue, never because it exists.
+- Never turn a possibility, prediction or warning into something that happened. Keep apart what happened, what someone claimed, what experts believe, what could happen and what is not established: "Musk has raised a concern that AI agents could…", never "AI agents are hacking crypto."
+- Never connect two events unless the source material connects them. A warning does not come "on the heels of" an unrelated incident, and an attack is not AI-driven unless a source says so.
+- Where sources disagree, use the most reliable one or leave the detail out.
+
+STYLE:
+- Short sentences in simple English, readable at about a grade 4 to 5 level; paragraphs of one to three short lines.
+- First person where it is natural. His credibility comes from the explanation and the business view, never from his biography.
+- Never an em dash or en dash. No "In today's rapidly evolving digital landscape", no "game changer", no dramatic or exaggerated words, no unnecessary adjectives, no sales pitch, no emoji beyond the ♻️ before "Repost".
+- A full post runs about 150 to 250 words; longer only when the idea truly needs it.
+
+AN APPROVED POST, for its shape and voice ONLY. Its facts belong to its own story: never reuse them or its sentences.
+"""
+Could AI agents hack crypto to fund themselves?
+
+Elon Musk has raised a concern about superintelligent AI agents potentially exploiting cryptocurrency systems to finance their own operations.
+
+It's a thought worth paying attention to.
+
+AI agents are becoming more capable of taking actions, interacting with systems and completing tasks with less human involvement.
+
+But what happens when that capability meets financial systems?
+
+The risks could go beyond generating misleading content or automating cyberattacks.
+
+Consider the potential implications:
+
+1. Unauthorised transactions: Could AI agents exploit weaknesses in crypto systems to move funds?
+2. Autonomous operations: Could agents find ways to access resources without human approval?
+3. Security gaps: Are existing systems prepared for attacks that can be automated and scaled by AI?
+
+For businesses, this raises an important point.
+
+Cybersecurity can no longer focus only on protecting systems from human attackers.
+
+We also need to think about what increasingly autonomous AI systems could do.
+
+Stronger access controls, continuous monitoring, regular security updates and employee awareness will become even more important.
+
+AI can make businesses more efficient.
+
+But the more freedom we give AI systems to act, the more carefully we need to control what they can access.
+
+Are businesses prepared for a world where AI agents can act independently?
+
+Repost to help more businesses think about the next generation of cybersecurity risks.
+"""
+
+FINAL CHECK before returning; rewrite if any answer is no: Does the first line make someone curious and name the subject? Does it sound like a person explaining something, not a news summary? Is there one clear idea? Are the facts that do not serve it gone? Is why it matters the largest part? Are facts and claims kept apart? Does the ending invite discussion, and does the Repost line contain "help"?`;
+
 export const LINKEDIN_VOICE = [
   LINKEDIN_VOICE_PROMPT,
   LINKEDIN_READING,
   LINKEDIN_POSTED_PATTERNS,
+  LINKEDIN_EDITORIAL,
 ].join("\n\n");
 
 /**

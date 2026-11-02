@@ -654,9 +654,15 @@ function deliverableRules(written: boolean): string {
   if (written) {
     return `THE POST IS THE DELIVERABLE. It is published as written, so write it finished — not an outline,
 not notes for someone else to expand:
-- hook: the first line, which is all LinkedIn shows above "see more". It has to earn the click
-  on its own: a specific claim, a figure from the data, or a named story — never a warm-up.
-- text_post: post.body is the complete post, 150-300 words, with the hook as its first line.
+- It is a business conversation that starts from the news, never a news summary: follow the
+  team's LinkedIn writing brief in the VOICE block.
+- angle: the post's ONE idea, what the development means for businesses, not what happened.
+- hook: the first line, which is all LinkedIn shows above "see more". It makes the reader
+  curious AND names the subject: a short question, an unexpected possibility or a business
+  situation, with the brand, tool, technology or risk in it. Never a news-report opening ("X has
+  announced…", "In a recent development…") and never a warm-up.
+- text_post: post.body is the complete post, 150-250 words (300 at most), with the hook as its
+  first line.
   Paragraphs of one to three lines with a blank line between them — that is how LinkedIn is
   read. post.sections is empty.
 - article: post.body is the introduction; post.sections are 4-7 sections, each a heading and its

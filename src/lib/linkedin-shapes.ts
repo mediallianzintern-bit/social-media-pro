@@ -156,9 +156,9 @@ export function linkedInShapeFor(
 
 /** His closing line, from his own posts: the one CTA every post ends on. */
 export const LINKEDIN_CLOSE = `End every post the way his do: a question to readers that the post has earned (about their own
-business, not "Agree?" or "Thoughts?"), then ONE closing line, either "♻️ Repost to help [a specific
-kind of person] [a specific benefit]." ("♻️ Repost to help a business prepare for AI-driven shopping.")
-or "Follow for more digital marketing and AI insights." Never both, never a stack of asks.`;
+business, not "Agree?" or "Thoughts?"), then ONE closing line: "♻️ Repost to help [a specific kind of
+person] [a specific benefit]." ("♻️ Repost to help a business prepare for AI-driven shopping."). The
+word "help" is always in it. Never a stack of asks.`;
 
 /** The post shape every LinkedIn idea follows, then the shape for each lane. */
 export function linkedInShapesBlock(
@@ -181,16 +181,20 @@ export function linkedInShapesBlock(
 
   return `LINKEDIN POST SHAPE, read from his own 34 most recent posts and the impressions LinkedIn measured
 for each. This is how his LinkedIn posts are built; it is not a reel:
-- Two kinds of post. A full text post, 150 to 300 words (his median is 237): the whole argument
-  in the post. Or, when the idea is an article he publishes, a teaser of 75 to 125 words that
+- Two kinds of post. A full text post, 150 to 300 words, aiming for 150 to 250 (his median is
+  237): the whole argument in the post. Or, when the idea is an article he publishes, a teaser of 75 to 125 words that
   names the development, asks the business question in two to four short lines and points to
   the article ("I've written an article explaining what happened and what businesses should pay
   attention to.").
-- THE FIRST LINE NAMES A BRAND, TOOL, PLATFORM OR FIGURE. That is what separates his best posts
-  from his weakest: "McDonald's wants to make $1 billion from advertising." had 503 impressions;
-  "If everyone has access to AI, what will actually make a marketer stand out?" had 115.
-- One to three short lines per paragraph, a blank line between them. Name the source of every
-  fact ("According to The Wall Street Journal…", "A Gartner survey found…"). Use a turn
+- THE FIRST LINE MAKES THE READER CURIOUS AND NAMES THE SUBJECT: a question, an unexpected
+  possibility or a surprising fact, with the brand, tool, platform, figure or risk in it. Naming
+  the subject is what separates his best posts from his weakest: "McDonald's wants to make $1
+  billion from advertising." had 503 impressions; "If everyone has access to AI, what will
+  actually make a marketer stand out?", a question with no subject, had 115. Never a news-report
+  opening ("X has announced…", "In a recent development…").
+- One to three short lines per paragraph, a blank line between them. Use only the three to five
+  facts that serve the post's one idea, and name the source of each ("According to The Wall
+  Street Journal…", "A Gartner survey found…"). Use a turn
   ("Here's why this matters.", "But there's a catch.") and short arrow (→) or numbered lists for
   capabilities and steps. Close with a contrast pair when the idea has one.
 - He mentions his own experience only where it is real and adds something ("After 21 years in

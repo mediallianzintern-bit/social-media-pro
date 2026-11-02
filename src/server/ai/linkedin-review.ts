@@ -10,8 +10,13 @@
 //
 // The draft goes to the stronger review model with the lane's shape and the
 // story's facts (the multi-outlet fact sheet when there is one). The CODE then
-// checks the rewrite: his length, his banned words, and a first line that
-// names the subject. A rewrite that still breaks one goes back once with the
+// checks the rewrite: his length, his banned words, a first line that names
+// the subject and does not read like a news report, and, from the team's
+// LinkedIn brief (2 Nov 2026), a few facts rather than the whole fact sheet
+// and an ending on "Repost to help". "Why it matters is the largest part" is
+// the reviewer's to judge: counted as words before the turn line, it flagged
+// three of his own 19 posted posts, whose opening explains rather than
+// retells. A rewrite that still breaks one goes back once with the
 // exact problems; the version with the fewest problems is kept, and the draft
 // stands when no rewrite beats it. The length fit (linkedin-length.ts) runs
 // after this as a last check.
@@ -96,7 +101,7 @@ const parsed = z.object({
 type Review = z.infer<typeof parsed>;
 
 /** What the CODE finds wrong with a post. Empty when it passes. */
-function problemsOf(
+export function problemsOf(
   raw: RawPost,
   body: string,
   sections: Section[],
@@ -113,7 +118,9 @@ function problemsOf(
   }
   const firstLine = body.trim().split("\n")[0]?.trim() ?? "";
   const subject = `${typeof raw.title === "string" ? raw.title : ""} ${typeof raw.angle === "string" ? raw.angle : ""}`;
-  const issue = hookIssue(firstLine, subject);
+  // A question or possibility is the opening the brief asks for; it still
+  // has to name the subject.
+  const issue = hookIssue(firstLine, subject, { allowHypothetical: true });
   if (issue) problems.push(`The first line: ${issue.replace(/reel/g, "post")}.`);
   const probe = {
     ...raw,
@@ -127,13 +134,13 @@ function problemsOf(
     if (/ words: |hook opens on a hypothetical/.test(flag)) continue;
     problems.push(`It ${flag}.`);
   }
-
-  // How his posted LinkedIn posts are written (voice.ts LINKEDIN_POSTED_PATTERNS),
-  // held in code where it can be counted.
   const lines = body
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
+
+  // How his posted LinkedIn posts are written (voice.ts LINKEDIN_POSTED_PATTERNS),
+  // held in code where it can be counted.
   const long = lines.filter((line) => line.split(/\s+/).length > LONG_LINE_WORDS);
   if (long.length) {
     problems.push(
@@ -147,9 +154,16 @@ function problemsOf(
         `It has no turn line where it moves from what happened to why it matters; add one on its own line, as his posts do ("Here's why this matters.", "But there's a catch.", "Think about that for a moment.")`,
       );
     }
-    if (!/\brepost\b/i.test(body)) {
+    if (!REPOST_HELP.test(body)) {
       problems.push(
-        `It does not end on "Repost to help [a specific person] [a specific benefit]." as his full posts do.`,
+        `It does not end on "Repost to help [a specific person] [a specific benefit]." as his full posts do; the word "help" is always in it.`,
+      );
+    }
+    // One idea, not the research report (the brief's three to five facts).
+    const figures = figuresIn(body);
+    if (figures.length > MAX_FIGURES) {
+      problems.push(
+        `It carries ${figures.length} figures (${figures.slice(0, 6).join(", ")}…); keep only the three to five facts that serve its one idea and cut the rest.`,
       );
     }
   }
@@ -158,7 +172,8 @@ function problemsOf(
       "It is an article teaser with neither hashtags nor a Repost line; his teasers end with one.",
     );
   }
-  if (research && /\d/.test(body) && !NAMED_SOURCE.test(body)) {
+  // A numbered list's "1." is not a figure.
+  if (research && figuresIn(body).length && !NAMED_SOURCE.test(body)) {
     problems.push(
       `It states figures from the research without naming where they come from; name the source as his posts do ("According to The Wall Street Journal…", "A 2026 BCG study found…").`,
     );
@@ -166,12 +181,38 @@ function problemsOf(
   return problems;
 }
 
+/** More distinct figures than this, and the post is reproducing the fact sheet. */
+const MAX_FIGURES = 5;
+/** His closing line, with the word the team's brief requires in it. */
+const REPOST_HELP = /\brepost\b[^\n]*\bhelp/i;
+
+/**
+ * The distinct figures a post states: amounts, percentages, counts, dates.
+ * A numbered list's "1." is not a figure, and a year on its own is context.
+ */
+function figuresIn(body: string): string[] {
+  const text = body.replace(/^\s*\d+[.)]\s/gm, " ");
+  const found = text.match(
+    /(?:[$₹€£]\s?)?\d[\d,]*(?:\.\d+)?(?:\s?(?:%|percent|per cent|billion|million|trillion|crore|lakh|x\b))?/gi,
+  );
+  return [
+    ...new Set(
+      (found ?? [])
+        .map((figure) => figure.trim())
+        .filter((figure) => !/^(19|20)\d\d$/.test(figure)),
+    ),
+  ];
+}
+
 /** Longer than this, a line reads as a paragraph: his lines run about ten words. */
 const LONG_LINE_WORDS = 32;
 const POINTS_TO_ARTICLE = /\b(article|read the full|full breakdown)\b/i;
-/** His turn lines on LinkedIn, the way his posts pivot to why it matters. */
+/**
+ * His turn lines on LinkedIn, the way his posts pivot to why it matters, and
+ * those of the post the team approved as the reference (voice.ts LINKEDIN_EDITORIAL).
+ */
 const LINKEDIN_TURN =
-  /\b(here['’]?s (why|what|where|how)|but there['’]?s a catch|think about (that|it|this|the impact)|but here['’]?s|there is a bigger lesson|that['’]?s (where|when)|this is where|now look at|now,? here['’]?s|i['’]?ve seen this pattern|what does this mean|so,? what should|my takeaway)\b/i;
+  /\b(here['’]?s (why|what|where|how)|but there['’]?s a catch|think about (that|it|this|the impact)|but here['’]?s|there is a bigger lesson|that['’]?s (where|when)|this is where|now look at|now,? here['’]?s|i['’]?ve seen this pattern|what does this mean|so,? what should|my takeaway|but what happens (when|if)|consider the (potential )?implications|for businesses,? this)\b/i;
 /** Wording that names where a fact comes from. */
 const NAMED_SOURCE =
   /\b(according to|study|survey|report(ed|s)?|found that|research|data from|announced|said|says|told)\b/i;
@@ -193,13 +234,13 @@ function storyFor(raw: RawPost, sources: SourceItem[]): string {
     return `THE STORY, researched across several outlets; each fact names the outlets that state it:
 Headline: ${source.title}
 ${factSheetText(source.research)}
-Keep every specific fact the draft uses, and where the draft is thin, add the fact sheet's specifics in his words. A fact marked CONFLICTING is said only as its outlet reported it. Anything not here goes in needsVerification, never into the post as fact.`;
+Use only the three to five facts that serve the post's one idea, in his words; leave the rest of the sheet out. A fact marked CONFLICTING is said only as its outlet reported it. A claim, warning or prediction stays one, said as the person who made it said it, never as something that happened. Never connect two events the fact sheet does not connect. Anything not here goes in needsVerification, never into the post as fact.`;
   }
   if (source.article?.text) {
     return `THE STORY, from ${source.article.publisher ?? "another outlet"}:
 Headline: ${source.title}
 ${source.article.text}
-State only what this article says, in his words. Anything else goes in needsVerification.`;
+State only what this article says, in his words, and only the facts that serve the post's one idea. A claim, warning or prediction stays one, never something that happened. Anything else goes in needsVerification.`;
   }
   return `THE STORY: only the headline was read.
 Headline: ${source.title}
@@ -261,13 +302,18 @@ export async function reviewLinkedInDrafts(
 Review this LinkedIn ${kind} draft against Pritesh Patel's voice and his "Final Pritesh quality check"
 above, and the LinkedIn post shape. Rewrite it so it reads like him explaining something useful to
 one person: simpler where it can be simpler, specific where it is vague, never overselling AI.
-- Keep the useful idea and the subject. The first line names the brand, tool, platform or figure.
+- Apply the team's LinkedIn writing brief above: a post, not a news summary. Keep the subject and
+  find its ONE idea for businesses. The first line makes the reader curious and names the subject;
+  if the draft opens like a news report, write a new first line.
+- What happened in two or three short sentences, then why it matters as the largest part, two or
+  three real business implications and the bigger lesson. Cut every fact that does not serve the
+  one idea, even when the draft used it.
 - Replace every general statement with the specific fact, example or business situation it stands
   for, from the story below. Never invent a fact, statistic, quote, client or experience.
 - Remove anything generic, repeated, corporate or promotional, and any word his voice rules out.
 ${
   raw.format === "text_post"
-    ? "- 150 to 300 words (75 to 125 if it is a teaser pointing to his article). End on a question that\n  the post has earned, then one closing line, as the post shape says."
+    ? '- 150 to 250 words, never more than 300 (75 to 125 if it is a teaser pointing to his article). End\n  on a question that the post has earned, then one closing line, "♻️ Repost to help …".'
     : `- Keep every ${raw.format === "document" ? "page" : "section"} and its heading's purpose; tighten and make each one specific.`
 }
 ${feedback.length ? `\nYOUR LAST REWRITE STILL HAD THESE PROBLEMS, counted by code. Fix each one:\n${feedback.map((problem) => `- ${problem}`).join("\n")}\n` : ""}
