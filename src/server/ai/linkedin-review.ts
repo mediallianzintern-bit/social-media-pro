@@ -26,7 +26,7 @@ import { costOf, type GenerationCost } from "@/lib/ai-cost";
 import type { ContentIdea } from "@/lib/ai-types";
 import { hookIssue } from "@/lib/hook-check";
 import { linkedInShapesBlock } from "@/lib/linkedin-shapes";
-import { factSheetText } from "@/lib/research";
+import { factSheetText, type StoryResearch } from "@/lib/research";
 import type { SourceItem } from "@/lib/sources";
 import { linkedInLength, voiceFlags } from "@/lib/voice-check";
 
@@ -96,7 +96,12 @@ const parsed = z.object({
 type Review = z.infer<typeof parsed>;
 
 /** What the CODE finds wrong with a post. Empty when it passes. */
-function problemsOf(raw: RawPost, body: string, sections: Section[]): string[] {
+function problemsOf(
+  raw: RawPost,
+  body: string,
+  sections: Section[],
+  research?: StoryResearch,
+): string[] {
   const problems: string[] = [];
   if (raw.format === "text_post") {
     const length = linkedInLength(body);
@@ -122,7 +127,59 @@ function problemsOf(raw: RawPost, body: string, sections: Section[]): string[] {
     if (/ words: |hook opens on a hypothetical/.test(flag)) continue;
     problems.push(`It ${flag}.`);
   }
+
+  // How his posted LinkedIn posts are written (voice.ts LINKEDIN_POSTED_PATTERNS),
+  // held in code where it can be counted.
+  const lines = body
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const long = lines.filter((line) => line.split(/\s+/).length > LONG_LINE_WORDS);
+  if (long.length) {
+    problems.push(
+      `${long.length} line(s) run past ${LONG_LINE_WORDS} words, like a paragraph; his posts keep one thought per line, about ten words, a blank line between: split "${long[0]!.slice(0, 60)}…"`,
+    );
+  }
+  const teaser = POINTS_TO_ARTICLE.test(body);
+  if (raw.format === "text_post" && !teaser) {
+    if (!LINKEDIN_TURN.test(body)) {
+      problems.push(
+        `It has no turn line where it moves from what happened to why it matters; add one on its own line, as his posts do ("Here's why this matters.", "But there's a catch.", "Think about that for a moment.")`,
+      );
+    }
+    if (!/\brepost\b/i.test(body)) {
+      problems.push(
+        `It does not end on "Repost to help [a specific person] [a specific benefit]." as his full posts do.`,
+      );
+    }
+  }
+  if (teaser && !/#\w/.test(body) && !/\brepost\b/i.test(body)) {
+    problems.push(
+      "It is an article teaser with neither hashtags nor a Repost line; his teasers end with one.",
+    );
+  }
+  if (research && /\d/.test(body) && !NAMED_SOURCE.test(body)) {
+    problems.push(
+      `It states figures from the research without naming where they come from; name the source as his posts do ("According to The Wall Street Journal…", "A 2026 BCG study found…").`,
+    );
+  }
   return problems;
+}
+
+/** Longer than this, a line reads as a paragraph: his lines run about ten words. */
+const LONG_LINE_WORDS = 32;
+const POINTS_TO_ARTICLE = /\b(article|read the full|full breakdown)\b/i;
+/** His turn lines on LinkedIn, the way his posts pivot to why it matters. */
+const LINKEDIN_TURN =
+  /\b(here['’]?s (why|what|where|how)|but there['’]?s a catch|think about (that|it|this|the impact)|but here['’]?s|there is a bigger lesson|that['’]?s (where|when)|this is where|now look at|now,? here['’]?s|i['’]?ve seen this pattern|what does this mean|so,? what should|my takeaway)\b/i;
+/** Wording that names where a fact comes from. */
+const NAMED_SOURCE =
+  /\b(according to|study|survey|report(ed|s)?|found that|research|data from|announced|said|says|told)\b/i;
+
+/** The multi-outlet research behind a post, when its story was researched. */
+function researchOf(raw: RawPost, sources: SourceItem[]): StoryResearch | undefined {
+  const id = typeof raw.source?.sourceId === "string" ? raw.source.sourceId : null;
+  return id ? sources.find((item) => item.id === id)?.research : undefined;
 }
 
 /** The facts the post may state: the fact sheet, one article, or the headline. */
@@ -186,7 +243,7 @@ export async function reviewLinkedInDrafts(
     const kind =
       raw.format === "article" ? "article" : raw.format === "document" ? "document post" : "post";
     const lane = typeof raw.contentLane === "string" ? raw.contentLane : "";
-    const draftProblems = problemsOf(raw, body, sections);
+    const draftProblems = problemsOf(raw, body, sections, researchOf(raw, sources));
 
     let best: { review: Review; problems: string[] } | null = null;
     let feedback: string[] = [];
@@ -230,7 +287,12 @@ ${draftText(body, sections)}`,
         if (result.usage) cost = addCosts(cost, costOf(result.usage, result.model));
         const reply = parsed.safeParse(result.data);
         if (!reply.success || !reply.data.body.trim()) continue;
-        const problems = problemsOf(raw, reply.data.body, reply.data.sections);
+        const problems = problemsOf(
+          raw,
+          reply.data.body,
+          reply.data.sections,
+          researchOf(raw, sources),
+        );
         if (!best || problems.length <= best.problems.length) {
           best = { review: reply.data, problems };
         }

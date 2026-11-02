@@ -69,3 +69,39 @@ describe("LinkedIn length", () => {
     expect(linkedInLength("")).toBeNull();
   });
 });
+
+describe("the 'isn't just X. It's Y.' contrast", () => {
+  const reel = (line: string) =>
+    ({
+      title: "Brand",
+      angle: "",
+      hook: "Brand did this.",
+      altHooks: [],
+      caption: "",
+      format: "reel",
+      shots: [
+        { voiceover: line, onScreenText: "", shotType: "", visual: "", mark: "", transition: "" },
+      ],
+    }) as unknown as ContentIdea;
+  const post = (body: string) =>
+    ({
+      title: "Brand",
+      angle: "",
+      hook: "Brand did this.",
+      altHooks: [],
+      caption: "",
+      format: "text_post",
+      shots: [],
+      post: { body, sections: [] },
+    }) as unknown as ContentIdea;
+  const line = "This isn't just a logo. It's a promise to every listener.";
+
+  it("is still banned on Instagram", () => {
+    expect(voiceFlags(reel(line)).some((flag) => /not just/.test(flag))).toBe(true);
+  });
+
+  it("is allowed on LinkedIn, with 'Think about that' as his own turn line", () => {
+    const flags = voiceFlags(post(`Brand did this.\n\nThink about that for a moment.\n\n${line}`));
+    expect(flags.some((flag) => /not just|think about that|contrast/.test(flag))).toBe(false);
+  });
+});

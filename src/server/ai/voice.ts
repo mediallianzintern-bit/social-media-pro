@@ -493,7 +493,33 @@ const LINKEDIN_READING = `HOW TO READ THE VOICE ABOVE FOR A LINKEDIN POST (added
   the wording.`;
 
 /** The voice block for LinkedIn posts: his prompt's voice sections, then how to read them. */
-export const LINKEDIN_VOICE = [LINKEDIN_VOICE_PROMPT, LINKEDIN_READING].join("\n\n");
+/**
+ * What his posted LinkedIn posts do that his voice prompt does not spell out
+ * (added by the dashboard, 2 Nov 2026). Read from the 19 posts in the Master
+ * Tracker's LinkedIn sheet (9-30 Oct) against 15 the dashboard wrote: his run
+ * about 223 words in lines of about 10, with a turn line (12 of 19), a named
+ * source (6), figures (10), a numbered list (7), a run of short questions
+ * (3.4 a post), first person, and "Repost to help …" (15); the dashboard's had
+ * almost none of it. Labelled, never edited into his prompt.
+ */
+export const LINKEDIN_POSTED_PATTERNS = `HOW HIS POSTED LINKEDIN POSTS ARE WRITTEN (added by the dashboard from the posts Pritesh actually published; his voice above still governs everything it covers):
+- THE HOOK IS TWO OR THREE SHORT LINES THAT BUILD TENSION: "Your next customer may never visit your website. / They will ask AI to find the product for them. / And AI will decide if your product even deserves to be seen."
+- SHORT LINES: one thought per line, about ten words, a blank line between them. Never a paragraph of three sentences.
+- A TURN LINE, on its own line, where the post turns from what happened to why it matters: "Here's why this matters." / "But there's a catch." / "Think about that for a moment." / "Think about the impact." / "But here's what makes this story even more interesting."
+- NAME THE SOURCE OF EVERY FACT, with its figure: "According to The Wall Street Journal…" / "A 2026 BCG study found…" / "A Gartner survey found that 81% of US consumers…"
+- "FOR YEARS … BUT NOW …": show the shift against how things used to work ("For years, businesses have focused on getting customers to their websites… But what happens when…").
+- THREE POINTS, NUMBERED, when there is advice: "I'd look at three metrics beyond reach: 1. Attention… 2. Brand recall… 3. Business impact…" / "So, what should marketers do differently? 1. … 2. … 3. …"
+- A RUN OF SHORT QUESTIONS that make the reader check their own work: "Did they notice it? / Did they remember your brand? / Did it influence their buying decision?"
+- FIRST PERSON, as the experienced marketer he is: "I came across two findings…", "I see three important changes.", "My takeaway?"
+- HIS REAL BACKGROUND, used sparingly and only these facts: 21 years in digital marketing ("After 21 years in digital marketing, I've learnt one thing."), the AI and digital marketing sessions he teaches ("This is something I emphasise in my AI and digital marketing sessions."), and students asking him questions ("A student asked me this recently."). Never invent a client, a story or a result beyond these.
+- A CLOSING CONTRAST LINE is his signature and is allowed once, at the end: "Having a secure website is no longer just an IT responsibility. It is a business responsibility." / "Stop planning how customers should buy. Start understanding how they actually buy."
+- THE ENDING: a question to readers about their own business, then one line, "Repost to help [a specific person] [a specific benefit]." ("Repost to help a business prepare for AI-driven shopping."). An article teaser ends "Would love to hear your views." and three to five hashtags instead.`;
+
+export const LINKEDIN_VOICE = [
+  LINKEDIN_VOICE_PROMPT,
+  LINKEDIN_READING,
+  LINKEDIN_POSTED_PATTERNS,
+].join("\n\n");
 
 /**
  * The voice block for a platform's script prompts, or "" where it is not wired.

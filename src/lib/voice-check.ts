@@ -95,6 +95,12 @@ const BANNED_WORDS: Array<{ word: string; pattern: RegExp }> = [
   { word: "delve", pattern: /\bdelv(e|es|ed|ing)\b/i },
 ];
 
+/** Phrases banned on Instagram that are his own on LinkedIn. */
+const LINKEDIN_ALLOWED = new Set(["think about that"]);
+
+/** "Isn't just …" / "not only …": the contrast LinkedIn allows, in moderation. */
+const NOT_JUST = /\b(isn'?t|is not|not|no longer) (just|only)\b/gi;
+
 /** The two sentence formulas the document names, plus its fabrication example. */
 const BANNED_SHAPES: Array<{ label: string; pattern: RegExp }> = [
   {
@@ -255,6 +261,8 @@ export function voiceFlags(
   const flags: string[] = [];
 
   for (const phrase of BANNED_PHRASES) {
+    // "Think about that for a moment." is his own turn line on LinkedIn.
+    if (idea.post && LINKEDIN_ALLOWED.has(phrase)) continue;
     if (lower.includes(phrase)) flags.push(`uses “${phrase}”`);
   }
   if (AGREE.test(text)) flags.push("uses “Agree?”");
@@ -263,8 +271,22 @@ export function voiceFlags(
   for (const { word, pattern } of BANNED_WORDS) {
     if (pattern.test(text)) flags.push(`uses “${word}”`);
   }
+  // "It isn't just X. It's Y." is banned on Instagram, where his reel brief
+  // and the model's habits make it a tell. On LinkedIn it is his own closing
+  // line (5 of the 19 posts in the Master Tracker, 2 Nov 2026), so a post may
+  // use it once; a second is the model leaning on it.
+  const linkedInPost = Boolean(idea.post);
   for (const { label, pattern } of BANNED_SHAPES) {
+    if (linkedInPost && /not just/.test(label)) continue;
     if (pattern.test(text)) flags.push(label);
+  }
+  if (linkedInPost) {
+    const contrasts = text.match(NOT_JUST) ?? [];
+    if (contrasts.length > 2) {
+      flags.push(
+        `uses the “isn't just X. It's Y.” contrast ${contrasts.length} times; once, as the closing line, is his`,
+      );
+    }
   }
 
   // §12 — no dashes in the voice over. Checked on the spoken words only: a

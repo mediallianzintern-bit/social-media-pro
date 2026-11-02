@@ -50,82 +50,82 @@ const SHAPES: Record<string, LinkedInShape> = {
   "ai x marketing bridge": {
     is: "how AI is changing advertising, search and shopping (an ad platform's move, AI search, how customers find products), and what it changes for marketers",
     opening:
-      "Name the brand or platform and the move in the first line, with its figure where there is one (“McDonald’s wants to make $1 billion from advertising.”). A personal moment works too when it is real (“I almost approved an AI-generated campaign. Then one sentence stopped me.”).",
+      "A future-shift hook in two or three short lines (“Your next customer may never visit your website. / They will ask AI to find the product for them. / And AI will decide if your product even deserves to be seen.”), or the platform and its move (“Meta is moving beyond AI that creates ads.”).",
     middle: [
-      "the move, concretely: what the brand or platform is doing, from a named source",
-      "the turn: why the obvious reading misses the point (“But the real opportunity isn’t the screens. It is the customer journey.”)",
-      "the shift for marketing as a whole, in one or two short lines (“Brands are becoming media platforms.”)",
-      "what a marketer should look at or ask in their own business",
+      "the development, from a named source with its figure (“According to The Wall Street Journal… AI-driven orders and traffic to Shopify stores tripled year over year.”)",
+      "the turn on its own line: “Here's why this matters.” or “But there's a catch.”",
+      "the shift against the old way: “For years, businesses have focused on… But what happens when customers start relying on AI to…”",
+      "what marketers should do, as three numbered points (“I see three important changes. 1. … 2. … 3. …”)",
     ],
     ending:
-      "End on the question it leaves a marketer with, specific to their own brand (“What customer touchpoint does your brand own that you are currently treating as ‘just marketing’?”).",
-    best: "McDonald’s advertising business, 148 words, 503 impressions",
+      "End on a question about the reader's own business (“If an AI assistant were helping your ideal customer choose a product today, would your product even make the shortlist?”), then “Repost to help …”.",
+    best: "Your next customer may never visit your website, 250 words; McDonald’s advertising business, 148 words, 503 impressions",
   },
   "ai launches explained": {
-    is: "a new AI model, tool or platform feature, and what it means for how businesses and marketers work",
+    is: "a new AI model, tool or feature, and what it means for businesses; usually a short teaser for his LinkedIn article",
     opening:
-      "Name the tool or model in the first line (“Meta just launched Muse, and this could change how we work with AI.”), or set up the obvious question and then the better one (“A new AI model launches and the first question is usually: Is it more powerful?”).",
+      "Flip the obvious question (“A new AI model launches and the first question is usually: / Is it more powerful? / But Claude Haiku 5.5 made me think about a different question:”), or name the development and ask the business question (“OpenAI Just Made AI 50% Cheaper. Should Businesses Pay Attention?”).",
     middle: [
-      "what it does differently, in plain words, with an everyday example of using it (“You ask: ‘Find me the best flights to London.’”)",
-      "the shift it represents, as a short progression (“AI that answers. To AI that creates. And now: AI that acts.”)",
-      "how it would look at work, for a business owner and for a marketer (“Imagine using this at work.”)",
-      "the trade-off or limitation worth knowing (“But there is an important trade-off. An AI that can actually do things needs access.”)",
+      "why it matters beyond the headline, in two or three short lines (“Not because AI is getting cheaper. But because tasks that were once too expensive to automate could now become affordable.”)",
+      "the everyday business work it touches (invoices, records, documents, repetitive workflows)",
+      "the open question it leaves (“But does this mean businesses need to rethink how their teams work?”)",
     ],
     ending:
-      "End by reframing the question the reader should be asking (“The interesting question isn’t only ‘How powerful is it?’ It is ‘How much work are we comfortable handing over to AI?’”).",
+      "As a teaser for his article (75 to 125 words): “I've explored this in my latest article.” / “Would love to hear your views.” and three to five hashtags. As a full post: a question to readers, then “Repost to help …”.",
     best: "a Claude Haiku 5.5 article teaser, 93 words, 462 impressions; Meta Muse, 256 words, 424",
   },
   "ai risks and security": {
     is: "a real AI security incident or risk, translated into what a business should check",
     opening:
-      "Name the incident and its scale in the first line, factually (“AI just uncovered a security flaw that could put 70% of the world’s websites at risk.”). Alarming only as far as the facts go: never fear for its own sake.",
+      "The incident and its scale, factually, in two short lines (“AI just uncovered a security flaw that could put 70% of the world's websites at risk. / And some websites had to go offline because of it.”). Never fear for its own sake.",
     middle: [
-      "what happened, with the organisations named and the source given",
-      "“Think about the impact”: what it means for a website, customer data or an AI agent with access to a CRM",
-      "the one or two safeguards a business can actually apply (give an agent the minimum access, keep spending and publishing behind human approval, test the failure paths)",
+      "what happened, with the organisations and countries named and the source given",
+      "“Think about the impact.” on its own line, then what it means for a website, customer data or an AI agent connected to a CRM",
+      "the turn: “But here's what makes this story even more interesting.”",
+      "“There is a bigger lesson here for businesses.” and the safeguards a business can apply",
     ],
     ending:
-      "End on the responsibility it puts on businesses, not only on IT (“Having a secure website is no longer just an IT responsibility. It is a business responsibility.”).",
-    best: "AI agents escaping a sandbox, 183 words, 243 impressions",
+      "End on the responsibility it puts on businesses (“Having a secure website is no longer just an IT responsibility. / It is a business responsibility.”) or the real question (“The question is not whether AI will change cybersecurity. It already is. The question is whether businesses can keep up.”), then “Repost to help …”.",
+    best: "AI found PHP flaws that put 70% of websites at risk, 263 words; AI agents escaping a sandbox, 243 impressions",
   },
   "content and creator craft": {
     is: "how to make content that works: on camera, YouTube, creators, and the quality of AI-generated content",
     opening:
-      "Open on a concrete, surprising contrast, never a general principle: “AI can help you create 100 pieces of content instead of 10. But what if those 100 pieces are just average?” or “Your website can rank #1 on Google and still be invisible when your customer asks AI.” Openings like “If everyone has access to AI, what will make a marketer stand out?” are his weakest posts here.",
+      "A real moment from his own work in one or two lines (“I almost approved an AI-generated campaign. Then one sentence stopped me.”), or a concrete contrast (“AI can help you create 100 pieces of content instead of 10. But what if those 100 pieces are just average?”).",
     middle: [
-      "the problem marketers are missing, from a named study, article or finding",
-      "one concrete example from a recognisable business (a fashion post, a consultant, a chef)",
-      "a simple process or checklist they could follow (“Human strategy → AI expansion → Human editing → Brand check → Performance measurement”), as an arrow or numbered list",
+      "the situation, with the exact line or example quoted (“Take your business to the next level with intelligent solutions designed for your success.”)",
+      "the turn: “That's when I went back to the customer conversations.”",
+      "the questions he asks, as a short run (“What problems were customers actually facing? / What words were they using?”), and where he teaches it (“This is something I emphasise in my AI and digital marketing sessions.”)",
     ],
     ending:
-      "End on a memorable contrast pair (“AI can scale production. Your judgment has to scale quality.” / “SEO asks: Can I rank? AI search asks: Can I become the source?”).",
-    best: "AI content volume vs quality, 201 words, 258 impressions; this is his weakest lane by impressions, so the opening rule above matters most here",
+      "End on a closing contrast (“The goal isn't to make AI-generated content sound human. It's to make your marketing relevant to humans.”), then “Repost to help …”.",
+    best: "I almost approved an AI-generated campaign, 219 words, 393 impressions",
   },
   "marketing fundamentals": {
     is: "a marketing principle, measurement or a brand's business move, where AI is not the main subject",
     opening:
-      "Name the brand and its move, with its figure, in the first line (“McDonald’s wants to make $1 billion from advertising.”), or open on a sharp contrast in two short lines (“Millions of Impressions. Zero brand recall.”).",
+      "A sharp contrast in two short lines (“Millions of impressions. / Zero brand recall.”) or the mistake named (“The biggest mistake in marketing? Assuming customers move from awareness to purchase in that order.”), or the brand and its move with its figure (“McDonald’s wants to make $1 billion from advertising.”).",
     middle: [
-      "what happened or what the evidence shows, from a named source (“A Gartner survey found that 81% of US consumers try to ignore or tune out ads.”)",
-      "the turn: why the obvious reading misses the point (“But the real opportunity isn't the screens. It is the customer journey.”)",
-      "the principle a marketer can take from it, with a short list of what to look at (“1. Attention 2. Brand recall 3. Business impact”)",
+      "the evidence, from named studies with their figures (“A recent Indian marketing report found that 81% of marketers prioritise reach. Only 17%…”)",
+      "“Think about that for a moment.” on its own line, then the disconnect in one or two lines",
+      "“So, what should marketers do differently?” as three numbered points, each a short heading line and one line of explanation",
     ],
     ending:
-      "End on the question it leaves a marketer with about their own brand (“What customer touchpoint does your brand own that you are currently treating as ‘just marketing’?”).",
-    best: "McDonald’s advertising business, 148 words, 503 impressions",
+      "End on a closing contrast (“Stop planning how customers should buy. Start understanding how they actually buy.”), then “Repost to help …”.",
+    best: "McDonald’s advertising business, 148 words, 503 impressions; Millions of impressions, zero brand recall, 215 words",
   },
   reflections: {
     is: "a personal lesson on work, learning, decisions or purpose, told from his own experience",
     opening:
-      "Open on a plain, honest observation or a real moment, in one or two short lines (“Sometimes we make the wrong decision. And sometimes things simply go wrong.” / “A student asked me this recently.”). Only experiences that really happened; never invent one.",
+      "Someone's real question in quotes, or an honest observation (“Professor, with AI changing so quickly, what should I actually learn?” / “A student asked me this recently.”). Only experiences that really happened; never invent one.",
     middle: [
-      "the situation, in a few short lines",
-      "where it shows up in business or marketing (“A campaign isn't working, but instead of changing the strategy, we put more money into it.”)",
-      "the turn: what he does differently, or the question that helps",
+      "his first instinct and the turn (“My first instinct was to recommend a few AI tools. / Then I realised that was probably the wrong advice.”)",
+      "the better question, then a run of short questions (“Can you research faster? / Can you analyse data more effectively?”)",
+      "the advice as a contrast (“Don't try to learn every AI tool. / Learn how to identify a problem, choose the right tool…”)",
     ],
     ending:
-      "End on one short line worth remembering (“Your last decision doesn't have to decide your next one.”).",
-    best: "“I don't think we are born with one fixed purpose”, 155 words, 137 impressions",
+      "End on a two-line contrast (“Because knowing how to use AI is useful. / Knowing what to do with it is what creates value.”), a question to readers, then “Repost to help …”.",
+    best: "“Professor, what should I actually learn?”, 165 words",
   },
 };
 
