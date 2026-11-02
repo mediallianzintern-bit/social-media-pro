@@ -30,6 +30,22 @@ export const LANE_QUERIES: Record<string, string[]> = {
     '"AI safety" OpenAI',
     "intitle:AI site:techcrunch.com",
   ],
+  // LinkedIn's six lanes (30 Oct 2026). Without entries here each searched its
+  // own name, and "Reflections" brought back church sermons. Each was tested on
+  // the live feed on 2 Nov 2026 and returned that lane's stories first.
+  "ai launches explained": ["intitle:AI model launch"],
+  "ai x marketing bridge": [
+    '"AI" advertising marketers',
+    '"AI search" brands',
+    '"AI shopping" retailers',
+  ],
+  "ai risks and security": ['"AI" cybersecurity flaw', '"AI agents" security risk'],
+  "marketing fundamentals": ['"brand marketing" campaign', "advertising effectiveness brand"],
+  "content and creator craft": [
+    '"creator economy"',
+    "YouTube creators strategy",
+    '"AI-generated content" brands',
+  ],
 };
 
 /**
@@ -88,7 +104,12 @@ export function derivedQuery(lane: string): string | null {
  * from watched creators instead (server/creators.ts). Its old news stories are
  * hidden from the topic list as well, not just no longer fetched.
  */
-export const NEWS_OFF_LANES = new Set(["ai tool workflows"]);
+export const NEWS_OFF_LANES = new Set([
+  "ai tool workflows",
+  // LinkedIn: personal lessons on work and purpose. No news story is one; a
+  // search on the name found sermons.
+  "reflections",
+]);
 
 export function isNewsOffLane(lane: string | null | undefined): boolean {
   return NEWS_OFF_LANES.has((lane ?? "").trim().toLowerCase());

@@ -355,9 +355,16 @@ export async function topicInbox(platform: PlatformId): Promise<TopicInbox> {
     usedSet.has(item.id) ||
     ticked.has(item.id) ||
     Date.parse(item.fetchedAt) >= (latestReel.get(item.lane ?? "") ?? 0) - 15 * 60_000;
-  // A lane fed by creator reels shows only the reels, not its old news.
+  // A lane fed by creator reels shows only the reels, not its old news. And a
+  // story filed under a lane the account no longer has (LinkedIn's lanes were
+  // rebuilt on 30 Oct 2026) is not shown: it would sit under a lane name that
+  // appears nowhere else.
+  const laneNames = new Set((await lanesFor(platform)).map((lane) => lane.trim().toLowerCase()));
   const items = stored.filter((item) =>
-    item.kind === "video" ? current(item) : !isNewsOffLane(item.lane),
+    item.kind === "video"
+      ? current(item)
+      : !isNewsOffLane(item.lane) &&
+        (!item.lane || !laneNames.size || laneNames.has(item.lane.trim().toLowerCase())),
   );
   const model = buildPreferenceModel(votes);
 
