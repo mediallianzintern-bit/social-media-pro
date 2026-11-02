@@ -37,7 +37,8 @@ export const LANE_QUERIES: Record<string, string[]> = {
   // posts in each lane cover (the lane table: OpenAI, Claude, Gemini and Meta
   // launches; Meta's AI ads, ChatGPT ads, AI search, agentic shopping; AI-found
   // flaws, rogue agents, lab safety; ad effectiveness and consumer studies;
-  // the creator economy, YouTube's AI tools, AI content and trust). Each was
+  // the creator economy, YouTube's AI tools, AI content and trust; the last two
+  // re-searched below). Each was
   // tested on the live feed on 2 Nov 2026 and returned that lane's stories
   // first. Job moves ("appoints", "joins") are excluded where they crept in.
   // Reflections has no news: see NEWS_OFF_LANES.
@@ -56,15 +57,26 @@ export const LANE_QUERIES: Record<string, string[]> = {
     '"AI agents" security risk',
     '"AI safety" model unexpected behaviour',
   ],
+  // Re-searched on 2 Nov 2026, when both lanes were filling with the wrong
+  // kind of story. Marketing fundamentals had festive campaign launches
+  // ("brand marketing" campaign) and AI-shopping surveys, where his posts are
+  // principles and evidence: ad recall, measurement, the customer journey, a
+  // brand's business move (McDonald's ad business). Content and creator craft
+  // had platform and earnings news (Instagram's long videos, YouTube's
+  // subscriber count, Alphabet's results), where his posts are how to make
+  // content work: AI content volume against quality, on camera, trust.
   "marketing fundamentals": [
-    `"brand recall" OR "ad effectiveness" study${NO_JOB_MOVES}`,
-    `consumers survey advertising brands${NO_JOB_MOVES}`,
-    `"brand marketing" campaign${NO_JOB_MOVES}`,
+    `"brand recall" OR "ad recall" study${NO_JOB_MOVES}`,
+    `Kantar OR Nielsen OR "System1" advertising study${NO_JOB_MOVES}`,
+    `"brand building" "performance marketing"${NO_JOB_MOVES}`,
+    `"marketing funnel" OR attribution marketers${NO_JOB_MOVES}`,
+    `"retail media" business brand advertising revenue${NO_JOB_MOVES}`,
   ],
   "content and creator craft": [
-    `"creator economy"${NO_JOB_MOVES}`,
-    "YouTube creators AI tools",
-    '"AI-generated content" brands trust',
+    `"AI slop" brands${NO_JOB_MOVES}`,
+    `"creator marketing"${NO_JOB_MOVES}`,
+    `creators trust audiences brands content${NO_JOB_MOVES}`,
+    `"video storytelling" OR "storytelling" brands content${NO_JOB_MOVES}`,
   ],
 };
 
