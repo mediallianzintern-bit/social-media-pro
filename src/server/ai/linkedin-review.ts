@@ -261,6 +261,8 @@ export async function reviewLinkedInDrafts(
   data: unknown,
   sources: SourceItem[],
   deadline?: number,
+  /** The team's approvals and rejections of earlier scripts (lib/script-feedback.ts). */
+  feedback = "",
 ): Promise<{ data: unknown; cost: GenerationCost | undefined; reviewed: number; failed: number }> {
   const ideas = (data as { ideas?: unknown })?.ideas;
   if (!reviewEnabled() || !Array.isArray(ideas)) {
@@ -295,6 +297,7 @@ export async function reviewLinkedInDrafts(
           system: [
             LINKEDIN_VOICE,
             lane ? linkedInShapesBlock([{ name: lane, definition: "" }]) : "",
+            feedback,
           ]
             .filter(Boolean)
             .join("\n\n"),

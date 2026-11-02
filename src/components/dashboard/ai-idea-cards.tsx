@@ -19,7 +19,6 @@ import { useEffect, useMemo, useState } from "react";
 import { ReactionPanel } from "@/components/dashboard/reaction-panel";
 import { FilmedPanel } from "@/components/dashboard/filmed-panel";
 import { SaveTopicButton } from "@/components/dashboard/save-topic-button";
-import { VoteButtons } from "@/components/dashboard/vote-buttons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardContent } from "@/components/ui/card";
@@ -62,6 +61,8 @@ import { computeInsights } from "@/lib/insights";
 import { usePlatform } from "@/lib/use-dashboard";
 import { PIVOT_LABEL, RIGHTS_LABEL, SOURCE_PLATFORM_LABEL } from "@/lib/reaction";
 import { ResearchBlock } from "@/components/dashboard/research-block";
+import { ScriptVerdictButtons } from "@/components/dashboard/script-verdict";
+import { scriptVerdictsQueryOptions } from "@/lib/script-feedback.functions";
 import { ToneReferencesBlock } from "@/components/dashboard/tone-references-block";
 import { factSheetText } from "@/lib/research";
 
@@ -339,6 +340,11 @@ export function AiIdeaCards({
   // hook the team picked, so what is read, checked and copied is that script.
   const found = displayedIdeas.find((idea) => idea.id === openId) ?? null;
   const open = useMemo(() => (found ? withChosenHook(found) : null), [found]);
+  const { data: verdicts } = useQuery(scriptVerdictsQueryOptions(platform));
+  const verdictOf = useMemo(
+    () => new Map((verdicts ?? []).map((entry) => [entry.ideaId, entry.verdict])),
+    [verdicts],
+  );
 
   /** Patches one idea's status in the cached analysis, in place. */
   function patchIdea(ideaId: string, patch: Partial<ContentIdea>) {
@@ -443,6 +449,18 @@ export function AiIdeaCards({
                       {idea.status === "used" ? "Filmed" : "Dismissed"}
                     </span>
                   ) : null}
+                  {verdictOf.get(idea.id) ? (
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
+                        verdictOf.get(idea.id) === "approve"
+                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                          : "bg-destructive/10 text-destructive",
+                      )}
+                    >
+                      {verdictOf.get(idea.id) === "approve" ? "Approved" : "Rejected"}
+                    </span>
+                  ) : null}
                 </span>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{idea.angle}</p>
 
@@ -507,30 +525,19 @@ export function AiIdeaCards({
                   {open.post ? "" : " script"}
                 </SheetDescription>
                 <SheetTitle className="text-xl leading-snug">{open.title}</SheetTitle>
-                {/* T67. Voting lives here rather than on the card: the card is
-                    itself a button, and this is where the whole idea and its
-                    script are actually read before anyone judges them. What
-                    is learned from is the hook, the angle and the trait it
-                    reproduces — the topic and the tone together. */}
                 <div className="flex flex-wrap items-center gap-2 pt-1">
-                  {open.id ? (
-                    <>
-                      <span className="text-xs text-muted-foreground">
-                        Want more ideas like this?
-                      </span>
-                      <VoteButtons
-                        platform={platform}
-                        kind="idea"
-                        itemId={open.id}
-                        text={[open.hook, open.angle, open.winningTrait]
-                          .filter(Boolean)
-                          .join(" · ")}
-                        lane={open.contentLane ?? null}
-                      />
-                    </>
-                  ) : null}
                   <SaveScript idea={open} platform={platform} />
                 </div>
+                {/* Approve or reject the script's WRITING, with reasons
+                    (script-verdict.tsx). It replaced the topic tick here: by
+                    2 Nov 2026 no script had been voted on, and a cross could
+                    not say whether the topic or the writing was wrong. The
+                    subject learning still hears about it (judgeScript). */}
+                {open.id ? (
+                  <div className="pt-2">
+                    <ScriptVerdictButtons platform={platform} ideaId={open.id} />
+                  </div>
+                ) : null}
               </SheetHeader>
 
               <div className="flex-1 space-y-7 overflow-y-auto p-6">

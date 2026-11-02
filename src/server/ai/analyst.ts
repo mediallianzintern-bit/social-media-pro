@@ -29,6 +29,7 @@ import {
   type ToneReference,
 } from "@/lib/tone-references";
 import { reviewLinkedInDrafts } from "./linkedin-review";
+import { scriptFeedbackFor } from "../script-feedback";
 import { factSheetText } from "@/lib/research";
 import { NO_RULES, type LearnedRules } from "@/lib/reel-learning-types";
 import { coveredCampaignsBlock } from "@/lib/covered-campaigns";
@@ -713,6 +714,8 @@ export interface IdeaReads {
   filmedRules?: LearnedRules | null;
   /** Past scripts given as tone references (lib/tone-references.ts). Instagram only. */
   toneReferences?: ToneReference[] | null;
+  /** The team's approvals and rejections of earlier scripts (lib/script-feedback.ts). */
+  scriptFeedback?: string | null;
 }
 
 export interface IdeaRequest {
@@ -830,7 +833,7 @@ export function buildIdeaRequest(
 creator, based on their own measured performance.
 
 ${groundRules(owner.owned?.source)}
-${voice ? `\n${voice}\n` : ""}${tone ? `\n${tone}\n` : ""}${laneShapes ? `\n${laneShapes}\n` : ""}${covered ? `\n${covered}\n` : ""}${workflow ? `\n${workflow}\n` : ""}
+${voice ? `\n${voice}\n` : ""}${tone ? `\n${tone}\n` : ""}${reads.scriptFeedback ? `\n${reads.scriptFeedback}\n` : ""}${laneShapes ? `\n${laneShapes}\n` : ""}${covered ? `\n${covered}\n` : ""}${workflow ? `\n${workflow}\n` : ""}
 Additional requirements:
 - EVERY IDEA MUST HAVE A CONCRETE SUBJECT. Name the specific brand, campaign, product, tool,
   person or event the reel covers, in the title and again in the angle. A reader who sees only
@@ -1565,7 +1568,10 @@ export async function generateIdeas(
           onlyLane ?? sources[0]?.lane ?? null,
         )
       : [];
-  reads = { ...reads, toneReferences };
+  // What the team approved and rejected before, on this platform: approved
+  // scripts as examples of how he sounds, rejections as what to avoid. Free.
+  const scriptFeedback = await scriptFeedbackFor(platform).catch(() => "");
+  reads = { ...reads, toneReferences, scriptFeedback };
   const request = buildIdeaRequest(
     platform,
     owner,
@@ -1609,7 +1615,8 @@ Write it again and make sure each of these is fixed. Everything else above still
     platform,
     result.data,
     sources,
-    reads.filmed ?? "",
+    // The team's approvals and rejections too, so the rewrite does not undo them.
+    [reads.filmed, reads.scriptFeedback].filter(Boolean).join("\n\n"),
     reads.filmedRules ?? NO_RULES,
     extra.deadline,
     toneReferences,
@@ -1625,7 +1632,7 @@ Write it again and make sure each of these is fixed. Everything else above still
   // LinkedIn's review-and-rewrite pass first (linkedin-review.ts), then the
   // length fit as the last check.
   const reviewedPosts = request.written
-    ? await reviewLinkedInDrafts(review.data, sources, extra.deadline)
+    ? await reviewLinkedInDrafts(review.data, sources, extra.deadline, reads.scriptFeedback ?? "")
     : { data: review.data, cost: undefined, reviewed: 0, failed: 0 };
   if (reviewedPosts.reviewed || reviewedPosts.failed) {
     console.info(
