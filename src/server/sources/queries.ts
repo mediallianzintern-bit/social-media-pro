@@ -71,6 +71,10 @@ export const LANE_QUERIES: Record<string, string[]> = {
     `"brand building" "performance marketing"${NO_JOB_MOVES}`,
     `"marketing funnel" OR attribution marketers${NO_JOB_MOVES}`,
     `"retail media" business brand advertising revenue${NO_JOB_MOVES}`,
+    // Kept alongside, at the team's request: campaign launches and consumer
+    // surveys are wanted in this lane too.
+    `"brand marketing" campaign${NO_JOB_MOVES}`,
+    `consumers survey advertising brands${NO_JOB_MOVES}`,
   ],
   "content and creator craft": [
     `"AI slop" brands${NO_JOB_MOVES}`,
