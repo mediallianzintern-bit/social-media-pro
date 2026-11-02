@@ -25,6 +25,7 @@ import {
 import { fetchAudienceQuestions, fetchTrends, feedQueries, type FeedItem } from "./feeds";
 import type { AccountBrief } from "./analyst";
 import { laneBenchmark } from "@/lib/lane-benchmark";
+import { benchmarkHeadline, laneVerdicts } from "@/lib/lane-verdicts";
 import type { AnalystRead, CompetitorAnalysis, FeedRead, ReflectionRead } from "@/lib/ai-types";
 import type { PlatformId } from "@/lib/analytics-types";
 
@@ -185,10 +186,16 @@ export async function competitorRead(
   platform: PlatformId,
   owner: AccountBrief,
   rivals: AccountBrief[],
+  /** A model for this read only; the default model otherwise. */
+  options: { model?: string } = {},
 ): Promise<{ analysis: CompetitorAnalysis; model: string }> {
   const nicheLanes = owner.nicheLanes ?? [];
   // Engagement per 1,000 followers, lane by lane (lib/lane-benchmark.ts).
   const benchmark = laneBenchmark(owner, rivals);
+  // With a benchmark, the table and the contested and open lanes are decided
+  // in code (lib/lane-verdicts.ts) and the model writes only the headline and
+  // the takeaways.
+  const inCode = benchmark.length > 0;
 
   const system = `You are mapping the competitive position of a ${platform} account against the
 accounts it is tracked alongside.
@@ -219,9 +226,17 @@ ${SHARED_RULES}
    1,000 followers is a strength, even with few posts; say so.
 11. Call the owner ${owner.displayName}, never by the handle.
 
-For each competitor give the lane it occupies, a verdict of at most four words for a table
+${
+  inCode
+    ? `The account-by-account table and the contested and open lanes are built in code from the LANE
+BENCHMARK below, and so is the headline: return verdicts, contestedLanes and openLanes as empty
+arrays and the headline as one short sentence. Your work is the takeaways. Where the owner is above
+the middle competitor but below the best one, say exactly that: never say he "leads" a lane unless
+he is above every competitor in it.`
+    : `For each competitor give the lane it occupies, a verdict of at most four words for a table
 cell, and one sentence explaining it that cites a figure. Include the owner in the verdicts
-array with gap "baseline" and tone "neutral".
+array with gap "baseline" and tone "neutral".`
+}
 
 Then write EXACTLY 4 TEAM TAKEAWAYS. This is the part of your answer a busy team actually
 reads, so write it to be read on its own, without the tables:
@@ -267,7 +282,7 @@ ${JSON.stringify(benchmark, null, 2)}`
     : ""
 }
 
-Map which lanes are contested and which are open for ${owner.displayName}.`;
+${inCode ? `Write the takeaways for ${owner.displayName}.` : `Map which lanes are contested and which are open for ${owner.displayName}.`}`;
 
   const result = await completeJson<unknown>({
     system,
@@ -276,9 +291,20 @@ Map which lanes are contested and which are open for ${owner.displayName}.`;
     schema: COMPETITOR_SCHEMA,
     temperature: 0.2,
     effort: "high",
+    ...(options.model ? { model: options.model } : {}),
   });
 
-  return { analysis: competitorAnalysisSchema.parse(result.data), model: result.model };
+  const analysis = competitorAnalysisSchema.parse(result.data);
+  return {
+    analysis: inCode
+      ? {
+          ...analysis,
+          headline: benchmarkHeadline(owner, rivals, benchmark),
+          ...laneVerdicts(owner, rivals, benchmark),
+        }
+      : analysis,
+    model: result.model,
+  };
 }
 
 // ---------------------------------------------------------------------------
