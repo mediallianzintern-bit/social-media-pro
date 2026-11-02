@@ -13,6 +13,9 @@
 // lane. Edit freely: a query is a plain Google News search, and the result of a
 // change shows up on the next topic refresh.
 
+/** Google News exclusions for a search that otherwise brings back people moving jobs. */
+const NO_JOB_MOVES = " -appoints -appointed -joins -hires -promoted";
+
 export const LANE_QUERIES: Record<string, string[]> = {
   "marketing stunts": ['"marketing stunt"', "intitle:campaign brand ad"],
   "brand strategy lessons": ['"brand strategy"', "rebrand OR repositioning brand"],
@@ -30,21 +33,38 @@ export const LANE_QUERIES: Record<string, string[]> = {
     '"AI safety" OpenAI',
     "intitle:AI site:techcrunch.com",
   ],
-  // LinkedIn's six lanes (30 Oct 2026). Without entries here each searched its
-  // own name, and "Reflections" brought back church sermons. Each was tested on
-  // the live feed on 2 Nov 2026 and returned that lane's stories first.
-  "ai launches explained": ["intitle:AI model launch"],
-  "ai x marketing bridge": [
-    '"AI" advertising marketers',
-    '"AI search" brands',
-    '"AI shopping" retailers',
+  // LinkedIn's six lanes (30 Oct 2026), searched for the subjects his own
+  // posts in each lane cover (the lane table: OpenAI, Claude, Gemini and Meta
+  // launches; Meta's AI ads, ChatGPT ads, AI search, agentic shopping; AI-found
+  // flaws, rogue agents, lab safety; ad effectiveness and consumer studies;
+  // the creator economy, YouTube's AI tools, AI content and trust). Each was
+  // tested on the live feed on 2 Nov 2026 and returned that lane's stories
+  // first. Job moves ("appoints", "joins") are excluded where they crept in.
+  // Reflections has no news: see NEWS_OFF_LANES.
+  "ai launches explained": [
+    "intitle:AI model launch",
+    '(OpenAI OR Anthropic OR Gemini OR "Meta AI") launches new model businesses',
   ],
-  "ai risks and security": ['"AI" cybersecurity flaw', '"AI agents" security risk'],
-  "marketing fundamentals": ['"brand marketing" campaign', "advertising effectiveness brand"],
+  "ai x marketing bridge": [
+    '"Meta" AI ads advertisers',
+    '"ChatGPT ads" OR "ads in ChatGPT"',
+    '"AI search" OR "AI Overviews" brands visibility',
+    '"agentic commerce" OR "AI shopping" retailers',
+  ],
+  "ai risks and security": [
+    '"AI" cybersecurity flaw',
+    '"AI agents" security risk',
+    '"AI safety" model unexpected behaviour',
+  ],
+  "marketing fundamentals": [
+    `"brand recall" OR "ad effectiveness" study${NO_JOB_MOVES}`,
+    `consumers survey advertising brands${NO_JOB_MOVES}`,
+    `"brand marketing" campaign${NO_JOB_MOVES}`,
+  ],
   "content and creator craft": [
-    '"creator economy"',
-    "YouTube creators strategy",
-    '"AI-generated content" brands',
+    `"creator economy"${NO_JOB_MOVES}`,
+    "YouTube creators AI tools",
+    '"AI-generated content" brands trust',
   ],
 };
 

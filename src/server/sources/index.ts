@@ -360,11 +360,29 @@ export async function topicInbox(platform: PlatformId): Promise<TopicInbox> {
   // rebuilt on 30 Oct 2026) is not shown: it would sit under a lane name that
   // appears nowhere else.
   const laneNames = new Set((await lanesFor(platform)).map((lane) => lane.trim().toLowerCase()));
+  // LinkedIn shows only stories its lanes' current, tested searches found
+  // (queries.ts, 2 Nov 2026), so a story from an earlier, looser search (a job
+  // move, general marketing news) does not sit beside them. A story a script
+  // was written from, or that the team voted on, stays.
+  const searched =
+    platform === "linkedin"
+      ? new Set(
+          [
+            ...[...laneNames].flatMap((lane) => queriesForLane(lane)),
+            ...pullQueries(votes).map((pull) => pull.query),
+          ].map((query) => query.toLowerCase()),
+        )
+      : null;
+  const voted = new Set(votes.map((vote) => vote.itemId));
   const items = stored.filter((item) =>
     item.kind === "video"
       ? current(item)
       : !isNewsOffLane(item.lane) &&
-        (!item.lane || !laneNames.size || laneNames.has(item.lane.trim().toLowerCase())),
+        (!item.lane || !laneNames.size || laneNames.has(item.lane.trim().toLowerCase())) &&
+        (!searched ||
+          usedSet.has(item.id) ||
+          voted.has(item.id) ||
+          searched.has((item.query ?? "").toLowerCase())),
   );
   const model = buildPreferenceModel(votes);
 
