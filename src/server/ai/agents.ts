@@ -24,7 +24,6 @@ import {
 } from "./schemas";
 import { fetchAudienceQuestions, fetchTrends, feedQueries, type FeedItem } from "./feeds";
 import type { AccountBrief } from "./analyst";
-import { laneBenchmark } from "@/lib/lane-benchmark";
 import type { AnalystRead, CompetitorAnalysis, FeedRead, ReflectionRead } from "@/lib/ai-types";
 import type { PlatformId } from "@/lib/analytics-types";
 
@@ -187,8 +186,6 @@ export async function competitorRead(
   rivals: AccountBrief[],
 ): Promise<{ analysis: CompetitorAnalysis; model: string }> {
   const nicheLanes = owner.nicheLanes ?? [];
-  // Engagement per 1,000 followers, lane by lane (lib/lane-benchmark.ts).
-  const benchmark = laneBenchmark(owner, rivals);
 
   const system = `You are mapping the competitive position of a ${platform} account against the
 accounts it is tracked alongside.
@@ -207,17 +204,6 @@ ${SHARED_RULES}
    open. That distinction is the most valuable thing this task produces.
 9. Competitor lane labels were inferred from captions and are less reliable than the owner's
    own. Treat every cross-account lane claim as directional.
-10. The accounts differ hugely in size, so raw engagement only shows who is bigger. JUDGE THE
-   LANES ON THE LANE BENCHMARK, engagement per 1,000 followers, when it is given:
-   - contested: the owner and competitors both publish there; say whether the owner is ahead
-     or behind on engagement per 1,000 followers, with both figures.
-   - open: the owner publishes and no competitor does, or competitors publish but trail him on
-     engagement per 1,000 followers.
-   - underperforming: the owner is behind the competitors' engagement per 1,000 followers.
-   Never call a lane weak or underperforming because the owner posts less in it, or because a
-   larger account gets more raw engagement. A lane where the owner leads on engagement per
-   1,000 followers is a strength, even with few posts; say so.
-11. Call the owner ${owner.displayName}, never by the handle.
 
 For each competitor give the lane it occupies, a verdict of at most four words for a table
 cell, and one sentence explaining it that cites a figure. Include the owner in the verdicts
@@ -257,17 +243,7 @@ ${JSON.stringify(nicheLanes, null, 2)}`
     : ""
 }
 
-${
-  benchmark.length
-    ? `LANE BENCHMARK — each lane, the owner against the competitors, on engagement per 1,000 followers
-(the median post's reactions, comments and reposts divided by followers, times 1,000). standing
-is computed: "ahead" or "behind" means both publish and the owner is above or below the middle
-competitor; "owner-only" means no competitor publishes there; "competitors-only" means he does not:
-${JSON.stringify(benchmark, null, 2)}`
-    : ""
-}
-
-Map which lanes are contested and which are open for ${owner.displayName}.`;
+Map which lanes are contested and which are open for ${owner.handle}.`;
 
   const result = await completeJson<unknown>({
     system,
