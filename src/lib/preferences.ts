@@ -72,9 +72,37 @@ export const LANE_QUOTA_MIN_VOTES = 3;
  * Voted items a word must appear in before it is learned.
  *
  * A word seen in one voted headline is that headline, not a preference — the
- * same reason lane-fit ignores words seen once in a lane.
+ * same reason lane-fit ignores words seen once in a lane. Two was still a
+ * coincidence: on 2 Nov 2026 over 300 of the 561 words steering Instagram's
+ * list rested on two votes ("amazon", "hack", "fire", "red", "black").
  */
-export const MIN_WORD_SUPPORT = 2;
+export const MIN_WORD_SUPPORT = 3;
+
+/**
+ * Headline wording that says how a story is told, never what it is about.
+ *
+ * Learned as taste, these steered the list on coincidence: on 2 Nov 2026
+ * "launches" counted as liked (118 votes) while "launch" counted as disliked
+ * (37), and "says", "taps", "amid", "turns" and "happens" sank or lifted
+ * stories that had nothing in common. Subjects (brands, tools, "security",
+ * "rebrand") and the job-move words the team crosses ("appoints", "joins",
+ * "head") are not here and still count.
+ */
+const HEADLINE_FILLER = new Set(
+  (
+    "say says said saying launch launches launched launching unveil unveils unveiled release releases " +
+    "released rolls rolled announce announces announced reveal reveals revealed introduce introduces " +
+    "introduced get gets getting got taps tapped amid via across beyond back come comes coming " +
+    "first new latest year years month months week weeks day days today time times now soon " +
+    "turns turned turn happens happened entire real let i'll i'd don't does use uses using used " +
+    "find finds send sends give gives giving keep keeps stay check try help helps work works rise " +
+    "rises push pushes plans plan shift deal deals wins win faces face hits hit despite alongside " +
+    "between few single double super mega massive great big fresh quick quickly quietly details " +
+    "name named starting start starts change changes changing changed early half low available " +
+    "availability confirmed alleged report reports reported update updates means wants want " +
+    "makes make made take takes going goes one two three could would should might may will"
+  ).split(" "),
+);
 
 /** Preference at or below this, with enough evidence behind it, hides an item. */
 export const SUPPRESS_AT = -0.45;
@@ -156,7 +184,7 @@ function wordsOf(text: string): string[] {
     ...new Set(
       significantWords(text.slice(0, 600))
         .map((word) => word.replace(/['’‘]+$/, ""))
-        .filter((word) => word.length >= 3),
+        .filter((word) => word.length >= 3 && !HEADLINE_FILLER.has(word)),
     ),
   ];
 }
