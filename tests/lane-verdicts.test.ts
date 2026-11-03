@@ -54,13 +54,17 @@ describe("lane verdicts decided in code", () => {
   it("says ahead of the middle competitor, names the best one, and never says leading", () => {
     const benchmark = laneBenchmark(owner, rivals);
     const { verdicts, contestedLanes, openLanes } = laneVerdicts(owner, rivals, benchmark);
-    const risks = verdicts.find(
-      (row) => row.handle === owner.handle && row.lane === "AI risks and security",
-    )!;
+    // One row per ACCOUNT: he appears once, not once per lane.
+    const his = verdicts.filter((row) => row.handle === owner.handle);
+    expect(his).toHaveLength(1);
+    expect(his[0]!.gap).toBe("baseline");
     // Middle of Lily (8 per 1k) and Rand (0.5 per 1k) is 4.25: he is behind it.
-    expect(risks.gap).toBe("Behind the middle");
-    expect(risks.reasoning).toContain("the best of them, Lily Ray, 8");
+    expect(his[0]!.reasoning).toContain("behind in AI risks and security (1.2 against 4.25)");
     expect(JSON.stringify(verdicts)).not.toMatch(/leading/i);
+    // The lane-by-lane figures still exist, under Contested lanes.
+    expect(contestedLanes.some((line) => line.startsWith("AI risks and security: behind"))).toBe(
+      true,
+    );
     expect(contestedLanes.some((line) => line.startsWith("AI risks and security: behind"))).toBe(
       true,
     );
@@ -100,8 +104,8 @@ describe("lane verdicts decided in code", () => {
     );
     expect(takeaways[0]!.soWhat).toContain("Lily Ray");
     // Never claims a lane is too thin to call while the table judges it.
-    const judged = laneVerdicts(owner, rivals, laneBenchmark(owner, rivals))
-      .verdicts.filter((row) => row.handle === owner.handle && row.gap !== "Too few posts")
+    const judged = laneBenchmark(owner, rivals)
+      .filter((row) => row.ownerPosts >= 3 && row.standing !== "competitors-only")
       .map((row) => row.lane);
     for (const lane of judged) {
       expect(text).not.toMatch(new RegExp(`too few posts[^"]*${lane}`, "i"));

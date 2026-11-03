@@ -88,26 +88,32 @@ export function laneVerdicts(
       openLanes.push(
         `${row.lane}: only ${owner.displayName} publishes here, at ${row.ownerPer1k} engagement per 1,000 followers across ${plural(row.ownerPosts, "post")}.`,
       );
-      verdicts.push({
-        handle: owner.handle,
-        lane: row.lane,
-        gap: row.ownerPosts < 3 ? "Too few posts" : "Only him here",
-        tone: row.ownerPosts < 3 ? "neutral" : "good",
-        reasoning: `${owner.displayName}: ${row.ownerPer1k} engagement per 1,000 followers across ${plural(row.ownerPosts, "post")}. No competitor publishes in this lane.`,
-      });
       continue;
     }
     const ahead = row.standing === "ahead";
     contestedLanes.push(
       `${row.lane}: ${ahead ? "ahead of" : "behind"} the middle competitor, ${row.ownerPer1k} against ${row.competitorsPer1k} per 1,000 followers (${plural(row.competitorsPublishing, "competitor")} publishing${leader}).`,
     );
+  }
+
+  // One row per ACCOUNT, as the team asked (3 Nov 2026): his six lanes read as
+  // six separate accounts in a list headed "Account by account", and the
+  // lane-by-lane figures are already above, under Contested lanes.
+  const contested = benchmark.filter(
+    (row) => row.standing === "ahead" || row.standing === "behind",
+  );
+  const behind = contested.filter((row) => row.standing === "behind");
+  const ownerLane = mainLane(owner);
+  if (ownerLane || contested.length) {
+    const where = behind.length
+      ? `ahead of the middle competitor in ${contested.length - behind.length} of ${plural(contested.length, "shared lane")}, behind in ${list(behind.map((row) => `${row.lane} (${row.ownerPer1k} against ${row.competitorsPer1k})`))}`
+      : `ahead of the middle competitor in all ${plural(contested.length, "shared lane")}`;
     verdicts.push({
       handle: owner.handle,
-      lane: row.lane,
-      gap:
-        row.ownerPosts < 3 ? "Too few posts" : ahead ? "Ahead of the middle" : "Behind the middle",
-      tone: row.ownerPosts < 3 ? "neutral" : ahead ? "good" : "bad",
-      reasoning: `${owner.displayName}: ${row.ownerPer1k} engagement per 1,000 followers across ${plural(row.ownerPosts, "post")}; the middle competitor here: ${row.competitorsPer1k}${leader}.`,
+      lane: ownerLane?.lane ?? "All lanes",
+      gap: "baseline",
+      tone: "neutral",
+      reasoning: `${owner.displayName}: ${where}. Every lane's figures are under Contested lanes above.`,
     });
   }
 
