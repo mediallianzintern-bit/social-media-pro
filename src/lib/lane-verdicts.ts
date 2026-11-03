@@ -195,3 +195,100 @@ export function benchmarkHeadline(
   }
   return `On engagement per 1,000 followers, ${owner.displayName} ${list(parts)}.`;
 }
+
+/** Rivals publishing in a lane, best engagement per 1,000 followers first. */
+function rivalsIn(lane: string, rivals: Account[]) {
+  return rivals
+    .flatMap((rival) => {
+      const row = rival.lanes?.find((entry) => entry.lane === lane);
+      if (!row?.postCount || rival.followers <= 0) return [];
+      return [
+        {
+          name: rival.displayName,
+          per1k: Number(((row.medianInteractions / rival.followers) * 1000).toFixed(2)),
+          posts: row.postCount,
+        },
+      ];
+    })
+    .sort((a, b) => b.per1k - a.per1k);
+}
+
+/**
+ * The four takeaways, from the same figures as the table.
+ *
+ * The model wrote these and kept contradicting the table beside them — on
+ * 3 Nov it said "too few posts in AI risks and security to draw conclusions"
+ * directly under a row showing him ahead of the middle competitor there — and
+ * its actions stayed at "consider adjusting content strategy", which the
+ * prompt had already ruled out. These say what the data says, and name the
+ * accounts to read rather than inventing work.
+ */
+export function benchmarkTakeaways(
+  owner: Account,
+  rivals: Account[],
+  benchmark: LaneBenchmarkRow[],
+): Array<{ takeaway: string; soWhat: string }> {
+  const out: Array<{ takeaway: string; soWhat: string }> = [];
+  const contested = benchmark.filter(
+    (row) => row.standing === "ahead" || row.standing === "behind",
+  );
+
+  // 1. The gap: the lane he is behind in, worst first.
+  const behind = benchmark
+    .filter((row) => row.standing === "behind")
+    .sort(
+      (a, b) =>
+        (a.ownerPer1k ?? 0) / (a.competitorsPer1k || 1) -
+        (b.ownerPer1k ?? 0) / (b.competitorsPer1k || 1),
+    )[0];
+  if (behind) {
+    const who = rivalsIn(behind.lane, rivals).slice(0, 3);
+    out.push({
+      takeaway: `Behind the middle competitor in ${behind.lane}: ${behind.ownerPer1k} against ${behind.competitorsPer1k}.`,
+      soWhat: who.length
+        ? `Read how ${list(who.map((rival) => rival.name))} open their ${behind.lane} posts before writing the next one.`
+        : `Compare his ${behind.lane} openings with the competitors publishing there.`,
+    });
+  }
+
+  // 2. The strength: a lane he tops outright, his best first.
+  const led = contested
+    .filter((row) => row.standing === "ahead" && (row.ownerPer1k ?? 0) >= (row.leader?.per1k ?? 0))
+    .sort((a, b) => (b.ownerPer1k ?? 0) - (a.ownerPer1k ?? 0))[0];
+  if (led) {
+    out.push({
+      takeaway: `Leads ${led.lane} outright, ${led.ownerPer1k} per 1,000 followers.`,
+      soWhat: `Above every competitor there across ${plural(led.ownerPosts, "post")}; nothing here argues for cutting that lane.`,
+    });
+  }
+
+  // 3. The account to read: the best rate anywhere in the set.
+  const best = benchmark
+    .filter((row) => row.leader && (row.ownerPer1k ?? 0) > 0)
+    .sort((a, b) => b.leader!.per1k - a.leader!.per1k)[0];
+  const bestName = best
+    ? (rivals.find((rival) => rival.handle === best.leader!.handle)?.displayName ??
+      best.leader!.handle)
+    : null;
+  if (best && bestName) {
+    const multiple = Number((best.leader!.per1k / (best.ownerPer1k || 1)).toFixed(1));
+    out.push({
+      takeaway: `${bestName} gets ${best.leader!.per1k} per 1,000 followers in ${best.lane}.`,
+      soWhat: `That is ${multiple}x his rate in that lane — the clearest example in the set to read.`,
+    });
+  }
+
+  // 4. The honest limit, always last: what the figures cannot yet carry.
+  const thin = benchmark.filter((row) => row.ownerPosts > 0 && row.ownerPosts < MIN_POSTS).length;
+  const thinRivals = rivals.filter((rival) =>
+    (rival.lanes ?? []).every((row) => row.postCount < MIN_POSTS),
+  ).length;
+  if (thin || thinRivals) {
+    out.push({
+      takeaway: `${thin ? `${thin} of his lanes rest on fewer than ${MIN_POSTS} posts` : `${thinRivals} competitors have fewer than ${MIN_POSTS} posts in any lane`}.`,
+      soWhat:
+        "Treat those as directions to test; they firm up as more posts are scraped each week.",
+    });
+  }
+  return out.slice(0, 4);
+}

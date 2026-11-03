@@ -25,7 +25,7 @@ import {
 import { fetchAudienceQuestions, fetchTrends, feedQueries, type FeedItem } from "./feeds";
 import type { AccountBrief } from "./analyst";
 import { laneBenchmark } from "@/lib/lane-benchmark";
-import { benchmarkHeadline, laneVerdicts } from "@/lib/lane-verdicts";
+import { benchmarkHeadline, benchmarkTakeaways, laneVerdicts } from "@/lib/lane-verdicts";
 import type { AnalystRead, CompetitorAnalysis, FeedRead, ReflectionRead } from "@/lib/ai-types";
 import type { PlatformId } from "@/lib/analytics-types";
 
@@ -195,7 +195,20 @@ export async function competitorRead(
   // With a benchmark, the table and the contested and open lanes are decided
   // in code (lib/lane-verdicts.ts) and the model writes only the headline and
   // the takeaways.
-  const inCode = benchmark.length > 0;
+  // Everything on this card is arithmetic on the benchmark, so with one there
+  // is nothing left for a model to write: no call, no cost, and the card can
+  // never contradict the table beside it. Without a benchmark — no lanes on
+  // either side yet — the model still writes the read, as it always did.
+  if (benchmark.length) {
+    return {
+      analysis: {
+        headline: benchmarkHeadline(owner, rivals, benchmark),
+        teamTakeaways: benchmarkTakeaways(owner, rivals, benchmark),
+        ...laneVerdicts(owner, rivals, benchmark),
+      },
+      model: "",
+    };
+  }
 
   const system = `You are mapping the competitive position of a ${platform} account against the
 accounts it is tracked alongside.
@@ -226,17 +239,9 @@ ${SHARED_RULES}
    1,000 followers is a strength, even with few posts; say so.
 11. Call the owner ${owner.displayName}, never by the handle.
 
-${
-  inCode
-    ? `The account-by-account table and the contested and open lanes are built in code from the LANE
-BENCHMARK below, and so is the headline: return verdicts, contestedLanes and openLanes as empty
-arrays and the headline as one short sentence. Your work is the takeaways. Where the owner is above
-the middle competitor but below the best one, say exactly that: never say he "leads" a lane unless
-he is above every competitor in it.`
-    : `For each competitor give the lane it occupies, a verdict of at most four words for a table
+For each competitor give the lane it occupies, a verdict of at most four words for a table
 cell, and one sentence explaining it that cites a figure. Include the owner in the verdicts
-array with gap "baseline" and tone "neutral".`
-}
+array with gap "baseline" and tone "neutral".
 
 Then write EXACTLY 4 TEAM TAKEAWAYS. This is the part of your answer a busy team actually
 reads, so write it to be read on its own, without the tables:
@@ -282,7 +287,7 @@ ${JSON.stringify(benchmark, null, 2)}`
     : ""
 }
 
-${inCode ? `Write the takeaways for ${owner.displayName}.` : `Map which lanes are contested and which are open for ${owner.displayName}.`}`;
+Map which lanes are contested and which are open for ${owner.displayName}.`;
 
   const result = await completeJson<unknown>({
     system,
@@ -294,17 +299,7 @@ ${inCode ? `Write the takeaways for ${owner.displayName}.` : `Map which lanes ar
     ...(options.model ? { model: options.model } : {}),
   });
 
-  const analysis = competitorAnalysisSchema.parse(result.data);
-  return {
-    analysis: inCode
-      ? {
-          ...analysis,
-          headline: benchmarkHeadline(owner, rivals, benchmark),
-          ...laneVerdicts(owner, rivals, benchmark),
-        }
-      : analysis,
-    model: result.model,
-  };
+  return { analysis: competitorAnalysisSchema.parse(result.data), model: result.model };
 }
 
 // ---------------------------------------------------------------------------

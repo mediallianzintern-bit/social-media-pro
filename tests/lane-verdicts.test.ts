@@ -3,7 +3,12 @@ import { describe, expect, it } from "vitest";
 
 import type { LanePerformance } from "@/lib/analytics-types";
 import { laneBenchmark } from "@/lib/lane-benchmark";
-import { benchmarkHeadline, laneLabel, laneVerdicts } from "@/lib/lane-verdicts";
+import {
+  benchmarkHeadline,
+  benchmarkTakeaways,
+  laneLabel,
+  laneVerdicts,
+} from "@/lib/lane-verdicts";
 
 const lane = (name: string, postCount: number, medianInteractions: number, medianVsMedian = 1) =>
   ({
@@ -82,5 +87,25 @@ describe("lane verdicts decided in code", () => {
     expect(headline).toBe(
       "On engagement per 1,000 followers, Dr. Pritesh Patel leads Reflections and is behind the middle competitor in AI risks and security (1.2 against 4.25).",
     );
+  });
+
+  it("writes takeaways that agree with the table and name who to read", () => {
+    const takeaways = benchmarkTakeaways(owner, rivals, laneBenchmark(owner, rivals));
+    const text = JSON.stringify(takeaways);
+    expect(takeaways.length).toBeGreaterThanOrEqual(3);
+    expect(takeaways.length).toBeLessThanOrEqual(4);
+    // The gap comes first, and says who to read rather than "adjust strategy".
+    expect(takeaways[0]!.takeaway).toContain(
+      "Behind the middle competitor in AI risks and security",
+    );
+    expect(takeaways[0]!.soWhat).toContain("Lily Ray");
+    // Never claims a lane is too thin to call while the table judges it.
+    const judged = laneVerdicts(owner, rivals, laneBenchmark(owner, rivals))
+      .verdicts.filter((row) => row.handle === owner.handle && row.gap !== "Too few posts")
+      .map((row) => row.lane);
+    for (const lane of judged) {
+      expect(text).not.toMatch(new RegExp(`too few posts[^"]*${lane}`, "i"));
+    }
+    expect(text).not.toMatch(/content strategy|leverage|double down/i);
   });
 });
