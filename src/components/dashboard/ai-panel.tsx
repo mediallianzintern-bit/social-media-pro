@@ -530,7 +530,10 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
                       </h3>
                       <ul className="divide-y">
                         {competitors.verdicts.map((verdict) => (
-                          <li key={verdict.handle} className="py-3 first:pt-0 last:pb-0">
+                          <li
+                            key={`${verdict.handle}:${verdict.lane}`}
+                            className="py-3 first:pt-0 last:pb-0"
+                          >
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="text-sm font-medium">{verdict.handle}</span>
                               <span className="text-xs text-muted-foreground">{verdict.lane}</span>
