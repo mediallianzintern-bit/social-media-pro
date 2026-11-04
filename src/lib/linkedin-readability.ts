@@ -208,3 +208,69 @@ export function readabilityProblems(body: string): string[] {
 export function openingOf(body: string): string {
   return lineList(body).slice(0, OPENING_LINES).join(" ");
 }
+
+/**
+ * Stock example lines: the length fit was told to pad short posts with "a
+ * marketer planning a campaign" and "the mistake people make", and posts came
+ * back with exactly those lines. None of his 43 posts uses one; his examples
+ * are scenes ("Imagine discussing a new laptop with a friend.").
+ */
+const STOCK_EXAMPLE =
+  /\b(suppose|imagine|let'?s say|say) you(?:'re| are) (a|an) (marketer|salesperson|manager|business owner|small business|brand)\b|\bone (common )?mistake (brands|businesses|marketers|companies|people) make\b/i;
+
+/**
+ * An opening that hands over the answer before the reader has a reason to
+ * want it: "Duolingo's strategy isn't about big ad budgets. / It's about being
+ * where Gen Z spends time." None of his 43 posts opens this way.
+ */
+const ANSWER_UP_FRONT =
+  /\b(isn'?t|is not) about\b[^\n]*\n+[^\n]*\b(it'?s|it is) about\b|\bthe (answer|secret|reason) is\b/i;
+
+/**
+ * Numbered points that are bare instructions ("1. Be present on platforms
+ * like TikTok."). His each carry a short heading with its meaning on the
+ * same line ("Relevance: Does the message genuinely help the customer?") or
+ * on the next ("Consistency > viral moments / One viral campaign won't build
+ * a relationship."). One of his 43 posts has two bare points.
+ */
+function barePoints(body: string): string[] {
+  const lines = lineList(body);
+  const numbered = /^\d+[.)]\s/;
+  return lines.filter((line, index) => {
+    if (!numbered.test(line)) return false;
+    const rest = line.replace(numbered, "");
+    if (/[:>→]\s|\?/.test(rest) || /\s[–-]\s/.test(rest)) return false;
+    const next = lines[index + 1] ?? "";
+    return !next || numbered.test(next) || wordsIn(next) < 4;
+  });
+}
+
+/**
+ * Where a post stops sounding like him, beyond layout and words: a stock
+ * example, the answer given in the opening, bare numbered points. Each was
+ * checked against his 43 posts (0, 0 and 1 of them trip it) and caught the
+ * dashboard's Duolingo post of 4 Nov.
+ */
+export function writingProblems(body: string): string[] {
+  const problems: string[] = [];
+  // Curly apostrophes folded first: "suppose you’re a marketer" slipped past.
+  const stock = body.replace(/[‘’]/g, "'").match(STOCK_EXAMPLE);
+  if (stock) {
+    problems.push(
+      `uses a stock example line ("${stock[0]}…"); use a real scene the reader recognises, or cut it`,
+    );
+  }
+  const opening = lineList(body.replace(/[‘’]/g, "'")).slice(0, OPENING_LINES).join("\n");
+  if (ANSWER_UP_FRONT.test(opening)) {
+    problems.push(
+      "gives the answer away in the opening; open on the most surprising fact and let the answer come later",
+    );
+  }
+  const bare = barePoints(body);
+  if (bare.length >= 2) {
+    problems.push(
+      `has bare numbered points ("${bare[0]!.slice(0, 50)}"); give each a short heading and one concrete line, as his do ("Consistency > viral moments" / "One viral campaign won't build a relationship.")`,
+    );
+  }
+  return problems;
+}

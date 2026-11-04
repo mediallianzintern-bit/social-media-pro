@@ -18,7 +18,7 @@
 // Client-safe. No model call. See docs/pritesh-voice.md.
 import type { ContentIdea } from "@/lib/ai-types";
 import { hookIssue, newsOpenerIssue } from "@/lib/hook-check";
-import { openingOf, readabilityProblems } from "@/lib/linkedin-readability";
+import { openingOf, readabilityProblems, writingProblems } from "@/lib/linkedin-readability";
 import { isAiToolWorkflowLane, isWorkflowCta, workflowCtaIssue } from "@/lib/tool-workflow";
 import { REEL_MAX_SECONDS, REEL_MIN_SECONDS, REEL_WORDS } from "@/lib/reel-length";
 
@@ -361,6 +361,7 @@ export function voiceFlags(
       if (teaser && !problem.startsWith("uses jargon")) continue;
       flags.push(problem);
     }
+    flags.push(...writingProblems(idea.post.body));
   }
 
   // An AI tool workflow reel ends on the comment CTA the team asked for.

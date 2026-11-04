@@ -131,12 +131,13 @@ ${best.problems.map((problem) => `- ${problem}`).join("\n")}
 HOW:
 - Keep the first line exactly as it is: "${firstLine}"
 - Keep the idea, the order of the argument, the closing question and the closing line.
-- When it needs more words, add SUBSTANCE in his voice, never filler: explain the idea in simple
-  words before naming any term, add one specific business situation the reader would recognise
-  (a salesperson before a client call, a marketer planning a campaign, a manager reviewing a
-  report), what it means for the reader's own work, and a limitation or the mistake people make.
+- When it needs more words, add substance from THIS story: a detail from the facts below, or a
+  clearer explanation of the one idea. Never a stock example ("Suppose you're a marketer
+  planning a campaign…") and never a "one mistake brands make" line: those were added here
+  before, and they are the lines that sounded least like him (4 Nov 2026). A post a little
+  under the length is better than a padded one.
 - When it needs fewer words, cut repetition and general statements first.
-- One to three short lines per paragraph, a blank line between them.
+- One sentence per line, about nine words, a blank line between lines.
 
 ${storyFor(raw, sources)}
 

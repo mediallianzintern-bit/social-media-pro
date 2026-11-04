@@ -2,7 +2,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { PostRecord } from "@/lib/analytics-types";
-import { jargonIn, layoutOf, readabilityProblems, readingEase } from "@/lib/linkedin-readability";
+import {
+  jargonIn,
+  layoutOf,
+  readabilityProblems,
+  readingEase,
+  writingProblems,
+} from "@/lib/linkedin-readability";
 import { bestRecentPosts } from "@/server/ai/linkedin-references";
 
 // Written the way his posts are: one short sentence a line, a blank line between.
@@ -111,5 +117,47 @@ describe("his best recent posts as references", () => {
       NOW,
     );
     expect(best.map((entry) => entry.post.postId)).toEqual(["older", "recent"]);
+  });
+});
+
+describe("writing like him, beyond layout", () => {
+  // The dashboard's Duolingo post of 4 Nov: scannable, but not his writing.
+  const generated = [
+    "How did Duolingo's owl become a Gen Z icon?",
+    "Duolingo's strategy isn't about big ad budgets.",
+    "It's about being where Gen Z spends time: social media.",
+    "Take Duo the Owl, their mascot.",
+    "For example, suppose you’re a marketer planning a campaign.",
+    "So, what can brands do?",
+    "1. Be present on platforms like TikTok.",
+    "2. Create content that's fun and engaging.",
+    "3. Encourage participation and interaction.",
+    "One mistake brands make is assuming traditional methods will still resonate.",
+  ].join("\n\n");
+  // The same facts, written his way.
+  const his = [
+    "One brand held a funeral for its mascot.",
+    "66 million people watched.",
+    "And to bring the mascot back, fans had to do their homework.",
+    "The brand was Duolingo. The mascot was Duo, its green owl.",
+    "I see three lessons for brands trying to reach Gen Z:",
+    "1. Show up where they already are",
+    "Duolingo didn't wait for Gen Z to see an ad. It went to TikTok.",
+    "2. Laugh at yourself",
+    "A brand killing its own mascot feels human, not corporate.",
+    "3. Relevance: does the joke end in the product?",
+    "You don't win Gen Z by shouting louder.",
+    "You win by giving them something worth joining in.",
+  ].join("\n\n");
+
+  it("catches the stock example, the answer up front and bare points", () => {
+    const problems = writingProblems(generated);
+    expect(problems.some((problem) => problem.startsWith("uses a stock example line"))).toBe(true);
+    expect(problems.some((problem) => problem.startsWith("gives the answer away"))).toBe(true);
+    expect(problems.some((problem) => problem.startsWith("has bare numbered points"))).toBe(true);
+  });
+
+  it("passes the same facts written his way, with either of his point formats", () => {
+    expect(writingProblems(his)).toEqual([]);
   });
 });

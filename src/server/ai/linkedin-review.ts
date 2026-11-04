@@ -309,6 +309,14 @@ one person: simpler where it can be simpler, specific where it is vague, never o
      between. Split any line that holds two sentences of explanation. No block of text.
   5. Does it sound like his own recent posts quoted above: their line length, their rhythm, their
      plain words? If it reads like a report or an article, rewrite it in that voice.
+  6. Does it lead with the story's most surprising fact, or hand the answer over in the opening
+     ("isn't about X. It's about Y.")? Lead with the surprise; the answer comes later.
+  7. Is every example a real scene from this story? Cut any stock line ("Suppose you're a
+     marketer planning a campaign…", "One mistake brands make is…").
+  8. Numbered points: does each have a short heading and one concrete line, as his do? Rewrite
+     any bare instruction ("Create content that's fun and engaging").
+  9. Does the argument end on his two-line closing contrast before the question, and does the
+     post carry one line of his own view ("I believe…", "I see three…")?
 - What happened in two or three short sentences, then why it matters as the largest part, two or
   three real business implications and the bigger lesson. Cut every fact that does not serve the
   one idea, even when the draft used it.
