@@ -313,10 +313,20 @@ one person: simpler where it can be simpler, specific where it is vague, never o
      ("isn't about X. It's about Y.")? Lead with the surprise; the answer comes later.
   7. Is every example a real scene from this story? Cut any stock line ("Suppose you're a
      marketer planning a campaign…", "One mistake brands make is…").
-  8. Numbered points: does each have a short heading and one concrete line, as his do? Rewrite
-     any bare instruction ("Create content that's fun and engaging").
-  9. Does the argument end on his two-line closing contrast before the question, and does the
-     post carry one line of his own view ("I believe…", "I see three…")?
+  8. Numbered points: does each have a short heading and one concrete line, as his do, AND does
+     each come out of THIS story? A point that could sit in any post ("Be authentic: let your
+     brand's personality shine through.") is rewritten from what this brand actually did ("Laugh
+     at yourself / A brand killing its own mascot feels human, not corporate.").
+  9. Does the argument end on his two-line closing contrast before the question? Make its second
+     line specific to this story, never a general phrase ("creating genuine connections").
+  10. REQUIRED: one line of his own view, in the first person ("I see three lessons here:", "I
+     believe brands need to get three things right:"). If the draft has none, add one where it
+     fits naturally, usually introducing the points. Never invent an experience to do it.
+  11. The closing question asks the reader about their own work, specifically ("Would your brand
+     be brave enough to kill its mascot?"), never a general one ("How is your brand adapting to
+     the preferences of younger consumers?").
+  12. Replace every stock marketing phrase ("authenticity", "genuine connections", "shine
+     through", "capture attention", "resonate") with the concrete thing it stands for.
 - What happened in two or three short sentences, then why it matters as the largest part, two or
   three real business implications and the bigger lesson. Cut every fact that does not serve the
   one idea, even when the draft used it.

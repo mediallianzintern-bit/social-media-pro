@@ -7,6 +7,7 @@ import {
   layoutOf,
   readabilityProblems,
   readingEase,
+  stockPhrasesIn,
   writingProblems,
 } from "@/lib/linkedin-readability";
 import { bestRecentPosts } from "@/server/ai/linkedin-references";
@@ -159,5 +160,33 @@ describe("writing like him, beyond layout", () => {
 
   it("passes the same facts written his way, with either of his point formats", () => {
     expect(writingProblems(his)).toEqual([]);
+  });
+});
+
+describe("stock marketing phrases", () => {
+  it("names each one with what to say instead", () => {
+    const found = stockPhrasesIn(
+      "Gen Z values authenticity.\n\nThe real edge is creating genuine connections with your audience.",
+    );
+    expect(found.map((entry) => entry.phrase.toLowerCase())).toEqual([
+      "authenticity",
+      "genuine connections",
+    ]);
+    expect(found[0]!.instead).toBe("say what they did that felt real");
+  });
+
+  it("lets him quote bad copy on purpose", () => {
+    // From his own post "I almost approved an AI-generated campaign".
+    expect(
+      stockPhrasesIn('It read: "Take your business to the next level with intelligent solutions."'),
+    ).toEqual([]);
+  });
+
+  it("is flagged as a writing problem", () => {
+    expect(
+      writingProblems("Let your brand's personality shine through.").some((problem) =>
+        problem.startsWith("uses stock marketing phrases"),
+      ),
+    ).toBe(true);
   });
 });

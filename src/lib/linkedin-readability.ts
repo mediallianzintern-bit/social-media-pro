@@ -246,6 +246,42 @@ function barePoints(body: string): string[] {
 }
 
 /**
+ * Stock marketing phrases, each with what to do instead. Every one is used in
+ * none of his 43 posts once quoted text is set aside (the one hit, "Take your
+ * business to the next level…", is him quoting bad AI copy on purpose), and
+ * the dashboard's Duolingo post of 4 Nov had eight of them: "authenticity",
+ * "genuine connections", "shine through", "unconventional tactics"…
+ * "journey", "connect with" and "strategies" are left out: he uses them.
+ */
+const STOCK_PHRASES: Array<[RegExp, string]> = [
+  [/\bauthentic(ity)?\b/i, "say what they did that felt real"],
+  [/\b(genuine|meaningful|deeper) connections?\b/i, "say what people actually did or felt"],
+  [/\bshine through\b/i, "cut it, or say what people noticed"],
+  [/\bunconventional (tactics|ideas|approach(es)?)\b/i, "name the tactic"],
+  [/\bcapture (their )?attention\b/i, "get noticed"],
+  [/\baligned with (current )?trends\b/i, "say which trend"],
+  [/\bresonat\w+/i, "matter to people"],
+  [/\b(engage creatively|engaging content|fun and engaging)\b/i, "say what to make"],
+  [/\bpreferences of\b/i, "what they want"],
+  [/\b(stand out from the crowd|cut through the noise)\b/i, "say how"],
+  [/\bin today'?s (fast-paced|digital)\b/i, "cut it"],
+  [/\btake (it|your \w+) to the next level\b/i, "say what gets better"],
+  [/\b(unlock|elevate|harness|empower|foster)(s|es|ed|ing)?\b/i, "use a plain verb"],
+  [/\bdelve\b/i, "look"],
+  [/\bnavigate the\b/i, "deal with"],
+  [/\b(drive|boost) engagement\b/i, "say what people would do"],
+];
+
+/** The stock phrases in a post, outside quotation marks, with what to do instead. */
+export function stockPhrasesIn(body: string): Array<{ phrase: string; instead: string }> {
+  const unquoted = body.replace(/["“][^"”\n]*["”]/g, " ");
+  return STOCK_PHRASES.flatMap(([pattern, instead]) => {
+    const match = unquoted.match(pattern);
+    return match ? [{ phrase: match[0], instead }] : [];
+  });
+}
+
+/**
  * Where a post stops sounding like him, beyond layout and words: a stock
  * example, the answer given in the opening, bare numbered points. Each was
  * checked against his 43 posts (0, 0 and 1 of them trip it) and caught the
@@ -264,6 +300,15 @@ export function writingProblems(body: string): string[] {
   if (ANSWER_UP_FRONT.test(opening)) {
     problems.push(
       "gives the answer away in the opening; open on the most surprising fact and let the answer come later",
+    );
+  }
+  const phrases = stockPhrasesIn(body);
+  if (phrases.length) {
+    problems.push(
+      `uses stock marketing phrases he never writes: ${phrases
+        .slice(0, 4)
+        .map((entry) => `"${entry.phrase}" (${entry.instead})`)
+        .join(", ")}`,
     );
   }
   const bare = barePoints(body);
