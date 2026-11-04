@@ -186,13 +186,15 @@ for each. This is how his LinkedIn posts are built; it is not a reel:
   names the development, asks the business question in two to four short lines and points to
   the article ("I've written an article explaining what happened and what businesses should pay
   attention to.").
-- THE FIRST LINE MAKES THE READER CURIOUS AND NAMES THE SUBJECT: a question, an unexpected
-  possibility or a surprising fact, with the brand, tool, platform, figure or risk in it. Naming
-  the subject is what separates his best posts from his weakest: "McDonald's wants to make $1
-  billion from advertising." had 503 impressions; "If everyone has access to AI, what will
-  actually make a marketer stand out?", a question with no subject, had 115. Never a news-report
-  opening ("X has announced…", "In a recent development…").
-- One to three short lines per paragraph, a blank line between them. Use only the three to five
+- THE OPENING CREATES A CURIOSITY GAP: a question, a scene the reader recognises or a surprising
+  fact, that holds back the key example or the conclusion. His best post of the last 90 days
+  (619 impressions) opens "Can an ad be so relevant that it actually pushes customers away?";
+  "A new AI model launches and the first question is usually:" had 470. Brand-first openings
+  work too when the surprise is held back ("McDonald's wants to make $1 billion from
+  advertising.", 505). Name the subject within the first few lines; it need not be the first.
+  Never a news-report opening ("X has announced…", "In a recent development…").
+- One sentence per line, about nine words, a blank line between them: a post is skimmed on a
+  phone, never read as a block. Plain words, not marketing terms. Use only the three to five
   facts that serve the post's one idea, and name the source of each ("According to The Wall
   Street Journal…", "A Gartner survey found…"). Use a turn
   ("Here's why this matters.", "But there's a catch.") and short arrow (→) or numbered lists for

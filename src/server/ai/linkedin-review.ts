@@ -29,7 +29,6 @@ import { z } from "zod";
 
 import { costOf, type GenerationCost } from "@/lib/ai-cost";
 import type { ContentIdea } from "@/lib/ai-types";
-import { hookIssue } from "@/lib/hook-check";
 import { linkedInShapesBlock } from "@/lib/linkedin-shapes";
 import { factSheetText, type StoryResearch } from "@/lib/research";
 import type { SourceItem } from "@/lib/sources";
@@ -117,11 +116,10 @@ export function problemsOf(
     }
   }
   const firstLine = body.trim().split("\n")[0]?.trim() ?? "";
-  const subject = `${typeof raw.title === "string" ? raw.title : ""} ${typeof raw.angle === "string" ? raw.angle : ""}`;
-  // A question or possibility is the opening the brief asks for; it still
-  // has to name the subject.
-  const issue = hookIssue(firstLine, subject, { allowHypothetical: true });
-  if (issue) problems.push(`The first line: ${issue.replace(/reel/g, "post")}.`);
+  // The opening (the subject named within the first few lines), the news-
+  // report first line, and how it reads on a phone (line and sentence length,
+  // reading ease, jargon) all come from voiceFlags, so the drawer, this
+  // review and the length fit hold a post to the same rules.
   const probe = {
     ...raw,
     hook: firstLine,
@@ -133,19 +131,6 @@ export function problemsOf(
   for (const flag of voiceFlags(probe as unknown as ContentIdea)) {
     if (/ words: |hook opens on a hypothetical/.test(flag)) continue;
     problems.push(`It ${flag}.`);
-  }
-  const lines = body
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  // How his posted LinkedIn posts are written (voice.ts LINKEDIN_POSTED_PATTERNS),
-  // held in code where it can be counted.
-  const long = lines.filter((line) => line.split(/\s+/).length > LONG_LINE_WORDS);
-  if (long.length) {
-    problems.push(
-      `${long.length} line(s) run past ${LONG_LINE_WORDS} words, like a paragraph; his posts keep one thought per line, about ten words, a blank line between: split "${long[0]!.slice(0, 60)}…"`,
-    );
   }
   const teaser = POINTS_TO_ARTICLE.test(body);
   if (raw.format === "text_post" && !teaser) {
@@ -204,8 +189,6 @@ function figuresIn(body: string): string[] {
   ];
 }
 
-/** Longer than this, a line reads as a paragraph: his lines run about ten words. */
-const LONG_LINE_WORDS = 32;
 const POINTS_TO_ARTICLE = /\b(article|read the full|full breakdown)\b/i;
 /**
  * His turn lines on LinkedIn, the way his posts pivot to why it matters, and
@@ -261,8 +244,14 @@ export async function reviewLinkedInDrafts(
   data: unknown,
   sources: SourceItem[],
   deadline?: number,
-  /** The team's approvals and rejections of earlier scripts (lib/script-feedback.ts). */
-  feedback = "",
+  /**
+   * The team's approvals and rejections of earlier scripts (lib/script-feedback.ts)
+   * and his own best recent posts (ai/linkedin-references.ts), for the system
+   * prompt. Named apart from the per-round problem list below: as "feedback"
+   * it was shadowed by that list, and the reviewer was sent last round's
+   * problems where the team's verdicts belonged (found 4 Nov 2026).
+   */
+  context = "",
 ): Promise<{ data: unknown; cost: GenerationCost | undefined; reviewed: number; failed: number }> {
   const ideas = (data as { ideas?: unknown })?.ideas;
   if (!reviewEnabled() || !Array.isArray(ideas)) {
@@ -297,7 +286,7 @@ export async function reviewLinkedInDrafts(
           system: [
             LINKEDIN_VOICE,
             lane ? linkedInShapesBlock([{ name: lane, definition: "" }]) : "",
-            feedback,
+            context,
           ]
             .filter(Boolean)
             .join("\n\n"),
@@ -305,9 +294,21 @@ export async function reviewLinkedInDrafts(
 Review this LinkedIn ${kind} draft against Pritesh Patel's voice and his "Final Pritesh quality check"
 above, and the LinkedIn post shape. Rewrite it so it reads like him explaining something useful to
 one person: simpler where it can be simpler, specific where it is vague, never overselling AI.
-- Apply the team's LinkedIn writing brief above: a post, not a news summary. Keep the subject and
-  find its ONE idea for businesses. The first line makes the reader curious and names the subject;
-  if the draft opens like a news report, write a new first line.
+- Apply the team's LinkedIn writing brief above: a post, not a news summary and not a reel script.
+  Keep the subject and find its ONE idea for businesses.
+- CHECK, AND FIX, EACH OF THESE (the review the team asked for on 4 Nov):
+  1. Hook strength: does the opening raise a question the reader wants answered? If it opens like
+     a news report or a general statement, write a new opening.
+  2. Does the opening give too much away? If the first line already holds the key example or the
+     conclusion, hold it back a line or two. For a brand case study the name can wait ("One brand
+     held a funeral for its mascot."), but that is one way, not a template. The subject must still
+     be named within the first few lines.
+  3. Jargon: replace every marketing or tech term a broad reader would stop at with the concrete
+     thing it means ("how much people like the brand", not "favorability").
+  4. Paragraph length and mobile reading: one sentence per line, about nine words, a blank line
+     between. Split any line that holds two sentences of explanation. No block of text.
+  5. Does it sound like his own recent posts quoted above: their line length, their rhythm, their
+     plain words? If it reads like a report or an article, rewrite it in that voice.
 - What happened in two or three short sentences, then why it matters as the largest part, two or
   three real business implications and the bigger lesson. Cut every fact that does not serve the
   one idea, even when the draft used it.
@@ -316,7 +317,7 @@ one person: simpler where it can be simpler, specific where it is vague, never o
 - Remove anything generic, repeated, corporate or promotional, and any word his voice rules out.
 ${
   raw.format === "text_post"
-    ? '- 150 to 250 words, never more than 300 (75 to 125 if it is a teaser pointing to his article). End\n  on a question that the post has earned, then one closing line, "♻️ Repost to help …".'
+    ? '- About 150 to 220 words, never more than 300 (75 to 125 if it is a teaser pointing to his article):\n  shorter is better than padded. End on a question the post has earned, then "♻️ Repost to help …".'
     : `- Keep every ${raw.format === "document" ? "page" : "section"} and its heading's purpose; tighten and make each one specific.`
 }
 ${feedback.length ? `\nYOUR LAST REWRITE STILL HAD THESE PROBLEMS, counted by code. Fix each one:\n${feedback.map((problem) => `- ${problem}`).join("\n")}\n` : ""}

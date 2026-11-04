@@ -15,6 +15,7 @@ import { z } from "zod";
 
 import type { ContentIdea, HookStyle } from "@/lib/ai-types";
 import { hookIssue, newsOpenerIssue } from "@/lib/hook-check";
+import { jargonIn } from "@/lib/linkedin-readability";
 import { voiceFlags } from "@/lib/voice-check";
 import { hookTypeOf } from "@/lib/reel-parts";
 import { NO_RULES } from "@/lib/reel-learning-types";
@@ -194,11 +195,12 @@ first, on camera, that leads naturally into the rest of the script as written.`;
     ? `Rules for every line:
 - One or two short sentences, at most 22 words in all: what fits above "see more".
 - It must fit THIS post: the line after it, as written, still follows naturally.
-- It makes the reader curious AND names the brand, tool, platform, figure or risk the post is
-  about. Naming the subject is what separates his best first lines from his weakest. A question
-  or an unexpected possibility ("Could…", "What happens when…", "What if…") is welcome when it
-  names the subject; never a general principle with no subject, and never a news-report line
-  ("X has announced…", "In a recent development…").
+- It opens a real curiosity gap: a question, a scene the reader recognises or a surprising fact,
+  without giving away the key example or the conclusion. His best opening of the last 90 days
+  (619 impressions): "Can an ad be so relevant that it actually pushes customers away?". It may
+  hold the brand back when the post names it a line or two later; never a general principle
+  about nothing in particular, and never a news-report line ("X has announced…").
+- Plain, everyday words: no marketing terms a broad reader would stop at.
 - Different from every opening already offered below, and from each other.
 - No emoji, no dashes, no exclamation marks, no hype words ("game-changer", "revolutionary",
   "the possibilities are endless"), no "Agree?" or "Thoughts?".${openings ? `\n\n${openings}` : ""}`
@@ -246,8 +248,12 @@ ${scriptText(idea)}`;
       if (!hook || seen.has(hook.toLowerCase())) return false;
       if (hook.split(/\s+/).length > (written ? 26 : 18)) return false;
       if (CLICHES.test(hook)) return false;
-      if (hookIssue(hook, `${idea.title} ${idea.angle}`, { allowHypothetical })) return false;
+      // A LinkedIn first line may hold the subject back: the post names it a
+      // line or two later (his best opening, 619 impressions, names nothing).
+      if (!written && hookIssue(hook, `${idea.title} ${idea.angle}`, { allowHypothetical }))
+        return false;
       if (written && newsOpenerIssue(hook)) return false;
+      if (written && jargonIn(hook).length) return false;
       // A kind of hook filmed reels proved losing is not offered again.
       if (rules.blockedHookTypes.some((rule) => rule.type === hookTypeOf(hook))) return false;
       // The same checks the script itself is held to, applied to the line alone.

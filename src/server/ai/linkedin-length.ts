@@ -93,6 +93,8 @@ export async function fitLinkedInPosts(
   data: unknown,
   sources: SourceItem[],
   deadline?: number,
+  /** His own best recent posts (ai/linkedin-references.ts), so a fit keeps his format. */
+  references = "",
 ): Promise<{ data: unknown; cost: GenerationCost | undefined; fixed: number; failed: number }> {
   const ideas = (data as { ideas?: unknown })?.ideas;
   if (!Array.isArray(ideas)) return { data, cost: undefined, fixed: 0, failed: 0 };
@@ -117,6 +119,7 @@ export async function fitLinkedInPosts(
             system: [
               LINKEDIN_VOICE,
               lane ? linkedInShapesBlock([{ name: lane, definition: "" }]) : "",
+              references,
             ]
               .filter(Boolean)
               .join("\n\n"),

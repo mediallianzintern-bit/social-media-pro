@@ -30,6 +30,7 @@ import {
 } from "@/lib/tone-references";
 import { reviewLinkedInDrafts } from "./linkedin-review";
 import { scriptFeedbackFor } from "../script-feedback";
+import { linkedInPostReferences } from "./linkedin-references";
 import { factSheetText } from "@/lib/research";
 import { NO_RULES, type LearnedRules } from "@/lib/reel-learning-types";
 import { coveredCampaignsBlock } from "@/lib/covered-campaigns";
@@ -658,14 +659,15 @@ not notes for someone else to expand:
 - It is a business conversation that starts from the news, never a news summary: follow the
   team's LinkedIn writing brief in the VOICE block.
 - angle: the post's ONE idea, what the development means for businesses, not what happened.
-- hook: the first line, which is all LinkedIn shows above "see more". It makes the reader
-  curious AND names the subject: a short question, an unexpected possibility or a business
-  situation, with the brand, tool, technology or risk in it. Never a news-report opening ("X has
-  announced…", "In a recent development…") and never a warm-up.
-- text_post: post.body is the complete post, 150-250 words (300 at most), with the hook as its
-  first line.
-  Paragraphs of one to three lines with a blank line between them — that is how LinkedIn is
-  read. post.sections is empty.
+- It is a POST to be skimmed on a phone, not a reel script and not an article.
+- hook: the first line, which is all LinkedIn shows above "see more". It opens a real curiosity
+  gap: a question, a scene the reader recognises or a surprising fact, without giving away the
+  key example or the conclusion. Name the subject within the first few lines; for a brand case
+  study the name may wait a line or two. Never a news-report opening ("X has announced…", "In a
+  recent development…") and never a warm-up.
+- text_post: post.body is the complete post, about 150-220 words (300 at most), with the hook as
+  its first line. One sentence per line, about nine words, a blank line between lines: never a
+  paragraph. Plain, conversational words in place of marketing terms. post.sections is empty.
 - article: post.body is the introduction; post.sections are 4-7 sections, each a heading and its
   full paragraphs. An article is analysis, not a stretched post: every section adds something
   the one before it did not.
@@ -716,6 +718,8 @@ export interface IdeaReads {
   toneReferences?: ToneReference[] | null;
   /** The team's approvals and rejections of earlier scripts (lib/script-feedback.ts). */
   scriptFeedback?: string | null;
+  /** His own best LinkedIn posts of the last 30 days (ai/linkedin-references.ts). */
+  postReferences?: string | null;
 }
 
 export interface IdeaRequest {
@@ -833,7 +837,7 @@ export function buildIdeaRequest(
 creator, based on their own measured performance.
 
 ${groundRules(owner.owned?.source)}
-${voice ? `\n${voice}\n` : ""}${tone ? `\n${tone}\n` : ""}${reads.scriptFeedback ? `\n${reads.scriptFeedback}\n` : ""}${laneShapes ? `\n${laneShapes}\n` : ""}${covered ? `\n${covered}\n` : ""}${workflow ? `\n${workflow}\n` : ""}
+${voice ? `\n${voice}\n` : ""}${tone ? `\n${tone}\n` : ""}${reads.postReferences ? `\n${reads.postReferences}\n` : ""}${reads.scriptFeedback ? `\n${reads.scriptFeedback}\n` : ""}${laneShapes ? `\n${laneShapes}\n` : ""}${covered ? `\n${covered}\n` : ""}${workflow ? `\n${workflow}\n` : ""}
 Additional requirements:
 - EVERY IDEA MUST HAVE A CONCRETE SUBJECT. Name the specific brand, campaign, product, tool,
   person or event the reel covers, in the title and again in the angle. A reader who sees only
@@ -1571,7 +1575,10 @@ export async function generateIdeas(
   // What the team approved and rejected before, on this platform: approved
   // scripts as examples of how he sounds, rejections as what to avoid. Free.
   const scriptFeedback = await scriptFeedbackFor(platform).catch(() => "");
-  reads = { ...reads, toneReferences, scriptFeedback };
+  // LinkedIn: his own best posts of the last 30 days, for tone and format. Free.
+  const postReferences =
+    platform === "linkedin" ? await linkedInPostReferences().catch(() => "") : "";
+  reads = { ...reads, toneReferences, scriptFeedback, postReferences };
   const request = buildIdeaRequest(
     platform,
     owner,
@@ -1632,7 +1639,12 @@ Write it again and make sure each of these is fixed. Everything else above still
   // LinkedIn's review-and-rewrite pass first (linkedin-review.ts), then the
   // length fit as the last check.
   const reviewedPosts = request.written
-    ? await reviewLinkedInDrafts(review.data, sources, extra.deadline, reads.scriptFeedback ?? "")
+    ? await reviewLinkedInDrafts(
+        review.data,
+        sources,
+        extra.deadline,
+        [reads.postReferences, reads.scriptFeedback].filter(Boolean).join("\n\n"),
+      )
     : { data: review.data, cost: undefined, reviewed: 0, failed: 0 };
   if (reviewedPosts.reviewed || reviewedPosts.failed) {
     console.info(
@@ -1640,7 +1652,12 @@ Write it again and make sure each of these is fixed. Everything else above still
     );
   }
   const fitted = request.written
-    ? await fitLinkedInPosts(reviewedPosts.data, sources, extra.deadline)
+    ? await fitLinkedInPosts(
+        reviewedPosts.data,
+        sources,
+        extra.deadline,
+        reads.postReferences ?? "",
+      )
     : { data: review.data, cost: undefined, fixed: 0, failed: 0 };
   if (fitted.fixed || fitted.failed) {
     console.info(

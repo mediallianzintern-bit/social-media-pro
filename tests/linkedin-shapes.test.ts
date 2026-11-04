@@ -57,7 +57,14 @@ describe("LinkedIn voice check", () => {
 
   it("holds a post to his length, and an article teaser to its own", () => {
     expect(voiceFlags(post(words(90))).some((flag) => flag.startsWith("90 words"))).toBe(true);
-    expect(voiceFlags(post(`${words(90)} I've written an article on it.`))).toEqual([]);
+    // The post's first line is its hook, so the opening names the subject.
+    expect(
+      voiceFlags(
+        post(
+          `McDonald's wants to make $1 billion from advertising.\n\n${words(80)} I've written an article on it.`,
+        ),
+      ),
+    ).toEqual([]);
   });
 });
 

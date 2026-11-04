@@ -18,6 +18,7 @@
 // Client-safe. No model call. See docs/pritesh-voice.md.
 import type { ContentIdea } from "@/lib/ai-types";
 import { hookIssue, newsOpenerIssue } from "@/lib/hook-check";
+import { openingOf, readabilityProblems } from "@/lib/linkedin-readability";
 import { isAiToolWorkflowLane, isWorkflowCta, workflowCtaIssue } from "@/lib/tool-workflow";
 import { REEL_MAX_SECONDS, REEL_MIN_SECONDS, REEL_WORDS } from "@/lib/reel-length";
 
@@ -319,17 +320,30 @@ export function voiceFlags(
     flags.push("uses an exclamation mark — say it calmly instead");
   }
 
-  // Every hook opens on what the reel is about, in every lane. On LinkedIn a
-  // question or possibility that names the subject ("What if making AI cheaper
-  // creates a different problem for businesses?") is the opening the team's
-  // brief asks for, so only the missing subject is flagged there.
+  // Every hook opens on what the reel is about, in every lane.
+  //
+  // A LinkedIn post is read, not heard, so its first line may hold the subject
+  // back and name it a few lines later: his best post of the last 90 days (619
+  // impressions) opens "Can an ad be so relevant that it actually pushes
+  // customers away?", and "An AI model did something its creators didn't
+  // expect." (294) never names a model in its first line. The meeting on 4 Nov
+  // asked for exactly that curiosity gap. So on LinkedIn the subject has to be
+  // in the opening the reader sees (the first few lines), not in line one.
   const subject = `${idea.title ?? ""} ${idea.angle ?? ""}`;
-  const hooks = [...new Set([idea.hook, ...(idea.altHooks ?? [])].filter(Boolean))];
-  const allowHypothetical = Boolean(options.allowHypotheticalHooks || idea.post);
-  if (hooks.some((hook) => hookIssue(hook, subject, { allowHypothetical }))) {
-    flags.push(
-      "a hook opens on a hypothetical or never names the subject; open on what the reel is about",
-    );
+  if (idea.post) {
+    if (hookIssue(openingOf(idea.post.body), subject, { allowHypothetical: true })) {
+      flags.push(
+        "the opening never says what the post is about; name the subject within the first few lines",
+      );
+    }
+  } else {
+    const hooks = [...new Set([idea.hook, ...(idea.altHooks ?? [])].filter(Boolean))];
+    const allowHypothetical = Boolean(options.allowHypotheticalHooks);
+    if (hooks.some((hook) => hookIssue(hook, subject, { allowHypothetical }))) {
+      flags.push(
+        "a hook opens on a hypothetical or never names the subject; open on what the reel is about",
+      );
+    }
   }
   // A LinkedIn post that opens like a news report ("Xsolla has acquired…").
   const opening = idea.post?.body.trim().split("\n")[0] ?? "";
@@ -338,6 +352,16 @@ export function voiceFlags(
     flags.push(
       `opens like a news report: ${reported.replace(/^the first line "[^"]*" reads like a news report; /, "")}`,
     );
+  // Read on a phone, skimmed: his line lengths, sentence lengths and plain
+  // words (lib/linkedin-readability.ts). Full text posts only: an article
+  // teaser is a few lines pointing elsewhere, and an article is long-form.
+  if (idea.post && idea.format === "text_post") {
+    const teaser = POINTS_TO_ARTICLE.test(idea.post.body);
+    for (const problem of readabilityProblems(idea.post.body)) {
+      if (teaser && !problem.startsWith("uses jargon")) continue;
+      flags.push(problem);
+    }
+  }
 
   // An AI tool workflow reel ends on the comment CTA the team asked for.
   if (voiceover && !idea.post && isAiToolWorkflowLane(idea.contentLane)) {

@@ -351,7 +351,7 @@ export function ideasSchemaFor(options: {
       hook: {
         type: "string",
         description: written
-          ? 'The first line of the post — what shows above LinkedIn\'s "see more" fold. It makes the reader curious and names the subject (a question, an unexpected possibility or a business situation); never a news-report line such as "X has announced…".'
+          ? 'The first line of the post — what shows above LinkedIn\'s "see more" fold. It opens a curiosity gap (a question, a scene the reader recognises or a surprising fact) without giving away the key example or the conclusion; the subject is named within the first few lines. Never a news-report line such as "X has announced…".'
           : "The literal first line, spoken or on screen.",
       },
       altHooks: {

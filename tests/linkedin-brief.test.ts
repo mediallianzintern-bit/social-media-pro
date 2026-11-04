@@ -22,8 +22,13 @@ describe("the LinkedIn writing brief", () => {
     expect(LINKEDIN_VOICE).toContain("Could AI agents hack crypto to fund themselves?");
   });
 
-  it("passes its own approved post", () => {
-    expect(problemsOf(raw, reference, [], research)).toEqual([]);
+  it("passes its own approved post on everything but plain words", () => {
+    // The 2 Nov reference is a model of SHAPE. It reads harder than his own
+    // posts (reading ease about 35 against his 60: "superintelligent",
+    // "cryptocurrency"), which the 4 Nov readability check rightly notices;
+    // the prompt now says so, and points to his own recent posts for wording.
+    const problems = problemsOf(raw, reference, [], research);
+    expect(problems.filter((problem) => !/reads harder than his posts/.test(problem))).toEqual([]);
   });
 
   it("flags a first line written like a news report, never a question", () => {
