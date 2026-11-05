@@ -128,6 +128,25 @@ export interface ReelComparison {
     /** Facts only outlets other than the first stated: what one article alone would have missed. */
     fromOtherOutlets: number;
   };
+  /**
+   * A LinkedIn post's shape, measured in code (Phase 3, 5 Nov 2026). Absent on
+   * reels.
+   */
+  post?: PostShape;
+}
+
+/** A published LinkedIn post, measured the way the writer's checks measure a draft. */
+export interface PostShape {
+  words: number;
+  /** Reading grade, as the dashboard estimates Hemingway's (lib/linkedin-readability.ts). */
+  grade: number;
+  /** Numbered points in the post. */
+  points: number;
+  figures: number;
+  /** Ends on "Repost to help…". */
+  repost: boolean;
+  /** Asks the reader a question near the end. */
+  closingQuestion: boolean;
 }
 
 /** One part of the reel, ours against the team's. */
@@ -179,6 +198,36 @@ export interface ReelReview {
  * team wanted the result to reflect that (22 Oct).
  */
 export const REEL_REVIEW_DAYS = 14;
+
+/**
+ * How long a published LinkedIn post runs before Review judges it: most of a
+ * post's impressions come in its first week (Phase 3, 5 Nov 2026).
+ */
+export const POST_REVIEW_DAYS = 7;
+
+/** The review window for a platform. */
+export const reviewDaysFor = (platform: "instagram" | "linkedin") =>
+  platform === "linkedin" ? POST_REVIEW_DAYS : REEL_REVIEW_DAYS;
+
+/** How the feature talks about one platform's published content. */
+export const LEARNING_WORDS = {
+  instagram: {
+    thing: "reel",
+    things: "reels",
+    did: "filmed",
+    press: "I filmed this",
+    after: "After filming",
+    measure: "views",
+  },
+  linkedin: {
+    thing: "post",
+    things: "posts",
+    did: "posted",
+    press: "I posted this",
+    after: "After posting",
+    measure: "impressions",
+  },
+} as const;
 
 /** A review that counts: run once the reel had its full REEL_REVIEW_DAYS. */
 export const isFinalReview = (learning: { review: ReelReview | null }): boolean =>

@@ -824,14 +824,15 @@ export function AiIdeaCards({
                   <p className="text-xs text-destructive">
                     {filmed.error instanceof Error
                       ? filmed.error.message
-                      : "Couldn't mark it filmed. Try again."}
+                      : `Couldn't mark it ${platform === "linkedin" ? "posted" : "filmed"}. Try again.`}
                   </p>
                 ) : null}
                 {learning && !learning.shortcode ? (
                   <p className="flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">
                     <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-600" aria-hidden />
-                    Marked filmed. The live reel is found by its topic on the next Sync after it is
-                    posted; nothing else to do.
+                    {platform === "linkedin"
+                      ? "Marked posted. The live post is found by its topic on the next Sync after it goes up; nothing else to do."
+                      : "Marked filmed. The live reel is found by its topic on the next Sync after it is posted; nothing else to do."}
                   </p>
                 ) : !open.status || open.status === "suggested" ? (
                   <div className="flex gap-2">
@@ -846,7 +847,7 @@ export function AiIdeaCards({
                       ) : (
                         <Clapperboard className="size-4" aria-hidden />
                       )}
-                      I filmed this
+                      {platform === "linkedin" ? "I posted this" : "I filmed this"}
                     </Button>
                     <Button
                       variant="ghost"
@@ -862,8 +863,9 @@ export function AiIdeaCards({
                   <div className="space-y-2.5">
                     <p className="flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">
                       <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-600" aria-hidden />
-                      Linked to the reel you published. Analyse it above to see what was used, and
-                      review it after 14 days to see what worked and why.
+                      {platform === "linkedin"
+                        ? "Linked to the post you published. Analyse it above to see what was used, and review it after 7 days to see what worked and why."
+                        : "Linked to the reel you published. Analyse it above to see what was used, and review it after 14 days to see what worked and why."}
                     </p>
                     <Button
                       variant="outline"

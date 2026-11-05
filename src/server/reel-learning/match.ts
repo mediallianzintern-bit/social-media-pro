@@ -19,7 +19,11 @@ import {
   findReelByArticle,
   findReelByTiming,
   earliestReelFor,
+  findPostByText,
   findReelForIdea,
+  LINKEDIN_ARTICLE_MATCH,
+  LINKEDIN_MATCH,
+  linkedInPostId,
   nameFrequency,
   namesIn,
   shortcodeFromUrl,
@@ -78,12 +82,28 @@ async function strongMatch(
   if (!idea) return null;
   const createdAt = (await ideaCreatedAt(row.ideaId)) ?? row.filmedAt;
   const window = { createdAt, filmedAt: row.filmedAt, taken };
-  const byTopic = findReelForIdea(idea, posts, { ...window, nameFreq });
+  const linkedin = row.platform === "linkedin";
+  // A LinkedIn post is found by its own words first: the team edits a post
+  // but keeps most of it. Then by its story, at a higher bar than a reel.
+  if (linkedin) {
+    const byText = findPostByText(idea, posts, {
+      earliest: earliestReelFor(idea, createdAt),
+      filmedAt: row.filmedAt,
+      taken,
+    });
+    if (byText) return { found: byText, by: "topic" };
+  }
+  const byTopic = findReelForIdea(idea, posts, {
+    ...window,
+    nameFreq,
+    ...(linkedin ? LINKEDIN_MATCH : {}),
+  });
   if (byTopic) return { found: byTopic, by: "topic" };
   const article = await sourceWordsFor(row, idea.source?.sourceId);
   const byArticle = findReelByArticle(article, posts, {
     ...window,
     earliest: earliestReelFor(idea, createdAt),
+    ...(linkedin ? LINKEDIN_ARTICLE_MATCH : {}),
   });
   return byArticle ? { found: byArticle, by: "article" } : null;
 }
@@ -224,14 +244,22 @@ export async function rejectMatch(row: ReelLearningRow): Promise<void> {
 export async function linkReelByHand(ideaId: string, permalink: string): Promise<ReelLearningRow> {
   const row = await readReelLearning(ideaId);
   if (!row) throw new Error("Press I filmed this first.");
-  const shortcode = shortcodeFromUrl(permalink);
-  if (!shortcode) throw new Error("That doesn't look like a reel link.");
+  // A LinkedIn post is stored under its activity id, a reel under its shortcode.
+  const shortcode =
+    row.platform === "linkedin" ? linkedInPostId(permalink) : shortcodeFromUrl(permalink);
+  if (!shortcode) {
+    throw new Error(
+      row.platform === "linkedin"
+        ? "That doesn't look like a LinkedIn post link. Use the post's own link (Copy link to post)."
+        : "That doesn't look like a reel link.",
+    );
+  }
   const post = (await ownerReels(row.platform)).find(
     (item) => (shortcodeFromUrl(item.url) ?? item.postId) === shortcode,
   );
   if (!post) {
     throw new Error(
-      "That reel isn't in the synced posts yet. Press Sync once it is live, then try again.",
+      `That ${row.platform === "linkedin" ? "post" : "reel"} isn't in the synced posts yet. Press Sync once it is live, then try again.`,
     );
   }
   const matchedAt = new Date().toISOString();

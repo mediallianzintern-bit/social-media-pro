@@ -1,5 +1,7 @@
 // What happened to a filmed idea: the live reel, what of the script it used,
-// and, after 14 days, whether it worked and why.
+// and, after 14 days, whether it worked and why. A LinkedIn post the team
+// published goes through the same steps, judged after 7 days on LinkedIn's
+// own impressions (Phase 3, 5 Nov 2026).
 //
 // The team presses "I filmed this" and nothing else is asked of them (Pritesh,
 // 19 Oct). Finding the reel is free and automatic. The two paid steps,
@@ -28,8 +30,9 @@ import { dateTime, fullNumber, shortDate } from "@/lib/format";
 import {
   ELEMENT_VERDICT_LABEL,
   isFinalReview,
-  REEL_REVIEW_DAYS,
+  LEARNING_WORDS,
   REEL_USAGE_LABEL,
+  reviewDaysFor,
   VIRAL_RATIO,
   type ElementVerdict,
   type ReelLearning,
@@ -43,8 +46,8 @@ import {
   reviewFilmed,
 } from "@/lib/reel-learning.functions";
 
-/** How the reel was found, in words. */
-function matchedBy(match: ReelMatch | null): string {
+/** How the reel or post was found, in words. */
+function matchedBy(match: ReelMatch | null, thing: string, did: string): string {
   const words = match?.words.length ? `: ${match.words.join(", ")}` : "";
   switch (match?.by) {
     case "manual":
@@ -52,7 +55,7 @@ function matchedBy(match: ReelMatch | null): string {
     case "article":
       return `Matched on the source article${words}.`;
     case "timing":
-      return "Matched by timing: the only reel posted around when it was filmed.";
+      return `Matched by timing: the only ${thing} posted around when it was ${did}.`;
     default:
       return `Matched on its topic${words}.`;
   }
@@ -80,8 +83,16 @@ function Verdict({ verdict }: { verdict: ElementVerdict }) {
   );
 }
 
-/** Link the right reel by its URL: for a reel the topic could not find, or a wrong match. */
-function LinkByHand({ idea, label }: { idea: ContentIdea; label: string }) {
+/** Link the right reel or post by its URL: for one the topic could not find, or a wrong match. */
+function LinkByHand({
+  idea,
+  label,
+  linkedin,
+}: {
+  idea: ContentIdea;
+  label: string;
+  linkedin: boolean;
+}) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState("");
@@ -109,7 +120,11 @@ function LinkByHand({ idea, label }: { idea: ContentIdea; label: string }) {
       <div className="flex gap-2">
         <Input
           autoFocus
-          placeholder="https://www.instagram.com/reel/..."
+          placeholder={
+            linkedin
+              ? "https://www.linkedin.com/posts/…-activity-…"
+              : "https://www.instagram.com/reel/..."
+          }
           value={url}
           onChange={(event) => setUrl(event.target.value)}
         />
@@ -119,7 +134,9 @@ function LinkByHand({ idea, label }: { idea: ContentIdea; label: string }) {
       </div>
       {link.error ? (
         <p className="text-xs text-destructive">
-          {link.error instanceof Error ? link.error.message : "Couldn't link that reel."}
+          {link.error instanceof Error
+            ? link.error.message
+            : `Couldn't link that ${linkedin ? "post" : "reel"}.`}
         </p>
       ) : null}
     </div>
@@ -144,16 +161,18 @@ export function FilmedPanel({ idea }: { idea: ContentIdea }) {
   });
 
   if (!learning) return null;
+  const w = LEARNING_WORDS[learning.platform];
+  const linkedin = learning.platform === "linkedin";
 
   return (
     <section className="space-y-4 rounded-lg border bg-muted/20 p-4">
       <div className="flex items-center gap-2">
         <Microscope className="size-4 text-muted-foreground" aria-hidden />
-        <Label>After filming</Label>
+        <Label>{w.after}</Label>
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Marked filmed {dateTime(learning.filmedAt)}
+        Marked {w.did} {dateTime(learning.filmedAt)}
         {learning.filmedBy ? ` by ${learning.filmedBy}` : ""}.
       </p>
 
@@ -161,10 +180,14 @@ export function FilmedPanel({ idea }: { idea: ContentIdea }) {
         <div className="space-y-2">
           <p className="flex items-start gap-2 text-sm">
             <Search className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
-            Waiting for the reel to go live. Once it is posted, the next Sync finds it by its topic,
-            with nothing to paste and nothing spent.
+            Waiting for the {w.thing} to go live. Once it is posted, the next Sync finds it by its
+            topic, with nothing to paste and nothing spent.
           </p>
-          <LinkByHand idea={idea} label="Posted already and not found? Link it yourself" />
+          <LinkByHand
+            idea={idea}
+            linkedin={linkedin}
+            label="Posted already and not found? Link it yourself"
+          />
         </div>
       ) : (
         <Found
@@ -205,13 +228,16 @@ function Found({
   const reviewReady = learning.reviewableAt
     ? Date.now() >= Date.parse(learning.reviewableAt)
     : false;
+  const w = LEARNING_WORDS[learning.platform];
+  const linkedin = learning.platform === "linkedin";
+  const days = reviewDaysFor(learning.platform);
 
   return (
     <div className="space-y-4">
       <div className="space-y-1">
         <p className="flex flex-wrap items-center gap-2 text-sm">
           <CheckCircle2 className="size-4 text-emerald-600" aria-hidden />
-          Live reel found
+          Live {w.thing} found
           {learning.publishedAt ? `, posted ${shortDate(learning.publishedAt)}` : ""}.
           {learning.reelUrl ? (
             <a
@@ -224,27 +250,32 @@ function Found({
             </a>
           ) : null}
         </p>
-        <p className="text-xs text-muted-foreground">{matchedBy(learning.match)}</p>
+        <p className="text-xs text-muted-foreground">{matchedBy(learning.match, w.thing, w.did)}</p>
         {learning.match && !learning.match.confirmed ? (
           <p className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
             <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-            Probably this reel, but not confirmed. Analyse reads it and checks the topic: if it
+            Probably this {w.thing}, but not confirmed. Analyse reads it and checks the topic: if it
             covers a different story it is unlinked and the search goes on. It is not scored until
             then.
           </p>
         ) : null}
-        <LinkByHand idea={idea} label="Wrong reel? Link the right one" />
+        <LinkByHand
+          idea={idea}
+          linkedin={linkedin}
+          label={`Wrong ${w.thing}? Link the right one`}
+        />
       </div>
 
       {!comparison ? (
         <div className="space-y-2">
           <Button className="w-full gap-2" disabled={analysing} onClick={onAnalyse}>
             {analysing ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-            {analysing ? "Reading the reel…" : "Analyse what was used"}
+            {analysing ? `Reading the ${w.thing}…` : "Analyse what was used"}
           </Button>
           <p className="text-center text-[10px] text-muted-foreground">
-            About 3¢: one transcript of the reel and one AI call. Compares the hook, script, caption
-            and hashtags with what was suggested.
+            {linkedin
+              ? "About 1¢: one AI call, no transcript needed. Measures which opening was published, how much of the post survived, its length, grade, points and Repost line."
+              : "About 3¢: one transcript of the reel and one AI call. Compares the hook, script, caption and hashtags with what was suggested."}
           </p>
           {analyseNote ? <p className="text-xs text-destructive">{analyseNote}</p> : null}
         </div>
@@ -283,15 +314,13 @@ function Found({
               </Button>
               <Button variant="outline" disabled>
                 Results ready{" "}
-                {learning.reviewableAt
-                  ? shortDate(learning.reviewableAt)
-                  : `after ${REEL_REVIEW_DAYS} days`}
+                {learning.reviewableAt ? shortDate(learning.reviewableAt) : `after ${days} days`}
               </Button>
             </div>
           )}
           <p className="text-center text-[10px] text-muted-foreground">
             {reviewReady
-              ? `About 2¢, one AI call. Whether it worked is measured against your typical reel; the AI explains why.${learning.review ? " Replaces the early check." : ""}`
+              ? `About 2¢, one AI call. Whether it worked is measured against your typical ${w.thing}${linkedin ? "'s LinkedIn impressions" : ""}; the AI explains why.${learning.review ? " Replaces the early check." : ""}`
               : `Get results now: about 2¢, an early check of the figures so far. It is shown here but not learned from; the full result${learning.reviewableAt ? ` on ${shortDate(learning.reviewableAt)}` : ""} replaces it and is what the system learns from.`}
           </p>
           {reviewNote ? <p className="text-xs text-destructive">{reviewNote}</p> : null}
@@ -314,6 +343,8 @@ function Comparison({
   onAnalyse: () => void;
 }) {
   const comparison = learning.comparison!;
+  const w = LEARNING_WORDS[learning.platform];
+  const linkedin = learning.platform === "linkedin";
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -342,14 +373,14 @@ function Comparison({
       {!comparison.topic.same ? (
         <p className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
           <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-          This reel seems to cover a different story: {comparison.topic.note} If it is the wrong
-          reel, link the right one above.
+          This {w.thing} seems to cover a different story: {comparison.topic.note} If it is the
+          wrong {w.thing}, link the right one above.
         </p>
       ) : (
         <p className="text-xs text-muted-foreground">Topic: {comparison.topic.note}</p>
       )}
 
-      {!comparison.hadTranscript ? (
+      {!linkedin && !comparison.hadTranscript ? (
         <p className="text-xs text-muted-foreground">
           The reel has no speech to transcribe, so its caption was compared instead.
         </p>
@@ -357,7 +388,7 @@ function Comparison({
 
       <div className="space-y-1.5">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium">Hook</span>
+          <span className="text-sm font-medium">{linkedin ? "Opening" : "Hook"}</span>
           <Verdict verdict={comparison.hook.verdict} />
           <span className="text-xs text-muted-foreground">
             {comparison.hook.variant
@@ -367,7 +398,7 @@ function Comparison({
             hook&rsquo;s words
           </span>
         </div>
-        <p className="text-sm italic">&ldquo;{comparison.hook.spoken}&rdquo;</p>
+        <p className="whitespace-pre-line text-sm italic">&ldquo;{comparison.hook.spoken}&rdquo;</p>
         {comparison.hook.note ? (
           <p className="text-xs text-muted-foreground">{comparison.hook.note}</p>
         ) : null}
@@ -375,10 +406,11 @@ function Comparison({
 
       <div className="space-y-1.5">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium">Script</span>
+          <span className="text-sm font-medium">{linkedin ? "Post" : "Script"}</span>
           <Verdict verdict={comparison.script.verdict} />
           <span className="text-xs text-muted-foreground">
-            {percent(comparison.script.overlap)} of the suggested script was said, in order
+            {percent(comparison.script.overlap)} of the suggested{" "}
+            {linkedin ? "post was kept" : "script was said"}, in order
           </span>
         </div>
         <p className="text-xs text-muted-foreground">{comparison.script.structure}</p>
@@ -392,7 +424,7 @@ function Comparison({
           <span className="text-sm font-medium">Research</span>
           <p className="text-xs text-muted-foreground">
             {comparison.research.factsUsed} of {comparison.research.facts} researched facts reached
-            the reel, from {comparison.research.sources}{" "}
+            the {w.thing}, from {comparison.research.sources}{" "}
             {comparison.research.sources === 1 ? "outlet" : "outlets"}
             {comparison.research.fromOtherOutlets
               ? `; ${comparison.research.fromOtherOutlets} of them only other outlets reported, details one article would have missed`
@@ -402,16 +434,18 @@ function Comparison({
         </div>
       ) : null}
 
-      <div className="space-y-1.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium">Caption</span>
-          <Verdict verdict={comparison.caption.verdict} />
-          <span className="text-xs text-muted-foreground">
-            {percent(comparison.caption.overlap)} of the suggested caption kept
-          </span>
+      {linkedin ? null : (
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium">Caption</span>
+            <Verdict verdict={comparison.caption.verdict} />
+            <span className="text-xs text-muted-foreground">
+              {percent(comparison.caption.overlap)} of the suggested caption kept
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground">{comparison.caption.note}</p>
         </div>
-        <p className="text-xs text-muted-foreground">{comparison.caption.note}</p>
-      </div>
+      )}
 
       <div className="space-y-1.5">
         <span className="text-sm font-medium">Hashtags</span>
@@ -434,10 +468,15 @@ function Comparison({
 function Parts({ learning }: { learning: ReelLearning }) {
   const c = learning.comparison!;
   const parts = c.parts!;
+  const linkedin = learning.platform === "linkedin";
   const rows: Array<[string, (typeof parts)["hook"], string | null]> = [
-    ["Hook", parts.hook, c.hookType ? HOOK_TYPE_LABEL[c.hookType] : null],
-    ["Main body", parts.body, c.body ? `${c.body.shape} · example: ${c.body.exampleType}` : null],
-    ["CTA", parts.cta, c.cta ? CTA_TYPE_LABEL[c.cta.type] : null],
+    [linkedin ? "Opening" : "Hook", parts.hook, c.hookType ? HOOK_TYPE_LABEL[c.hookType] : null],
+    [
+      linkedin ? "Body" : "Main body",
+      parts.body,
+      c.body ? `${c.body.shape} · example: ${c.body.exampleType}` : null,
+    ],
+    [linkedin ? "Close" : "CTA", parts.cta, c.cta && !linkedin ? CTA_TYPE_LABEL[c.cta.type] : null],
   ];
   return (
     <div className="space-y-2">
@@ -447,7 +486,9 @@ function Parts({ learning }: { learning: ReelLearning }) {
             <tr>
               <th className="px-2 py-1.5 font-medium">Part</th>
               <th className="px-2 py-1.5 font-medium">Ours</th>
-              <th className="px-2 py-1.5 font-medium">What the reel said</th>
+              <th className="px-2 py-1.5 font-medium">
+                {linkedin ? "What was published" : "What the reel said"}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -462,11 +503,11 @@ function Parts({ learning }: { learning: ReelLearning }) {
                     {percent(part.overlap)} kept
                   </span>
                 </td>
-                <td className="px-2 py-1.5 text-muted-foreground">
+                <td className="whitespace-pre-line px-2 py-1.5 text-muted-foreground">
                   {part.ours || "–"}
                   <span className="mt-1 block text-[10px]">{part.oursWords} words</span>
                 </td>
-                <td className="px-2 py-1.5">
+                <td className="whitespace-pre-line px-2 py-1.5">
                   {part.theirs || "–"}
                   <span className="mt-1 block text-[10px] text-muted-foreground">
                     {part.theirsWords} words{kind ? ` · ${kind}` : ""}
@@ -478,7 +519,15 @@ function Parts({ learning }: { learning: ReelLearning }) {
         </table>
       </div>
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        {c.cta ? (
+        {c.post ? (
+          <span>
+            Published: {c.post.words} words · about Grade {c.post.grade} · {c.post.points} numbered
+            points · {c.post.figures} figures
+            {c.post.closingQuestion ? " · closing question" : ""}
+            {c.post.repost ? " · Repost line" : ""}
+          </span>
+        ) : null}
+        {c.cta && !linkedin ? (
           <span
             className={
               c.cta.usedLaneCta
@@ -499,7 +548,7 @@ function Parts({ learning }: { learning: ReelLearning }) {
             {c.reel.seconds} s, {c.reel.words} words
           </span>
         ) : null}
-        {c.captionStats ? (
+        {c.captionStats && !linkedin ? (
           <span>
             Caption: {c.captionStats.words} words
             {c.captionStats.asksQuestion ? ", asks a question" : ""}
@@ -543,6 +592,13 @@ const EFFECT_ICON = {
 
 function Review({ learning }: { learning: ReelLearning }) {
   const review = learning.review!;
+  const w = LEARNING_WORDS[learning.platform];
+  const days = reviewDaysFor(learning.platform);
+  // A LinkedIn post without LinkedIn's figures is judged on its engagements.
+  const measure =
+    learning.platform === "linkedin" && !review.metrics.some((m) => m.label === "Impressions")
+      ? "engagements"
+      : w.measure;
   return (
     <div className="space-y-4 border-t pt-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -552,8 +608,7 @@ function Review({ learning }: { learning: ReelLearning }) {
             variant="outline"
             className="gap-1 border-amber-300 font-normal text-amber-800 dark:border-amber-800 dark:text-amber-300"
           >
-            <Timer className="size-3" aria-hidden /> Early check · day {review.early.days} of{" "}
-            {REEL_REVIEW_DAYS}
+            <Timer className="size-3" aria-hidden /> Early check · day {review.early.days} of {days}
           </Badge>
         ) : review.primaryRatio >= VIRAL_RATIO ? (
           <Badge className="gap-1 bg-violet-600 hover:bg-violet-600">
@@ -569,16 +624,19 @@ function Review({ learning }: { learning: ReelLearning }) {
           </Badge>
         )}
         <span className="text-xs text-muted-foreground">
-          {review.primaryRatio.toFixed(2)}× your typical reel&rsquo;s views
+          {review.primaryRatio.toFixed(2)}× your typical {w.thing}&rsquo;s {measure}
           {review.early ? " so far" : ""}
         </span>
       </div>
       {review.early ? (
         <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-          An early check, after {review.early.days} day{review.early.days === 1 ? "" : "s"}: this
-          reel&rsquo;s figures are still growing while the typical reel&rsquo;s are final, so views,
-          reach, saves and shares will rise. Skip rate and watch time already mean something. Not
-          counted in patterns or rules until the full result after {REEL_REVIEW_DAYS} days.
+          An early check, after {review.early.days} day{review.early.days === 1 ? "" : "s"}: this{" "}
+          {w.thing}&rsquo;s figures are still growing while the typical {w.thing}&rsquo;s are final,
+          so they will rise.
+          {learning.platform === "instagram"
+            ? " Skip rate and watch time already mean something."
+            : ""}{" "}
+          Not counted in patterns or rules until the full result after {days} days.
         </p>
       ) : null}
       <p className="text-sm leading-relaxed">{review.summary}</p>
@@ -588,7 +646,7 @@ function Review({ learning }: { learning: ReelLearning }) {
           <thead className="bg-muted/50 text-left text-muted-foreground">
             <tr>
               <th className="px-2 py-1.5 font-medium">Measure</th>
-              <th className="px-2 py-1.5 text-right font-medium">This reel</th>
+              <th className="px-2 py-1.5 text-right font-medium">This {w.thing}</th>
               <th className="px-2 py-1.5 text-right font-medium">Typical</th>
               <th className="px-2 py-1.5 text-right font-medium">vs typical</th>
             </tr>
@@ -610,7 +668,8 @@ function Review({ learning }: { learning: ReelLearning }) {
         </table>
       </div>
       <p className="text-[10px] text-muted-foreground">
-        Typical is the median reel in the 90 days before this one.
+        Typical is the median {w.thing} in the 90 days before this one
+        {learning.platform === "linkedin" ? ", from LinkedIn's own figures where it has them" : ""}.
       </p>
 
       <ul className="space-y-1.5">
@@ -627,7 +686,9 @@ function Review({ learning }: { learning: ReelLearning }) {
 
       {review.lessons.length ? (
         <div className="space-y-1.5">
-          <Label>Learned for the next scripts</Label>
+          <Label>
+            Learned for the next {learning.platform === "linkedin" ? "posts" : "scripts"}
+          </Label>
           <ul className="space-y-1.5">
             {review.lessons.map((lesson, index) => (
               <li key={index} className="text-xs leading-relaxed">
@@ -642,14 +703,15 @@ function Review({ learning }: { learning: ReelLearning }) {
             ))}
           </ul>
           <p className="text-[10px] text-muted-foreground">
-            New scripts are written and reviewed with these lessons.
+            New {learning.platform === "linkedin" ? "posts" : "scripts"} are written and reviewed
+            with these lessons.
           </p>
         </div>
       ) : null}
 
       {review.suggestions.length ? (
         <div className="space-y-1.5">
-          <Label>How this reel could have been stronger</Label>
+          <Label>How this {w.thing} could have been stronger</Label>
           <ul className="list-disc space-y-1 pl-4 text-xs leading-relaxed">
             {review.suggestions.map((suggestion, index) => (
               <li key={index}>{suggestion}</li>
@@ -664,16 +726,19 @@ function Review({ learning }: { learning: ReelLearning }) {
 /** What every reviewed reel adds up to so far, counted in code. */
 export function Patterns({ platform }: { platform: "instagram" | "linkedin" }) {
   const { data: patterns } = useQuery(reelPatternsQueryOptions(platform));
+  const w = LEARNING_WORDS[platform];
   if (!patterns?.length) return null;
   return (
     <div className="space-y-2 border-t pt-4">
-      <Label>Across every reviewed reel so far</Label>
+      <Label>Across every reviewed {w.thing} so far</Label>
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-xs">
           <thead className="bg-muted/50 text-left text-muted-foreground">
             <tr>
               <th className="px-2 py-1.5 font-medium">Pattern</th>
-              <th className="px-2 py-1.5 text-right font-medium">Reels</th>
+              <th className="px-2 py-1.5 text-right font-medium">
+                {platform === "linkedin" ? "Posts" : "Reels"}
+              </th>
               <th className="px-2 py-1.5 text-right font-medium">Worked</th>
               <th className="px-2 py-1.5 text-right font-medium">Median vs typical</th>
             </tr>
@@ -701,8 +766,8 @@ export function Patterns({ platform }: { platform: "instagram" | "linkedin" }) {
         </table>
       </div>
       <p className="text-[10px] text-muted-foreground">
-        Counted from the figures, not judged. A pattern is strong with 3 or more reels behind it;
-        the writer weighs strong patterns above any single reel.
+        Counted from the figures, not judged. A pattern is strong with 3 or more {w.things} behind
+        it; the writer weighs strong patterns above any single {w.thing}.
       </p>
     </div>
   );

@@ -18,6 +18,7 @@
 import type { PlatformId } from "@/lib/analytics-types";
 import {
   isFinalReview,
+  LEARNING_WORDS,
   NO_RULES,
   REEL_USAGE_LABEL,
   VIRAL_RATIO,
@@ -40,19 +41,25 @@ async function reviewedReels(rows: ReelLearningRow[]): Promise<ReviewedReel[]> {
   return Promise.all(
     rows.filter(isFinalReview).map(async (row) => {
       const comparison = row.comparison;
+      // A LinkedIn post is its own caption: its caption figures say nothing new.
+      const post = row.platform === "linkedin" ? (comparison?.post ?? null) : null;
       return {
         lane: (await readIdeaById(row.ideaId).catch(() => null))?.contentLane ?? null,
         hookStyle: comparison?.hook.style ?? null,
         hookVerdict: comparison?.hook.verdict ?? null,
         scriptVerdict: comparison?.script.verdict ?? null,
-        captionVerdict: comparison?.caption.verdict ?? null,
+        captionVerdict: post ? null : (comparison?.caption.verdict ?? null),
         usage: row.usage,
         hookType: comparison?.hookType ?? null,
         ctaType: comparison?.cta?.type ?? null,
         bodyShape: comparison?.body?.shape ?? null,
         exampleType: comparison?.body?.exampleType ?? null,
         seconds: comparison?.reel?.seconds ?? null,
-        captionWords: comparison?.captionStats?.words ?? null,
+        captionWords: post ? null : (comparison?.captionStats?.words ?? null),
+        postWords: post?.words ?? null,
+        grade: post?.grade ?? null,
+        points: post?.points ?? null,
+        openingVariant: post ? (comparison?.hook.variant ?? null) : null,
         hashtags: comparison ? [...comparison.hashtags.used, ...comparison.hashtags.added] : null,
         researchSources: comparison?.research?.sources ?? null,
         researchUsed: comparison?.research?.facts
@@ -91,6 +98,11 @@ function anatomy(row: ReelLearningRow): string[] {
     );
   if (c.reel?.seconds)
     lines.push(`    LENGTH: about ${c.reel.seconds} seconds, ${c.reel.words} words`);
+  if (c.post) {
+    lines.push(
+      `    SHAPE: ${c.post.words} words, about Grade ${c.post.grade}, ${c.post.points} numbered points, ${c.post.figures} figures${c.post.closingQuestion ? ", a closing question" : ""}${c.post.repost ? ", a Repost line" : ""}`,
+    );
+  }
   return lines;
 }
 
@@ -101,20 +113,23 @@ export async function filmedLessonsBlock(platform: PlatformId): Promise<string> 
   if (!reviewed.length) return "";
   const patterns = reelPatterns(await reviewedReels(rows));
   const rules = deriveRules(patterns);
+  // A LinkedIn post is judged on impressions after a week, a reel on views after two.
+  const w = LEARNING_WORDS[platform === "linkedin" ? "linkedin" : "instagram"];
+  const linkedin = platform === "linkedin";
 
   const ruleLines = [
     ...rules.blockedHookTypes.map(
       (rule) =>
-        `- NEVER open with a ${HOOK_TYPE_LABEL[rule.type].toLowerCase()} hook: it lost on ${rule.reels} reels (median ${rule.medianRatio.toFixed(2)}x typical views). Enforced: such a hook is sent back to be rewritten.`,
+        `- NEVER open with a ${HOOK_TYPE_LABEL[rule.type].toLowerCase()} hook: it lost on ${rule.reels} ${w.things} (median ${rule.medianRatio.toFixed(2)}x typical ${w.measure}). Enforced: such a hook is sent back to be rewritten.`,
     ),
     ...(rules.allowHypotheticalHooks
       ? [
-          `- RULE LIFTED: hypothetical openers ("Imagine…", "What if…") WORKED on ${rules.allowHypotheticalHooks.reels} reels (median ${rules.allowHypotheticalHooks.medianRatio.toFixed(2)}x). They are allowed again, as long as the same opening line names the subject.`,
+          `- RULE LIFTED: hypothetical openers ("Imagine…", "What if…") WORKED on ${rules.allowHypotheticalHooks.reels} ${w.things} (median ${rules.allowHypotheticalHooks.medianRatio.toFixed(2)}x). They are allowed again, as long as the same opening line names the subject.`,
         ]
       : []),
     ...rules.blockedHashtags.map(
       (rule) =>
-        `- Do not use ${rule.tag}: it was on ${rule.reels} reels that lost (median ${rule.medianRatio.toFixed(2)}x). Enforced: removed from new scripts.`,
+        `- Do not use ${rule.tag}: it was on ${rule.reels} ${w.things} that lost (median ${rule.medianRatio.toFixed(2)}x). Enforced: removed from new scripts.`,
     ),
   ];
 
@@ -124,7 +139,7 @@ export async function filmedLessonsBlock(platform: PlatformId): Promise<string> 
     .slice(0, MAX_VIRAL)
     .map((row) =>
       [
-        `- ${row.review!.primaryRatio.toFixed(2)}x typical views (${REEL_USAGE_LABEL[row.usage ?? "partly"].toLowerCase()}): ${row.review!.summary}`,
+        `- ${row.review!.primaryRatio.toFixed(2)}x typical ${w.measure} (${REEL_USAGE_LABEL[row.usage ?? "partly"].toLowerCase()}): ${row.review!.summary}`,
         ...anatomy(row),
         ...row
           .review!.lessons.filter((lesson) => lesson.kind === "repeat")
@@ -136,7 +151,7 @@ export async function filmedLessonsBlock(platform: PlatformId): Promise<string> 
     const review = row.review!;
     const verdict =
       review.primaryRatio >= VIRAL_RATIO ? "VIRAL" : row.worked ? "WORKED" : "DID NOT WORK";
-    const head = `- ${verdict} (${review.primaryRatio.toFixed(2)}x typical views; ${REEL_USAGE_LABEL[row.usage ?? "partly"].toLowerCase()}; hook: ${row.comparison?.hookType ? HOOK_TYPE_LABEL[row.comparison.hookType] : (row.comparison?.hook.style ?? "?")}): ${review.summary}`;
+    const head = `- ${verdict} (${review.primaryRatio.toFixed(2)}x typical ${w.measure}; ${REEL_USAGE_LABEL[row.usage ?? "partly"].toLowerCase()}; hook: ${row.comparison?.hookType ? HOOK_TYPE_LABEL[row.comparison.hookType] : (row.comparison?.hook.style ?? "?")}): ${review.summary}`;
     const lessons = review.lessons.map(
       (lesson) =>
         `    ${lesson.kind === "repeat" ? "REPEAT" : "AVOID"} [${lesson.element}] ${lesson.lesson} (${lesson.evidence})`,
@@ -154,19 +169,25 @@ export async function filmedLessonsBlock(platform: PlatformId): Promise<string> 
     );
 
   return [
-    `WHAT FILMED REELS TAUGHT US — reels the team actually posted, measured after two weeks. Follow the
+    linkedin
+      ? `WHAT PUBLISHED POSTS TAUGHT US — LinkedIn posts the team actually published from this dashboard,
+measured on LinkedIn's own impressions after a week. Follow the RULES; copy what made the posts at
+3x or more work; trust a pattern marked STRONG (3+ posts) over any single result; follow REPEAT
+lessons and never repeat AVOID ones. Pritesh Sir's brief and the team's model post still decide
+the voice: these results decide between ways of following it.`
+      : `WHAT FILMED REELS TAUGHT US — reels the team actually posted, measured after two weeks. Follow the
 RULES; copy what made the VIRAL reels work; trust a pattern marked STRONG (3+ reels) over any single
 result; follow REPEAT lessons and never repeat AVOID ones.`,
     ruleLines.length ? `RULES LEARNED FROM RESULTS:\n${ruleLines.join("\n")}` : "",
     viral.length
-      ? `VIRAL REELS — the clearest proof of what this audience wants:\n${viral.join("\n")}`
+      ? `${linkedin ? "POSTS AT 3X OR MORE" : "VIRAL REELS"} — the clearest proof of what this audience wants:\n${viral.join("\n")}`
       : "",
     patterns.length
-      ? `MEASURED PATTERNS, counted across every reviewed reel (median views vs the typical reel):\n${patterns
+      ? `MEASURED PATTERNS, counted across every reviewed ${w.thing} (median ${w.measure} vs the typical ${w.thing}):\n${patterns
           .slice(0, 24)
           .map(
             (pattern) =>
-              `- ${pattern.strong ? "STRONG" : "early"} · ${pattern.dimension}: ${pattern.value} — ${pattern.reels} reel${pattern.reels === 1 ? "" : "s"}, ${pattern.worked} worked, median ${pattern.medianRatio.toFixed(2)}x`,
+              `- ${pattern.strong ? "STRONG" : "early"} · ${pattern.dimension}: ${pattern.value} — ${pattern.reels} ${pattern.reels === 1 ? w.thing : w.things}, ${pattern.worked} worked, median ${pattern.medianRatio.toFixed(2)}x`,
           )
           .join("\n")}`
       : "",

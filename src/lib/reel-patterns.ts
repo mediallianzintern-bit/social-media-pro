@@ -48,7 +48,13 @@ export interface ReviewedReel {
   /** Outlets the script's research read, and the share of its facts the reel used. */
   researchSources?: number | null;
   researchUsed?: number | null;
-  /** Views ÷ typical views. */
+  /** A LinkedIn post's words, reading grade and numbered points. Absent on reels. */
+  postWords?: number | null;
+  grade?: number | null;
+  points?: number | null;
+  /** Which offered opening was published ("A", "B"…), or null for the team's own. */
+  openingVariant?: string | null;
+  /** Views ÷ typical views (impressions for a LinkedIn post). */
   ratio: number;
   worked: boolean;
 }
@@ -104,6 +110,42 @@ const DIMENSIONS: Array<{ name: string; of: (reel: ReviewedReel) => string | nul
       ),
   },
   { name: "Hashtag count", of: (reel) => hashtagBand(reel.hashtags?.length ?? null) },
+  // LinkedIn posts (Phase 3, 5 Nov 2026).
+  {
+    name: "Post length",
+    of: (reel) =>
+      reel.postWords == null
+        ? null
+        : reel.postWords < 150
+          ? "Under 150 words"
+          : reel.postWords <= 220
+            ? "150 to 220 words"
+            : "Over 220 words",
+  },
+  {
+    name: "Reading grade",
+    of: (reel) =>
+      reel.grade == null
+        ? null
+        : reel.grade <= 6
+          ? "Grade 6 or under"
+          : reel.grade <= 8
+            ? "Grade 6 to 8"
+            : "Over Grade 8",
+  },
+  {
+    name: "Numbered points",
+    of: (reel) => (reel.points == null ? null : reel.points ? "Has numbered points" : "No list"),
+  },
+  {
+    name: "Opening published",
+    of: (reel) =>
+      reel.postWords == null
+        ? null
+        : reel.openingVariant
+          ? `Hook ${reel.openingVariant}`
+          : "The team's own opening",
+  },
 ];
 
 /** Every group with at least one reel, strongest evidence first, then best result. */

@@ -53,7 +53,17 @@ const NOT_A_NAME = new Set(
     "from by as not no yes imagine instead here there now then today new ai launch launches " +
     "launched model models tool tools brand brands campaign marketing less more most faster " +
     "smarter better best biggest first one two three five ten every all just even also because " +
-    "watching people customer customers business businesses ad ads"
+    "watching people customer customers business businesses ad ads " +
+    // Sentence starters, which a LinkedIn post has at the head of every short
+    // line: "Could" and "They" linked a script about AI shopping agents to a
+    // post about the marketing funnel (Phase 3, 5 Nov 2026).
+    "could would should can will may might must they them us he she its it's let's that's " +
+    "here's there's what's isn't aren't don't doesn't didn't won't can't never always often " +
+    "after before meanwhile instead however still only then next last recently according " +
+    "consider think maybe convenient handy some many much each both such another other " +
+    "about after again any being do does did get got have has had make makes made need needs " +
+    "see seen take takes find found ask asked look looks start stop keep use using " +
+    "question answer reason result lesson lessons step steps point points"
   ).split(" "),
 );
 
@@ -86,6 +96,15 @@ export interface ReelCandidate {
 export function shortcodeFromUrl(url: string | undefined): string | null {
   const match = /\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/.exec(url ?? "");
   return match?.[1] ?? null;
+}
+
+/**
+ * A LinkedIn post's id from its link, as the synced posts store it: the
+ * activity number in "…-activity-7523723511094292481-5Ujj" or
+ * "urn:li:activity:7523723511094292481".
+ */
+export function linkedInPostId(url: string | undefined): string | null {
+  return /activity[-:](\d{15,22})/.exec(url ?? "")?.[1] ?? null;
 }
 
 /**
@@ -145,6 +164,9 @@ export function findReelForIdea(
     filmedAt: string;
     taken: Set<string>;
     nameFreq?: Map<string, number>;
+    /** A stricter bar, for LinkedIn (LINKEDIN_MATCH). */
+    minScore?: number;
+    minNames?: number;
   },
 ): ReelCandidate | null {
   const text = anchorText(idea);
@@ -163,7 +185,7 @@ export function findReelForIdea(
     const at = Date.parse(post.publishedAt);
     if (!Number.isFinite(at) || at < earliest || at > latest) continue;
     const names = [...namesIn(post.caption)].filter((name) => anchorNames.has(name));
-    if (!names.length) continue;
+    if (names.length < (options.minNames ?? 1)) continue;
     const others = [...distinctive(post.caption)].filter(
       (word) => anchor.has(word) && !names.includes(word),
     );
@@ -172,7 +194,7 @@ export function findReelForIdea(
       0,
     );
     const score = nameScore + others.length;
-    if (score < MIN_MATCH_SCORE) continue;
+    if (score < (options.minScore ?? MIN_MATCH_SCORE)) continue;
     candidates.push({ post, shortcode, words: [...names, ...others], score });
   }
   candidates.sort(
@@ -182,6 +204,53 @@ export function findReelForIdea(
         Math.abs(Date.parse(b.post.publishedAt) - filmed),
   );
   return candidates[0] ?? null;
+}
+
+/**
+ * The bar a LinkedIn post must clear, higher than a reel's. His posts name
+ * OpenAI, Meta and Google week after week, so one shared name and one other
+ * word linked four scripts to posts about other stories when tried on his 71
+ * synced posts (5 Nov 2026): "openai, digital" joined a Linux security script
+ * to a post about ChatGPT ads. Two shared names and twice the evidence did not.
+ */
+export const LINKEDIN_MATCH = { minScore: 6, minNames: 2 } as const;
+export const LINKEDIN_ARTICLE_MATCH = { minScore: 8, minNames: 3 } as const;
+
+/**
+ * Share of a dashboard post's distinctive words a published post must carry
+ * to be that post: the team edits a post, but keeps most of what it says.
+ */
+export const MIN_POST_TEXT_SHARE = 0.4;
+
+/**
+ * The LinkedIn post a dashboard post became, found by its own words: the
+ * published post that carries the largest share of the dashboard post's
+ * distinctive words, at MIN_POST_TEXT_SHARE or more. A different story on the
+ * same company shares its name, not its words.
+ */
+export function findPostByText(
+  idea: ContentIdea,
+  posts: PostRecord[],
+  options: { earliest: number; filmedAt: string; taken: Set<string> },
+): ReelCandidate | null {
+  const ours = distinctive(idea.post?.body ?? "");
+  if (ours.size < 10) return null;
+  const latest = Date.parse(options.filmedAt) + 30 * 86_400_000;
+  let best: ReelCandidate | null = null;
+  for (const post of posts) {
+    if (post.pinned) continue;
+    const shortcode = shortcodeFromUrl(post.url) ?? post.postId;
+    if (options.taken.has(shortcode)) continue;
+    const at = Date.parse(post.publishedAt);
+    if (!Number.isFinite(at) || at < options.earliest || at > latest) continue;
+    const theirs = distinctive(post.caption);
+    const shared = [...ours].filter((word) => theirs.has(word));
+    const share = shared.length / ours.size;
+    if (share < MIN_POST_TEXT_SHARE) continue;
+    const score = Math.round(share * 100);
+    if (!best || score > best.score) best = { post, shortcode, words: shared.slice(0, 8), score };
+  }
+  return best;
 }
 
 /** Lower-case words, with team notes in [brackets] and hashtags left out. */
@@ -256,7 +325,14 @@ export const MIN_ARTICLE_NAMES = 2;
 export function findReelByArticle(
   article: { names: string[]; words: string[] },
   posts: PostRecord[],
-  options: { createdAt: string; filmedAt: string; taken: Set<string>; earliest?: number },
+  options: {
+    createdAt: string;
+    filmedAt: string;
+    taken: Set<string>;
+    earliest?: number;
+    minScore?: number;
+    minNames?: number;
+  },
 ): ReelCandidate | null {
   const names = new Set(article.names);
   const words = new Set(article.words);
@@ -272,12 +348,12 @@ export function findReelByArticle(
     const at = Date.parse(post.publishedAt);
     if (!Number.isFinite(at) || at < earliest || at > latest) continue;
     const sharedNames = [...namesIn(post.caption)].filter((name) => names.has(name));
-    if (sharedNames.length < MIN_ARTICLE_NAMES) continue;
+    if (sharedNames.length < (options.minNames ?? MIN_ARTICLE_NAMES)) continue;
     const others = [...distinctive(post.caption)].filter(
       (word) => words.has(word) && !sharedNames.includes(word),
     );
     const score = sharedNames.length * 2 + others.length;
-    if (score < MIN_ARTICLE_SCORE) continue;
+    if (score < (options.minScore ?? MIN_ARTICLE_SCORE)) continue;
     candidates.push({ post, shortcode, words: [...sharedNames, ...others], score });
   }
   candidates.sort(

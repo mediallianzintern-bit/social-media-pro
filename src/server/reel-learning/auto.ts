@@ -17,7 +17,8 @@
 //   - a reel that has already cost RETRY_LIMIT_USD without a result is left
 //     for a person, so a reel whose transcript keeps failing is not paid for
 //     on every sync.
-// Instagram only until LinkedIn's published posts are built (Phase 3).
+// Instagram only: a published LinkedIn post (Phase 3, 5 Nov 2026) is analysed
+// and reviewed from its buttons, as the team chose.
 import { REEL_REVIEW_DAYS } from "@/lib/reel-learning-types";
 import { shortcodeFromUrl } from "@/lib/reel-match";
 import type { PlatformId } from "@/lib/analytics-types";

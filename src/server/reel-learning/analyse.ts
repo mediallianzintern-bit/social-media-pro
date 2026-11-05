@@ -1,5 +1,5 @@
 // Analyse (paid, from a button): what of the dashboard's script made it into
-// the live reel.
+// the live reel. A LinkedIn post has its own analysis (analyse-post.ts).
 //
 // Two costs, both small and both capped: one Apify run for the transcript
 // (~1.5¢, capped at 5¢ by Apify), and one model call to describe the changes
@@ -191,13 +191,17 @@ export async function analyseFilmedReel(
   if (!idea) return { reason: "That idea is no longer stored." };
   const post = await linkedPost(row);
   if (!post) return { reason: "The reel isn't in the synced posts. Press Sync, then try again." };
+  // A LinkedIn post is read, not watched: its own analysis, with no transcript.
+  if (row.platform === "linkedin") {
+    const { analysePublishedPost } = await import("./analyse-post");
+    return analysePublishedPost(row, idea, post);
+  }
 
   // The transcript: once per reel. A reel with no speech (music under on-screen
   // text) has none, and the caption stands in for it.
   let transcript = row.transcript;
   let cost = 0;
-  // A LinkedIn post is read, not watched: its text is the script.
-  if (!transcript && row.platform === "instagram") {
+  if (!transcript) {
     const result = await fetchReelTranscript(row.reelUrl).catch((error: unknown) => ({
       reason: error instanceof Error ? error.message : String(error),
     }));

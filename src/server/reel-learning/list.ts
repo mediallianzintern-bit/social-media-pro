@@ -33,7 +33,7 @@ export async function listFilmed(platform: PlatformId): Promise<FilmedItem[]> {
         learning: {
           ...rest,
           publishedAt: post?.publishedAt ?? null,
-          reviewableAt: post ? reviewableAt(post.publishedAt) : null,
+          reviewableAt: post ? reviewableAt(post.publishedAt, row.platform) : null,
         },
         idea: await readIdeaById(row.ideaId).catch(() => null),
       };

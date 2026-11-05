@@ -1669,7 +1669,8 @@ Write it again and make sure each of these is fixed. Everything else above still
         review.data,
         sources,
         extra.deadline,
-        [reads.postReferences, reads.scriptFeedback].filter(Boolean).join("\n\n"),
+        // What his published posts proved (Phase 3), so the rewrite keeps it.
+        [reads.postReferences, reads.scriptFeedback, reads.filmed].filter(Boolean).join("\n\n"),
       )
     : { data: review.data, cost: undefined, reviewed: 0, failed: 0 };
   if (reviewedPosts.reviewed || reviewedPosts.failed) {

@@ -47,7 +47,7 @@ const NAV = [
   { to: "/reactions", label: "Reaction hooks", icon: Clapperboard, group: "Analytics" },
   { to: "/report", label: "Client report", icon: FileText, group: "Analytics" },
   { to: "/saved", label: "Saved", icon: Bookmark, group: "Analytics" },
-  { to: "/filmed", label: "Filmed reels", icon: Film, group: "Analytics" },
+  { to: "/filmed", label: "Filmed & posted", icon: Film, group: "Analytics" },
   { to: "/sources", label: "Data sources", icon: Radio, group: "Setup" },
   // Listed last but shown under Analytics, after Filmed: universal trends for
   // both platforms (6 Nov 2026).

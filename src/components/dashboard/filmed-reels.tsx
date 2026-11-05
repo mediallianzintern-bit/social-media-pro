@@ -1,5 +1,6 @@
-// The Filmed reels page: every script the team marked filmed, where each one
-// has got to, and what the system has learned from them so far.
+// The Filmed reels page: every script the team marked filmed, and every
+// LinkedIn post it marked posted (Phase 3, 5 Nov 2026), where each one has
+// got to, and what the system has learned from them so far.
 //
 // Each row opens the same drawer as everywhere else, where Analyse and Review
 // live. This page spends nothing: it reads stored rows and synced posts, and
@@ -28,6 +29,8 @@ import { dateTime, shortDate } from "@/lib/format";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import {
   isFinalReview,
+  LEARNING_WORDS,
+  POST_REVIEW_DAYS,
   REEL_REVIEW_DAYS,
   REEL_USAGE_LABEL,
   VIRAL_RATIO,
@@ -43,6 +46,21 @@ import { CTA_TYPE_LABEL, HOOK_TYPE_LABEL } from "@/lib/reel-parts";
 const PLATFORMS: PlatformId[] = ["instagram", "linkedin"];
 
 type Stage = "waiting" | "found" | "analysed" | "review_ready" | "reviewed";
+
+/**
+ * What happens next at each stage. A LinkedIn post waits for its buttons:
+ * the automatic pass after each sync is Instagram's alone (auto.ts).
+ */
+function stageLabel(stage: Stage, platform: PlatformId): string {
+  if (platform !== "linkedin") return STAGE_LABEL[stage];
+  return {
+    waiting: "Waiting for the post",
+    found: "Post found · press Analyse in the drawer",
+    analysed: `Analysed · review after ${POST_REVIEW_DAYS} days`,
+    review_ready: "Ready to review · press Review in the drawer",
+    reviewed: "Reviewed",
+  }[stage];
+}
 
 function stageOf(learning: ReelLearning): Stage {
   if (isFinalReview(learning)) return "reviewed";
@@ -115,6 +133,7 @@ export function FilmedReels() {
     [results],
   );
   const { data: patterns } = useQuery(reelPatternsQueryOptions("instagram"));
+  const { data: postPatterns } = useQuery(reelPatternsQueryOptions("linkedin"));
   const [viewing, setViewing] = useState<{ idea: ContentIdea; platform: PlatformId } | null>(null);
 
   const viralItems = items
@@ -130,16 +149,17 @@ export function FilmedReels() {
   return (
     <div className="space-y-6">
       <p className="max-w-3xl text-sm text-muted-foreground">
-        Every script the team marked filmed. The live reel is found by its topic on each Sync; open
-        one to Analyse what was used, Get results now for an early check, and after{" "}
-        {REEL_REVIEW_DAYS} days Review how it did. What the reviews teach goes into every new
-        script.
+        Every reel the team marked filmed and every LinkedIn post it marked posted. The live reel or
+        post is found by its topic on each Sync; open one to Analyse what was used, Get results now
+        for an early check, and Review how it did after {REEL_REVIEW_DAYS} days for a reel or{" "}
+        {POST_REVIEW_DAYS} for a post, on LinkedIn&rsquo;s own impressions. What the reviews teach
+        goes into every new script and post.
       </p>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {[
-          { label: "Filmed", value: items.length },
-          { label: "Waiting for reel", value: count("waiting") },
+          { label: "Filmed or posted", value: items.length },
+          { label: "Waiting to go live", value: count("waiting") },
           { label: "To analyse", value: count("found") },
           { label: "Due for review", value: count("review_ready") },
           { label: "Reviewed", value: count("reviewed") },
@@ -153,16 +173,18 @@ export function FilmedReels() {
       </div>
 
       <SectionHeading title="What the system has learned" />
-      {patterns?.length ? (
+      {patterns?.length || postPatterns?.length ? (
         <Card>
-          <CardContent className="p-5">
-            <Patterns platform="instagram" />
+          <CardContent className="space-y-4 p-5">
+            {patterns?.length ? <Patterns platform="instagram" /> : null}
+            {postPatterns?.length ? <Patterns platform="linkedin" /> : null}
           </CardContent>
         </Card>
       ) : (
         <p className="text-sm text-muted-foreground">
           Nothing yet. Patterns appear once filmed reels have been reviewed, {REEL_REVIEW_DAYS} days
-          after they go live. Each review adds to them.
+          after they go live, and LinkedIn posts {POST_REVIEW_DAYS} days after. Each review adds to
+          them.
         </p>
       )}
 
@@ -189,8 +211,8 @@ export function FilmedReels() {
       ) : null}
 
       <SectionHeading
-        title="Filmed reels"
-        note={isLoading ? "Loading…" : `${items.length} filmed`}
+        title="Filmed reels and published posts"
+        note={isLoading ? "Loading…" : `${items.length} in all`}
       />
       <Card>
         <CardContent className="divide-y p-0">
@@ -200,11 +222,13 @@ export function FilmedReels() {
             </p>
           ) : !items.length ? (
             <p className="p-5 text-sm text-muted-foreground">
-              Nothing filmed yet. Press I filmed this on a script once it is shot.
+              Nothing yet. Press I filmed this on a reel script once it is shot, or I posted this on
+              a LinkedIn post once it is up.
             </p>
           ) : (
             items.map(({ learning, idea }) => {
               const stage = stageOf(learning);
+              const w = LEARNING_WORDS[learning.platform];
               return (
                 <div key={learning.ideaId} className="flex flex-wrap items-start gap-3 p-4">
                   <div className="min-w-0 flex-1 space-y-1.5">
@@ -217,7 +241,7 @@ export function FilmedReels() {
                       </span>
                       {idea?.contentLane ? <span>· {idea.contentLane}</span> : null}
                       <span>
-                        · filmed {dateTime(learning.filmedAt)}
+                        · {w.did} {dateTime(learning.filmedAt)}
                         {learning.filmedBy ? ` by ${learning.filmedBy}` : ""}
                       </span>
                     </div>
@@ -227,8 +251,8 @@ export function FilmedReels() {
                           <Search className="mr-1 size-3" aria-hidden />
                         ) : null}
                         {learning.match?.by === "timing" && !learning.match.confirmed
-                          ? "Probably this reel (by timing) · checked on the next sync"
-                          : STAGE_LABEL[stage]}
+                          ? `Probably this ${w.thing} (by timing) · checked when analysed`
+                          : stageLabel(stage, learning.platform)}
                         {stage === "analysed" && learning.reviewableAt
                           ? ` (${shortDate(learning.reviewableAt)})`
                           : ""}
@@ -246,7 +270,7 @@ export function FilmedReels() {
                           rel="noreferrer"
                           className="inline-flex items-center gap-1 text-xs text-primary underline-offset-2 hover:underline"
                         >
-                          Reel
+                          {learning.platform === "linkedin" ? "Post" : "Reel"}
                           {learning.publishedAt
                             ? `, posted ${shortDate(learning.publishedAt)}`
                             : ""}
