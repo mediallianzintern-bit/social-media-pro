@@ -65,6 +65,7 @@ import { trajectoryStatement, type GrowthGoal, type GrowthTrajectory } from "@/l
 import type { GoalScorecard } from "@/lib/goal-scorecard";
 import { classifyHook } from "@/lib/script-features";
 import { isOpeningPair } from "@/lib/hook-variants";
+import { writtenHookIssue } from "@/lib/written-hook-check";
 import { blockReason } from "@/lib/loop";
 import type { SourceItem } from "@/lib/sources";
 import type { BlockedPattern } from "@/lib/analytics-types";
@@ -1487,16 +1488,21 @@ export function finalizeIdeas(
       // this step silently dropped them, so every idea arrived with one hook.
       // Trimmed, de-blanked and capped at two — the A/B is three hooks total.
       ...(() => {
-        const altHooks = raw.altHooks
+        const offered = raw.altHooks
           .map((hook) => (written ? onePairLine(hook) : hook.trim()))
-          .filter(Boolean)
           .slice(0, 2);
-        if (!altHooks.length) return {};
         // A LinkedIn opening pair is written as the story twist, its first
-        // alternative as the lesson (Pritesh Sir, 5 Nov 2026), and labelled
-        // so in the picker.
-        const pairs = written && isOpeningPair(raw.hook) && isOpeningPair(altHooks[0]!);
-        return pairs
+        // alternative as the lesson (Pritesh Sir, 5 Nov 2026).
+        const pairs = written && isOpeningPair(raw.hook);
+        // A LinkedIn alternative is held to the checks "Get more hooks" uses,
+        // and dropped rather than shown when it fails one (5 Nov 2026).
+        const altHooks = offered.filter(
+          (hook) => Boolean(hook) && !(written && writtenHookIssue(hook, raw, pairs)),
+        );
+        if (!altHooks.length) return {};
+        // Labelled in the picker only when the lesson itself survived.
+        const lesson = pairs && altHooks[0] === offered[0] && isOpeningPair(altHooks[0]!);
+        return lesson
           ? {
               altHooks,
               hookStyles: {

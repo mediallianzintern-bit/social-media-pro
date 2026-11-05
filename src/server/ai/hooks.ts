@@ -16,7 +16,7 @@ import { z } from "zod";
 import type { ContentIdea, HookStyle } from "@/lib/ai-types";
 import { hookIssue, newsOpenerIssue } from "@/lib/hook-check";
 import { isOpeningPair } from "@/lib/hook-variants";
-import { familiarOpening, jargonIn } from "@/lib/linkedin-readability";
+import { CLICHES, writtenHookIssue } from "@/lib/written-hook-check";
 import { voiceFlags } from "@/lib/voice-check";
 import { hookTypeOf } from "@/lib/reel-parts";
 import { NO_RULES } from "@/lib/reel-learning-types";
@@ -106,14 +106,6 @@ ${list(measured.slice(0, OPENINGS_SHOWN))}
 Weakest:
 ${list(measured.slice(-OPENINGS_SHOWN).reverse())}`;
 }
-
-/**
- * Stock phrases that make a hook sound like every other reel. A hook that
- * uses one is dropped rather than shown: they carry no point of view, which
- * is the one thing a hook has to have.
- */
-const CLICHES =
-  /\b(next level|raised? the bar|masterclass|genius|game on|broke the internet|nailed it|level up|crushed it|took (it|things) up a notch|blew (everyone|us) away|mind[- ]?blowing|insane|wild)\b/i;
 
 const schema = {
   type: "object",
@@ -264,17 +256,15 @@ ${scriptText(idea)}`;
     )
     .filter((hook) => {
       if (!hook || seen.has(hook.toLowerCase())) return false;
-      // A pair is two lines, or it would be swapped in over only the headline.
-      if (pairs && hook.split("\n").filter((line) => line.trim()).length !== 2) return false;
-      if (hook.split(/\s+/).length > (pairs ? 36 : written ? 26 : 18)) return false;
+      // A LinkedIn opening: the checks the openings a post arrives with get too.
+      if (written) {
+        if (writtenHookIssue(hook, idea, pairs)) return false;
+        seen.add(hook.toLowerCase());
+        return true;
+      }
+      if (hook.split(/\s+/).length > 18) return false;
       if (CLICHES.test(hook)) return false;
-      // A LinkedIn first line may hold the subject back: the post names it a
-      // line or two later (his best opening, 619 impressions, names nothing).
-      if (!written && hookIssue(hook, `${idea.title} ${idea.angle}`, { allowHypothetical }))
-        return false;
-      if (written && newsOpenerIssue(hook)) return false;
-      if (written && jargonIn(hook).length) return false;
-      if (written && familiarOpening(hook.split("\n")[0] ?? "")) return false;
+      if (hookIssue(hook, `${idea.title} ${idea.angle}`, { allowHypothetical })) return false;
       // A kind of hook filmed reels proved losing is not offered again.
       if (rules.blockedHookTypes.some((rule) => rule.type === hookTypeOf(hook))) return false;
       // The same checks the script itself is held to, applied to the line alone.
