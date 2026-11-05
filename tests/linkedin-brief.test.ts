@@ -8,7 +8,9 @@ import { voiceFlags } from "@/lib/voice-check";
 import { problemsOf } from "@/server/ai/linkedin-review";
 import { LINKEDIN_EDITORIAL, LINKEDIN_VOICE } from "@/server/ai/voice";
 
-const reference = LINKEDIN_EDITORIAL.split('"""')[1]!.trim();
+// The model post of 5 Nov first, then the crypto post of 2 Nov.
+const model = LINKEDIN_EDITORIAL.split('"""')[1]!.trim();
+const reference = LINKEDIN_EDITORIAL.split('"""')[3]!.trim();
 const raw = {
   format: "text_post",
   title: "Elon Musk's Warning on AI Agents Hacking Crypto",
@@ -34,6 +36,17 @@ describe("the LinkedIn writing brief", () => {
         (problem) => !/reads harder than his posts|reads at about Grade/.test(problem),
       ),
     ).toEqual([]);
+  });
+
+  it("passes the team's model post of 5 Nov on every check, Grade 8 included", () => {
+    const duolingo = { ...raw, title: "Why Gen Z Marketing Requires a Different Brand Approach" };
+    // Hand-written, not from researched news: when a post is, its figures
+    // still need their source named ("…drew 66 million viewers, according to…").
+    expect(problemsOf(duolingo, model, [])).toEqual([]);
+    expect(problemsOf(duolingo, model, [], research)).toEqual([
+      expect.stringMatching(/without naming where they come from/),
+    ]);
+    expect(LINKEDIN_VOICE).toContain("Polished ads get seen.");
   });
 
   it("flags a first line written like a news report, never a question", () => {

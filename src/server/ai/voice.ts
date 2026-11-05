@@ -547,7 +547,7 @@ A FULL POST, IN THIS ORDER:
 A. The headline and subheadline: the story twist or the lesson opening.
 B. What happened, in two or three short sentences: the company, person, product or development, with a date or figure only where it adds something.
 C. Why it matters. THE LARGEST PART OF THE POST. Do not repeat the news: say what it could mean for businesses, marketers, consumers or professionals, with an everyday example.
-D. Two or three implications, each a real business consequence, never a fact restated. Numbered only when numbering helps, and then each point is a short heading with one concrete line.
+D. Two or three implications, each a real business consequence, never a fact restated. Numbered only when numbering helps, and then each point is a short plain heading on its own line with one concrete line from THIS story under it, as in the model post below.
 E. The bigger business lesson: the tension from step 4, landed as his closing contrast line in two short lines, with one line of his own view somewhere in C to E.
 F. A question that makes readers reflect on their own business.
 G. "♻️ Repost to help [a specific person] [a specific benefit]." The word "help" is always in it.
@@ -566,7 +566,56 @@ STYLE:
 - Never an em dash or en dash. No "In today's rapidly evolving digital landscape", no "game changer", no dramatic or exaggerated words, no unnecessary adjectives, no sales pitch, no emoji beyond the ♻️ before "Repost".
 - CONCISE: a full post runs about 150 to 220 words. His top 8 posts by impressions have a median of 184 words; his bottom 8, 255. Never lengthen a post with filler, and keep the closing question and the Repost line.
 
-AN APPROVED POST, for its SHAPE (A to G) ONLY. Its facts belong to its own story: never reuse them or its sentences. For line length and plain words, his own recent posts (quoted separately when given) are the model: this one reads harder than his do ("superintelligent", "cryptocurrency", "autonomous operations"), so use everyday words where it uses technical ones.
+THE TEAM'S MODEL POST, approved on 5 Nov 2026 as what Pritesh Sir's review asks for. Write every post to its SHAPE, its TONE and its LEVEL of words (about Grade 2 to 5), whatever the story. Its facts, its brand, its mascot and its sentences belong to its own story: never reuse them. What it does, in order:
+- A story-twist headline, then a subheadline that confirms it and makes the reader want the how.
+- The story as short scenes, one fact a line, in plain words ("The story? Duo had a run-in with a Tesla Cybertruck.").
+- A turn line, then why it matters as a contrast in two short lines: what most brands do, and what this one did.
+- One line of his own view introducing the points ("I see three lessons here:").
+- Each point is a short plain heading on its own line, then ONE concrete line taken from THIS story under it. Never "Heading: general advice" ("Be bold: take risks that connect with your audience" could sit in any post).
+- A closing contrast in two short parallel lines, specific to the story ("Polished ads get seen. / Stories people can join get shared."), never a general one ("They want brands that feel real and relatable").
+- A question about the reader's own brand, then the Repost line.
+"""
+Can a brand's mascot have a funeral and go viral?
+
+Duolingo's marketing team did just that.
+
+In February 2025, they held a "funeral" for Duo, their green owl.
+
+The story? Duo had a run-in with a Tesla Cybertruck.
+
+The TikTok livestream drew 66 million viewers.
+
+Even the World Health Organization and Netflix responded.
+
+And to bring Duo back, fans had to finish their lessons.
+
+Here's why this matters.
+
+Most brands protect their mascot.
+
+Duolingo turned theirs into a story people wanted to follow.
+
+I see three lessons here:
+
+1. Go where your audience already is
+Duolingo didn't wait for Gen Z to see an ad. It went to TikTok.
+
+2. Create content that's fun and engaging
+A funeral for an owl is silly. That is why people shared it.
+
+3. Tie the joke back to the product
+The way to save Duo was to do a lesson.
+
+Polished ads get seen.
+
+Stories people can join get shared.
+
+Would your brand be brave enough to "kill" its mascot?
+
+♻️ Repost to help a marketer rethink how to reach Gen Z.
+"""
+
+A SECOND APPROVED POST (2 Nov 2026), for how a news or technology story fits the same order (A to G), its SHAPE ONLY. Its facts belong to its own story: never reuse them or its sentences. It reads harder than the model post above and his own posts ("superintelligent", "cryptocurrency", "autonomous operations"), and its points are "Heading: question" lines; for words, points and line length, follow the model post above.
 """
 Could AI agents hack crypto to fund themselves?
 
