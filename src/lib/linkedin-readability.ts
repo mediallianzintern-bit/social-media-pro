@@ -193,16 +193,19 @@ export function hardSentences(body: string): Array<{ sentence: string; grade: nu
  * "engagement" (5.6 letters a word, where Grade 6 needs about 4.8).
  */
 export function longWordsIn(body: string, limit = 8): string[] {
-  const counts = new Map<string, number>();
+  // Counted without case, shown as first written: "Educational" is "educational".
+  const counts = new Map<string, { word: string; count: number }>();
   for (const word of tokensOf(body)) {
     if (word.replace(/[^a-z]/gi, "").length < 9) continue;
-    const key = word.replace(/['’]s$/i, "");
-    counts.set(key, (counts.get(key) ?? 0) + 1);
+    const shown = word.replace(/['’]s$/i, "");
+    const key = shown.toLowerCase();
+    const entry = counts.get(key) ?? { word: shown, count: 0 };
+    counts.set(key, { ...entry, count: entry.count + 1 });
   }
-  return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1])
+  return [...counts.values()]
+    .sort((a, b) => b.count - a.count)
     .slice(0, limit)
-    .map(([word, count]) => (count > 1 ? `${word} ×${count}` : word));
+    .map(({ word, count }) => (count > 1 ? `${word} ×${count}` : word));
 }
 
 /** The jargon in a post, each with its plain replacement. */

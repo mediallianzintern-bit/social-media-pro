@@ -10,6 +10,7 @@ import {
   layoutOf,
   readabilityProblems,
   readingEase,
+  longWordsIn,
   readingGrade,
   stockPhrasesIn,
   writingProblems,
@@ -274,5 +275,15 @@ describe("the team's follow-up of 5 Nov 2026", () => {
     expect(
       jargonIn("They could give unprivileged users root access.").map((entry) => entry.term),
     ).toEqual(["root access", "unprivileged"]);
+  });
+});
+
+describe("the words that raise a grade", () => {
+  it("names the long words, most used first, without case", () => {
+    expect(
+      longWordsIn(
+        "Educational games are here.\n\nThe educational push uses Playables.\n\nPlayables struggled. Educational value.",
+      ),
+    ).toEqual(["Educational ×3", "Playables ×2", "struggled"]);
   });
 });
