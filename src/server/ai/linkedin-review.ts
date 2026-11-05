@@ -28,6 +28,7 @@
 import { z } from "zod";
 
 import { costOf, type GenerationCost } from "@/lib/ai-cost";
+import { earlyYears, figuresOf, sharesFigures, unsupportedFigures } from "@/lib/fact-check";
 import type { ContentIdea } from "@/lib/ai-types";
 import { isOpeningPair } from "@/lib/hook-variants";
 import { linkedInShapesBlock } from "@/lib/linkedin-shapes";
@@ -39,7 +40,11 @@ import { completeJson } from "./client";
 import { addCosts, reviewEnabled, reviewModel } from "./review";
 import { LINKEDIN_VOICE } from "./voice";
 
-const ROUNDS = 2;
+/**
+ * Three, not two (5 Nov 2026): the team's brief and the story's facts are
+ * compulsory, so a rewrite that still breaks one gets a second try at it.
+ */
+const ROUNDS = 3;
 /** Less time than this before the deadline, and a review round is not started. */
 const ROUND_MIN_MS = 45_000;
 
@@ -106,8 +111,18 @@ export function problemsOf(
   body: string,
   sections: Section[],
   research?: StoryResearch,
+  /** The text its facts must come from (storyTextOf); "" when there is none. */
+  story = "",
 ): string[] {
   const problems: string[] = [];
+  // The story's facts are compulsory (5 Nov 2026): a figure it never states
+  // ("In September 2023…" for a 2026 launch) is cut or corrected.
+  const invented = unsupportedFigures(draftText(body, sections), story);
+  if (invented.length) {
+    problems.push(
+      `It states figures the story never gives (${invented.slice(0, 6).join(", ")}); use only the figures and dates in THE STORY below, exactly as it states them, or cut the line.`,
+    );
+  }
   if (raw.format === "text_post") {
     const length = linkedInLength(body);
     if (length && !length.ok) {
@@ -207,6 +222,71 @@ function researchOf(raw: RawPost, sources: SourceItem[]): StoryResearch | undefi
   return id ? sources.find((item) => item.id === id)?.research : undefined;
 }
 
+/**
+ * The text a post's facts must come from: the headline with the fact sheet,
+ * or with the article read. "" when the post has no stored story.
+ */
+export function storyTextOf(raw: RawPost, sources: SourceItem[]): string {
+  const source = sourceOf(raw, sources);
+  if (!source) return "";
+  const body = source.research ? factSheetText(source.research) : (source.article?.text ?? "");
+  return `${source.title}\n${body}`;
+}
+
+function sourceOf(raw: RawPost, sources: SourceItem[]): SourceItem | undefined {
+  const id = typeof raw.source?.sourceId === "string" ? raw.source.sourceId : null;
+  return id ? sources.find((item) => item.id === id) : undefined;
+}
+
+/**
+ * The facts the team must check before posting, added to the post's notes
+ * after the review and the length fit: every figure the story never states
+ * (or every figure at all when there is no story to check it against), a
+ * year well before the story's own date, and every fact the post states on
+ * which the outlets disagree. The reviewer's own "Verify before posting"
+ * claims are kept beside them.
+ */
+export function withFactNotes(data: unknown, sources: SourceItem[]): unknown {
+  const ideas = (data as { ideas?: unknown })?.ideas;
+  if (!Array.isArray(ideas)) return data;
+  const next = (ideas as RawPost[]).map((raw) => {
+    const body = typeof raw.post?.body === "string" ? raw.post.body : "";
+    if (!body.trim()) return raw;
+    const sections: Section[] = Array.isArray(raw.post?.sections)
+      ? (raw.post.sections as Section[])
+      : [];
+    const text = draftText(body, sections);
+    const source = sourceOf(raw, sources);
+    const story = storyTextOf(raw, sources);
+    const added = story
+      ? unsupportedFigures(text, story).map(
+          (figure) =>
+            `Verify before posting: "${figure}" is not in the story this post was written from. Check it against the source, or cut it.`,
+        )
+      : figuresOf(text).length
+        ? [
+            `Verify before posting: this post has no stored source to check against, so check every figure in it (${figuresOf(text).slice(0, 8).join(", ")}) against a reliable source.`,
+          ]
+        : [];
+    for (const year of earlyYears(text, source?.publishedAt)) {
+      added.push(
+        `Verify before posting: the post dates something to ${year}, but the story is from ${source!.publishedAt!.slice(0, 4)}. Check the year in the original article; the research can get it wrong.`,
+      );
+    }
+    for (const fact of source?.research?.facts ?? []) {
+      if (fact.conflict && sharesFigures(text, fact.text)) {
+        added.push(
+          `Verify before posting: the outlets disagree on "${fact.text}" (${fact.conflict}). Use the figure a primary source gives, and never mix the two.`,
+        );
+      }
+    }
+    if (!added.length) return raw;
+    const notes = Array.isArray(raw.post?.notes) ? (raw.post.notes as string[]) : [];
+    return { ...raw, post: { ...raw.post, notes: [...notes, ...added] } };
+  });
+  return { ...(data as object), ideas: next };
+}
+
 /** The facts the post may state: the fact sheet, one article, or the headline. */
 function storyFor(raw: RawPost, sources: SourceItem[]): string {
   const id = typeof raw.source?.sourceId === "string" ? raw.source.sourceId : null;
@@ -276,7 +356,8 @@ export async function reviewLinkedInDrafts(
     const kind =
       raw.format === "article" ? "article" : raw.format === "document" ? "document post" : "post";
     const lane = typeof raw.contentLane === "string" ? raw.contentLane : "";
-    const draftProblems = problemsOf(raw, body, sections, researchOf(raw, sources));
+    const story = storyTextOf(raw, sources);
+    const draftProblems = problemsOf(raw, body, sections, researchOf(raw, sources), story);
 
     let best: { review: Review; problems: string[] } | null = null;
     let feedback: string[] = [];
@@ -342,6 +423,10 @@ one person: simpler where it can be simpler, specific where it is vague, never o
   one idea, even when the draft used it.
 - Replace every general statement with the specific fact, example or business situation it stands
   for, from the story below. Never invent a fact, statistic, quote, client or experience.
+- THE FACTS ARE COMPULSORY: every figure, date, name and claim in the post appears in THE STORY
+  below exactly as it states it. Never correct, round, combine or "fix" a fact from memory, and
+  never reconcile two figures that disagree: keep the one the story gives, or cut the line. Anything
+  you are not sure of goes in needsVerification.
 - Remove anything generic, repeated, corporate or promotional, and any word his voice rules out.
 ${
   raw.format === "text_post"
@@ -370,6 +455,7 @@ ${draftText(body, sections)}`,
           reply.data.body,
           reply.data.sections,
           researchOf(raw, sources),
+          story,
         );
         if (!best || problems.length <= best.problems.length) {
           best = { review: reply.data, problems };

@@ -15,12 +15,14 @@
 // for a post already in range. Never fatal: on any failure the draft stands.
 import { costOf, type GenerationCost } from "@/lib/ai-cost";
 import type { ContentIdea } from "@/lib/ai-types";
+import { unsupportedFigures } from "@/lib/fact-check";
 import { isOpeningPair } from "@/lib/hook-variants";
 import { linkedInShapesBlock } from "@/lib/linkedin-shapes";
 import type { SourceItem } from "@/lib/sources";
 import { linkedInLength, voiceFlags } from "@/lib/voice-check";
 
 import { completeJson } from "./client";
+import { storyTextOf } from "./linkedin-review";
 import { addCosts } from "./review";
 import { LINKEDIN_VOICE } from "./voice";
 
@@ -51,9 +53,16 @@ const schema = {
 } as const;
 
 /** What is wrong with a post body, as the code measures it. Empty when it is fine. */
-function problemsOf(raw: RawPost, body: string): string[] {
+function problemsOf(raw: RawPost, body: string, story: string): string[] {
   const length = linkedInLength(body);
   const problems: string[] = [];
+  // Detail added to reach the length comes from the story, never from memory.
+  const invented = unsupportedFigures(body, story);
+  if (invented.length) {
+    problems.push(
+      `It states figures the story never gives (${invented.slice(0, 6).join(", ")}); use only the story's figures, exactly as it states them, or cut the line.`,
+    );
+  }
   if (length && !length.ok) {
     problems.push(
       length.count < length.min
@@ -109,7 +118,8 @@ export async function fitLinkedInPosts(
     (ideas as RawPost[]).map(async (raw) => {
       const draft = typeof raw.post?.body === "string" ? raw.post.body : "";
       if (raw.format !== "text_post" || !draft.trim()) return raw;
-      let best = { body: draft, problems: problemsOf(raw, draft) };
+      const story = storyTextOf(raw, sources);
+      let best = { body: draft, problems: problemsOf(raw, draft, story) };
       if (!best.problems.length) return raw;
 
       const lane = typeof raw.contentLane === "string" ? raw.contentLane : "";
@@ -161,7 +171,7 @@ ${best.body}`,
           if (result.usage) cost = addCosts(cost, costOf(result.usage, result.model));
           const body = typeof result.data.body === "string" ? result.data.body.trim() : "";
           if (!body) continue;
-          const problems = problemsOf(raw, body);
+          const problems = problemsOf(raw, body, story);
           if (problems.length < best.problems.length) best = { body, problems };
         }
       } catch (error) {

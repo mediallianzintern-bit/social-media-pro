@@ -28,7 +28,7 @@ import {
   toneReferencesBlock,
   type ToneReference,
 } from "@/lib/tone-references";
-import { reviewLinkedInDrafts } from "./linkedin-review";
+import { reviewLinkedInDrafts, withFactNotes } from "./linkedin-review";
 import { scriptFeedbackFor } from "../script-feedback";
 import { linkedInPostReferences } from "./linkedin-references";
 import { factSheetText } from "@/lib/research";
@@ -1696,7 +1696,9 @@ Write it again and make sure each of these is fixed. Everything else above still
     fitted.cost,
   );
 
-  const { ideas: finalized, dropped } = finalizeIdeas(fitted.data, {
+  // The facts to check before posting, from the code (linkedin-review.ts).
+  const checked = request.written ? withFactNotes(fitted.data, sources) : fitted.data;
+  const { ideas: finalized, dropped } = finalizeIdeas(checked, {
     sources,
     blocked: request.blocked,
     written: request.written,

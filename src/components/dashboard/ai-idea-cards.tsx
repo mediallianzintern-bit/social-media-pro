@@ -342,6 +342,19 @@ export function AiIdeaCards({
   // hook the team picked, so what is read, checked and copied is that script.
   const found = displayedIdeas.find((idea) => idea.id === openId) ?? null;
   const open = useMemo(() => (found ? withChosenHook(found) : null), [found]);
+  // The facts to check before posting are compulsory (5 Nov 2026): the post
+  // cannot be copied until each one is ticked as checked.
+  const facts = useMemo(() => (open?.post?.notes ?? []).filter(isFactNote), [open]);
+  const [ticked, setTicked] = useState<string[]>([]);
+  const openIdeaId = open?.id;
+  useEffect(() => setTicked(openIdeaId ? readTicks(openIdeaId) : []), [openIdeaId]);
+  const factsLeft = facts.filter((fact) => !ticked.includes(fact)).length;
+  const tick = (fact: string, done: boolean) => {
+    if (!open) return;
+    const next = done ? [...ticked, fact] : ticked.filter((entry) => entry !== fact);
+    setTicked(next);
+    writeTicks(open.id, next);
+  };
   const { data: verdicts } = useQuery(scriptVerdictsQueryOptions(platform));
   const verdictOf = useMemo(
     () => new Map((verdicts ?? []).map((entry) => [entry.ideaId, entry.verdict])),
@@ -408,7 +421,7 @@ export function AiIdeaCards({
   });
 
   const copy = async () => {
-    if (!open) return;
+    if (!open || factsLeft) return;
     await navigator.clipboard.writeText(toPlainText(open));
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
@@ -663,11 +676,16 @@ export function AiIdeaCards({
                         ))}
                       </ol>
                     ) : null}
-                    {open.post.notes?.length ? (
+                    {facts.length ? (
+                      <FactChecklist facts={facts} ticked={ticked} onTick={tick} />
+                    ) : null}
+                    {open.post.notes?.some((note) => !isFactNote(note)) ? (
                       <ul className="mt-3 list-inside list-disc space-y-1.5 text-sm leading-relaxed text-muted-foreground">
-                        {open.post.notes.map((note) => (
-                          <li key={note}>{note}</li>
-                        ))}
+                        {open.post.notes
+                          .filter((note) => !isFactNote(note))
+                          .map((note) => (
+                            <li key={note}>{note}</li>
+                          ))}
                       </ul>
                     ) : null}
                   </section>
@@ -760,9 +778,13 @@ export function AiIdeaCards({
               </div>
 
               <div className="space-y-3 border-t p-4">
-                <Button onClick={copy} className="w-full gap-2">
+                <Button onClick={copy} className="w-full gap-2" disabled={factsLeft > 0}>
                   {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-                  {copied ? "Copied" : "Copy handover doc"}
+                  {copied
+                    ? "Copied"
+                    : factsLeft
+                      ? `Check ${factsLeft} fact${factsLeft === 1 ? "" : "s"} first`
+                      : "Copy handover doc"}
                 </Button>
 
                 {/* The feedback loop. One click: the person says it was filmed,
@@ -1033,6 +1055,67 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** A note the team must check before posting (linkedin-review.ts). */
+const isFactNote = (note: string) => note.startsWith("Verify before posting:");
+
+/** Which facts this viewer has ticked as checked, kept in this browser. */
+function readTicks(ideaId: string): string[] {
+  try {
+    const stored = JSON.parse(localStorage.getItem(`fact-ticks:${ideaId}`) ?? "[]");
+    return Array.isArray(stored) ? stored.filter((entry) => typeof entry === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeTicks(ideaId: string, ticked: string[]) {
+  try {
+    localStorage.setItem(`fact-ticks:${ideaId}`, JSON.stringify(ticked));
+  } catch {
+    // Private windows can refuse storage; the ticks then last until the drawer closes.
+  }
+}
+
+/**
+ * The facts to check before posting, each ticked once it has been checked
+ * against a reliable source. The post cannot be copied until all are.
+ */
+function FactChecklist({
+  facts,
+  ticked,
+  onTick,
+}: {
+  facts: string[];
+  ticked: string[];
+  onTick: (fact: string, done: boolean) => void;
+}) {
+  const left = facts.filter((fact) => !ticked.includes(fact)).length;
+  return (
+    <div className="mt-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+      <p className="text-xs font-semibold text-destructive">
+        {left
+          ? `Check ${left} fact${left === 1 ? "" : "s"} before posting. Required.`
+          : "Every fact checked."}
+      </p>
+      <ul className="mt-2 space-y-1.5">
+        {facts.map((fact) => (
+          <li key={fact}>
+            <label className="flex items-start gap-2 text-xs leading-relaxed">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={ticked.includes(fact)}
+                onChange={(event) => onTick(fact, event.target.checked)}
+              />
+              <span>{fact.replace(/^Verify before posting:\s*/, "")}</span>
+            </label>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /**
  * The post's reading grade, by the formula Hemingway's grade is reported to
  * use, so the team can see it before pasting the post into Hemingway. The
@@ -1282,8 +1365,9 @@ function VoiceFlags({ idea, platform }: { idea: ContentIdea; platform: PlatformI
   return (
     <section className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
       <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
-        Doesn&rsquo;t sound like Pritesh Sir yet — fix before{" "}
-        {platform === "instagram" ? "filming" : "posting"}
+        {platform === "instagram"
+          ? "Doesn’t sound like Pritesh Sir yet — fix before filming"
+          : "Not ready to post: it doesn’t follow Pritesh Sir’s tone and feedback yet. Fix these, or regenerate"}
       </p>
       <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
         {flags.map((flag) => (
