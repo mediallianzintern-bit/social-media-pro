@@ -30,13 +30,16 @@ export const MIN_READING_EASE = 42;
 /** The opening a reader sees before deciding: the subject must appear in it. */
 export const OPENING_LINES = 4;
 /**
- * The highest reading grade a post may score: Pritesh Sir's review of 5 Nov
- * 2026 asked for Grade 8 or lower in Hemingway. 30 of his own 43 posts
- * score 8 or lower (median 6.6), as do his five best by impressions (619,
- * 505, 470, 424, 418); the dashboard's 19 drafts ran 7.7 to 14.1, and 18 of
- * them were over.
+ * The highest reading grade a post may score. Pritesh Sir's review of 5 Nov
+ * 2026 set Grade 8 in Hemingway as the limit, and the team then set Grade 5
+ * to 6 as the target: posts the dashboard wrote that day read "around 8" in
+ * Hemingway (7.6, 8.7 and 8.4 by readingGrade). The team's model post scores
+ * 2.8; his own 43 posts have a median of 7.6, so this asks for plainer than
+ * his average, as the team wants.
  */
-export const MAX_GRADE = 8;
+export const MAX_GRADE = 6;
+/** Pritesh Sir's own limit, over which a post is never shown as fine. */
+export const GRADE_LIMIT = 8;
 
 /**
  * Marketing and tech terms that need saying in plain words, with what to say
@@ -80,6 +83,16 @@ export const JARGON: Record<string, string> = {
   "brand equity": "what the brand is worth to people",
   "share of voice": "how often the brand is talked about",
   mindshare: "how often people think of the brand",
+  // From the dashboard's posts of 5 Nov 2026; none is in his 43.
+  "root access": "full control of the system",
+  unprivileged: "ordinary",
+  "patch management": "fixing software flaws",
+  "digital shelf": "where products show up online",
+  "digital shelf space": "where products show up online",
+  integration: "using it together",
+  "integrate ai": "start using AI",
+  streamline: "simplify",
+  "enhance productivity": "help people get more done",
 };
 
 /** Acronyms that need spelling out the first time, unless the post already does. */
@@ -122,13 +135,18 @@ export function readingEase(text: string): number {
 }
 
 /**
- * The sentences of a post as a grader reads them: a line break ends one, as
- * it does in Hemingway, so a heading or a list point is its own sentence.
+ * The sentences of a post as a grader reads them: only a full stop, question
+ * mark or exclamation mark ends one, so a heading with none runs on into the
+ * line under it. Counting every line break as a sentence end read the team's
+ * posts of 5 Nov about a grade easier than Hemingway did (6.4 to 7.5 where
+ * Hemingway showed about 8); counted this way they read 7.6 to 8.7. A list
+ * number ("1.") is not a sentence.
  */
 function sentencesOf(body: string): string[] {
-  return lineList(body).flatMap((line) =>
-    line.split(/(?<=[.!?…]["'’”)]*)\s+/).filter((part) => /[a-z0-9]/i.test(part)),
-  );
+  return lineList(body)
+    .join(" ")
+    .split(/(?<=[.!?…]["'’”)]*)\s+/)
+    .filter((part) => /[a-z]/i.test(part) && !/^\d+[.)]$/.test(part));
 }
 
 const tokensOf = (text: string) => text.match(/[a-z0-9][a-z0-9'’-]*/gi) ?? [];
@@ -144,7 +162,7 @@ function readabilityIndex(words: string[], sentences: number): number {
  * The US school grade a post reads at, by the Automated Readability Index,
  * the formula Hemingway's grade is reported to use. An estimate to aim with:
  * Hemingway's own number is the one the team checks, and may differ by a
- * grade or so. Pritesh Sir asks for MAX_GRADE or lower.
+ * grade or so. The team aims for MAX_GRADE or lower.
  */
 export function readingGrade(body: string): number {
   const sentences = sentencesOf(body);
@@ -236,12 +254,12 @@ export function readabilityProblems(body: string): string[] {
       `packs three or more sentences into one line ("${layout.packed[0]!.slice(0, 50)}…"); one sentence a line, as his posts do`,
     );
   }
-  // Pritesh Sir's Grade 8 (5 Nov 2026), with the sentence doing most harm.
+  // The team's Grade 5 to 6 (5 Nov 2026), with the sentence doing most harm.
   const grade = readingGrade(body);
   if (grade > MAX_GRADE) {
     const hardest = hardSentences(body)[0];
     problems.push(
-      `reads at about Grade ${grade}; Pritesh Sir wants Grade ${MAX_GRADE} or lower (his own posts run about 6.6): shorter sentences and shorter, everyday words${hardest ? `, starting with "${hardest.sentence.slice(0, 70)}"` : ""}`,
+      `reads at about Grade ${grade}; the team wants Grade 5 to 6 (never above ${GRADE_LIMIT}): shorter sentences and shorter, everyday words${hardest ? `, starting with "${hardest.sentence.slice(0, 70)}"` : ""}`,
     );
   }
   const ease = readingEase(body);
@@ -334,6 +352,20 @@ function barePoints(body: string): string[] {
 }
 
 /**
+ * Numbered points written "Heading: general advice" on one line ("1.
+ * Continuous monitoring: Keep an eye on vulnerabilities as they arise."). The
+ * team's model post puts a short heading on its own line and one concrete
+ * line from the story under it; his own posts use that, an arrow, or a
+ * question after the colon ("Relevance: Does the message genuinely help the
+ * customer?"). None of his 43 posts has two such points.
+ */
+function colonPoints(body: string): string[] {
+  return lineList(body).filter(
+    (line) => /^\d+[.)]\s+[^:?\n]{1,40}:\s+\S/.test(line) && !line.endsWith("?"),
+  );
+}
+
+/**
  * Stock marketing phrases, each with what to do instead. Every one is used in
  * none of his 43 posts once quoted text is set aside (the one hit, "Take your
  * business to the next level…", is him quoting bad AI copy on purpose), and
@@ -361,6 +393,11 @@ const STOCK_PHRASES: Array<[RegExp, string]> = [
   [/\bdelve\b/i, "look"],
   [/\bnavigate the\b/i, "deal with"],
   [/\b(drive|boost) engagement\b/i, "say what people would do"],
+  // From the dashboard's posts of 5 Nov 2026; none is in his 43.
+  [/\blead the charge\b/i, "say who does what"],
+  [/\bkeep pace\b/i, "keep up"],
+  [/\brapid evolution\b/i, "fast change"],
+  [/\b(\w+ )?revolution\b/i, "say what changes"],
 ];
 
 /** The stock phrases in a post, outside quotation marks, with what to do instead. */
@@ -406,6 +443,12 @@ export function writingProblems(body: string): string[] {
         .slice(0, 4)
         .map((entry) => `"${entry.phrase}" (${entry.instead})`)
         .join(", ")}`,
+    );
+  }
+  const colon = colonPoints(body);
+  if (colon.length >= 2) {
+    problems.push(
+      `writes its points as "Heading: general advice" ("${colon[0]!.slice(0, 60)}"); put a short plain heading on its own line and one concrete line from this story under it, as the team's model post does ("1. Go where your audience already is" / "Duolingo didn't wait for Gen Z to see an ad. It went to TikTok.")`,
     );
   }
   const bare = barePoints(body);

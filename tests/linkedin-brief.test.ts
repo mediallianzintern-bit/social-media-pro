@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ContentIdea } from "@/lib/ai-types";
 import { hookIssue, newsOpenerIssue } from "@/lib/hook-check";
+import { MAX_GRADE, readingGrade } from "@/lib/linkedin-readability";
 import { voiceFlags } from "@/lib/voice-check";
 import { problemsOf } from "@/server/ai/linkedin-review";
 import { LINKEDIN_EDITORIAL, LINKEDIN_VOICE } from "@/server/ai/voice";
@@ -38,7 +39,7 @@ describe("the LinkedIn writing brief", () => {
     ).toEqual([]);
   });
 
-  it("passes the team's model post of 5 Nov on every check, Grade 8 included", () => {
+  it("passes the team's model post of 5 Nov on every check, Grade 5 to 6 included", () => {
     const duolingo = { ...raw, title: "Why Gen Z Marketing Requires a Different Brand Approach" };
     // Hand-written, not from researched news: when a post is, its figures
     // still need their source named ("…drew 66 million viewers, according to…").
@@ -47,6 +48,7 @@ describe("the LinkedIn writing brief", () => {
       expect.stringMatching(/without naming where they come from/),
     ]);
     expect(LINKEDIN_VOICE).toContain("Polished ads get seen.");
+    expect(readingGrade(model)).toBeLessThanOrEqual(MAX_GRADE);
   });
 
   it("flags a first line written like a news report, never a question", () => {

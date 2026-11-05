@@ -334,7 +334,7 @@ one person: simpler where it can be simpler, specific where it is vague, never o
      opening's approach (the story twist or the lesson), but sharpen it where it falls flat, and
      never open on what readers already know about a famous brand ("How did Duolingo's owl
      become a Gen Z icon?").
-  14. Would it score Hemingway Grade 8 or lower? Shorten long sentences and swap long words for
+  14. Would it score Grade 5 to 6 in Hemingway (never above 8)? Shorten long sentences and swap long words for
      short everyday ones: "create content that's fun and engaging", not "use unconventional
      tactics to capture attention".
 - What happened in two or three short sentences, then why it matters as the largest part, two or

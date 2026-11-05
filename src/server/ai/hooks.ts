@@ -213,7 +213,7 @@ ${
   (619 impressions): "Can an ad be so relevant that it actually pushes customers away?". It may
   hold the brand back when the post names it a line or two later; never a general principle
   about nothing in particular, and never a news-report line ("X has announced…").
-- Plain, everyday words a 13-year-old would follow (Hemingway Grade 8 or lower): no marketing
+- Plain, everyday words a 13-year-old would follow (Grade 5 to 6 in Hemingway): no marketing
   terms a broad reader would stop at.
 - Never what the reader already knows about a famous brand ("How did Duolingo's owl become a
   Gen Z icon?"): a reader who knows the brand scrolls past.

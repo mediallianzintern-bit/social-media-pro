@@ -57,7 +57,7 @@ import {
 import type { PlatformId } from "@/lib/analytics-types";
 import { hookScores } from "@/lib/double-down";
 import { hookTest, isOpeningPair, VARIANT_LABELS, withChosenHook } from "@/lib/hook-variants";
-import { MAX_GRADE, readingGrade } from "@/lib/linkedin-readability";
+import { GRADE_LIMIT, MAX_GRADE, readingGrade } from "@/lib/linkedin-readability";
 import { voiceFlags } from "@/lib/voice-check";
 import { computeInsights } from "@/lib/insights";
 import { usePlatform } from "@/lib/use-dashboard";
@@ -1035,19 +1035,26 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 /**
  * The post's reading grade, by the formula Hemingway's grade is reported to
- * use, so the team can see it before pasting the post into Hemingway, where
- * Pritesh Sir wants Grade 8 or lower (5 Nov 2026).
+ * use, so the team can see it before pasting the post into Hemingway. The
+ * team aims for Grade 5 to 6; Pritesh Sir's limit is 8 (5 Nov 2026).
  */
 function GradeLine({ body }: { body: string }) {
   const grade = readingGrade(body);
-  const over = grade > MAX_GRADE;
+  const tone =
+    grade > GRADE_LIMIT
+      ? "text-destructive"
+      : grade > MAX_GRADE
+        ? "text-amber-700 dark:text-amber-400"
+        : "text-muted-foreground";
   return (
-    <p
-      className={`mt-2 text-xs ${over ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}
-    >
+    <p className={`mt-2 text-xs ${tone}`}>
       Reads at about Grade {grade}
-      {over ? `, over the Grade ${MAX_GRADE} Pritesh Sir asks for` : `, within Grade ${MAX_GRADE}`}.
-      An estimate; Hemingway's own number may differ by a grade or so.
+      {grade > GRADE_LIMIT
+        ? `, over Pritesh Sir's limit of ${GRADE_LIMIT}`
+        : grade > MAX_GRADE
+          ? `, above the Grade 5 to 6 the team aims for`
+          : `, within the Grade 5 to 6 the team aims for`}
+      . An estimate; Hemingway's own number may differ by a grade or so.
     </p>
   );
 }

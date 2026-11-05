@@ -552,6 +552,10 @@ export const ideaSetSchema = z.object({
         .object({
           body: z.string(),
           sections: z.array(z.object({ heading: z.string(), text: z.string() })),
+          // The review's change notes and "Verify before posting" claims
+          // (linkedin-review.ts). Without this they were stripped here, and the
+          // team never saw which facts to check.
+          notes: z.array(z.string()).optional(),
         })
         .optional(),
       caption: z.string().default(""),

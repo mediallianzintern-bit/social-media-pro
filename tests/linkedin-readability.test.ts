@@ -243,3 +243,36 @@ describe("Pritesh Sir's review of 5 Nov 2026", () => {
     ]);
   });
 });
+
+describe("the team's follow-up of 5 Nov 2026", () => {
+  it('sends back points written as "Heading: general advice"', () => {
+    // The dashboard's security post of 5 Nov.
+    const security = [
+      "So, what should organizations do?",
+      "1. Continuous monitoring: Keep an eye on vulnerabilities as they arise.",
+      "2. Timely patch management: Fix identified flaws as soon as possible.",
+      "3. Invest in AI tools: Use AI to assist in assessing vulnerabilities.",
+    ].join("\n\n");
+    expect(
+      writingProblems(security).some((problem) => problem.startsWith("writes its points as")),
+    ).toBe(true);
+    // His own: a question after the colon is how his best post does it.
+    const his = [
+      "1. Relevance: Does the message genuinely help the customer?",
+      "2. Timing: Are we reaching them at the right moment?",
+    ].join("\n\n");
+    expect(writingProblems(his)).toEqual([]);
+  });
+
+  it("counts a heading with no full stop as running into the line under it, as Hemingway does", () => {
+    const heading = "1. Go where your audience already is\nDuolingo went to TikTok.";
+    const stopped = "1. Go where your audience already is.\nDuolingo went to TikTok.";
+    expect(readingGrade(heading)).toBeGreaterThan(readingGrade(stopped));
+  });
+
+  it("names the security jargon in plain words", () => {
+    expect(
+      jargonIn("They could give unprivileged users root access.").map((entry) => entry.term),
+    ).toEqual(["root access", "unprivileged"]);
+  });
+});
