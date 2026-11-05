@@ -109,11 +109,11 @@ const SHAPES: Record<string, LinkedInShape> = {
     best: "I almost approved an AI-generated campaign, 219 words, 393 impressions",
   },
   "marketing fundamentals": {
-    is: "a marketing principle, measurement or a brand's business move, where AI is not the main subject",
+    is: "a marketing principle, measurement, a brand's business move, or an update to an ad platform (Meta Ads, Google Ads, Amazon Ads, Microsoft, TikTok or LinkedIn ads: a new feature, metric, targeting option or rule), where AI is not the main subject",
     opening:
-      "A sharp contrast in two short lines (“Millions of impressions. / Zero brand recall.”) or the mistake named (“The biggest mistake in marketing? Assuming customers move from awareness to purchase in that order.”), or the brand and its move with its figure (“McDonald’s wants to make $1 billion from advertising.”).",
+      "A sharp contrast in two short lines (“Millions of impressions. / Zero brand recall.”) or the mistake named (“The biggest mistake in marketing? Assuming customers move from awareness to purchase in that order.”), or the brand and its move with its figure (“McDonald’s wants to make $1 billion from advertising.”). For an ad platform update, the change and what it means for the reader's ads, in plain words (shape: “Meta now shows you how many people stop scrolling for your ad.” / “And that changes what a good ad looks like.”); never the feature's product name alone.",
     middle: [
-      "the evidence, from named studies with their figures (“A recent Indian marketing report found that 81% of marketers prioritise reach. Only 17%…”)",
+      "the evidence, from named studies with their figures (“A recent Indian marketing report found that 81% of marketers prioritise reach. Only 17%…”); for an ad platform update, what changed in plain words, who it is for, and when, exactly as the story says",
       "“Think about that for a moment.” on its own line, then the disconnect in one or two lines",
       "“So, what should marketers do differently?” as three numbered points, each a short heading line and one line of explanation",
     ],

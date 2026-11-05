@@ -16,6 +16,9 @@
 /** Google News exclusions for a search that otherwise brings back people moving jobs. */
 const NO_JOB_MOVES = " -appoints -appointed -joins -hires -promoted";
 
+/** Google News exclusions for a search that otherwise brings back stock-market stories. */
+const NO_MARKETS = " -stock -shares -investors";
+
 export const LANE_QUERIES: Record<string, string[]> = {
   "marketing stunts": ['"marketing stunt"', "intitle:campaign brand ad"],
   "brand strategy lessons": ['"brand strategy"', "rebrand OR repositioning brand"],
@@ -75,6 +78,16 @@ export const LANE_QUERIES: Record<string, string[]> = {
     // surveys are wanted in this lane too.
     `"brand marketing" campaign${NO_JOB_MOVES}`,
     `consumers survey advertising brands${NO_JOB_MOVES}`,
+    // Added 5 Nov 2026, at the team's request: what changes on the ad
+    // platforms themselves (new features, metrics, targeting, rules). Tested
+    // on the live feed: Google Ads features, Meta's hook and hold rate in Ads
+    // Manager, Amazon targeting shoppers who buy elsewhere, Microsoft's
+    // LinkedIn job-role targeting. Stock and earnings stories are excluded;
+    // ChatGPT's own Ads Manager is left to AI x marketing bridge.
+    `intitle:"Google Ads"${NO_MARKETS}${NO_JOB_MOVES}`,
+    `"Meta Ads" OR "Ads Manager" advertisers -ChatGPT${NO_MARKETS}${NO_JOB_MOVES}`,
+    `"Amazon Ads" advertisers new${NO_MARKETS}${NO_JOB_MOVES}`,
+    `("Microsoft Advertising" OR "TikTok ads" OR "LinkedIn ads") advertisers${NO_MARKETS}${NO_JOB_MOVES}`,
   ],
   // Re-searched again on 5 Nov 2026, tested on the live feed: the storytelling
   // OR list brought in award deadlines and golf media, and "creators trust
