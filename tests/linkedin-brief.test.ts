@@ -27,8 +27,13 @@ describe("the LinkedIn writing brief", () => {
     // posts (reading ease about 35 against his 60: "superintelligent",
     // "cryptocurrency"), which the 4 Nov readability check rightly notices;
     // the prompt now says so, and points to his own recent posts for wording.
+    // For the same reason it reads at about Grade 10, over Pritesh Sir's 8.
     const problems = problemsOf(raw, reference, [], research);
-    expect(problems.filter((problem) => !/reads harder than his posts/.test(problem))).toEqual([]);
+    expect(
+      problems.filter(
+        (problem) => !/reads harder than his posts|reads at about Grade/.test(problem),
+      ),
+    ).toEqual([]);
   });
 
   it("flags a first line written like a news report, never a question", () => {

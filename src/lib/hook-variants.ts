@@ -212,21 +212,55 @@ export function openWithHook(
   return `${text.slice(0, start)}${chosen.trim()}${kept}${opening.slice(end)}`;
 }
 
+const linesOf = (text: string) =>
+  text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+/**
+ * Whether a hook is a LinkedIn opening pair: the headline, then the
+ * subheadline, one a line (Pritesh Sir's review, 5 Nov 2026: the headline
+ * pulls the reader to the subheadline, and the subheadline to "see more").
+ */
+export const isOpeningPair = (hook: string) => linesOf(hook).length >= 2;
+
+/**
+ * `body` opening with the chosen headline and subheadline in place of its own
+ * first two lines. The pair is swapped whole: "Duolingo's marketing team did
+ * just that." answers "Can a brand's mascot have a funeral and go viral?" and
+ * makes no sense after "What if reaching Gen Z is more than just a trend?".
+ */
+export function openWithPair(body: string, chosen: string): string {
+  const pair = linesOf(chosen).slice(0, 2).join("\n\n");
+  let found = 0;
+  let offset = 0;
+  for (const line of body.split("\n")) {
+    offset += line.length + 1;
+    if (line.trim() && ++found === 2) return `${pair}${body.slice(offset - 1)}`;
+  }
+  return pair;
+}
+
 /**
  * The idea as it will be filmed or posted: opening with the chosen hook.
  *
- * A post's hook is the first line of its body; a reel's is the first spoken
- * line, which is shot 1, or shot 2 on a reaction, whose first shot is the
- * creator's clip with no voice over of ours.
+ * A post's hook is the first line of its body, or its first two when it was
+ * written as a headline and subheadline; a reel's is the first spoken line,
+ * which is shot 1, or shot 2 on a reaction, whose first shot is the creator's
+ * clip with no voice over of ours.
  */
 export function withChosenHook(idea: ContentIdea): ContentIdea {
   const chosen = idea.chosenHook?.trim();
   if (!chosen || fold(chosen) === fold(idea.hook?.trim() ?? "")) return idea;
   if (idea.post) {
-    return {
-      ...idea,
-      post: { ...idea.post, body: openWithHook(idea.post.body, idea.hook ?? "", chosen, "\n\n") },
-    };
+    // A pair replaces a pair; a single line in either place replaces only the
+    // first sentence, so an older post never loses the line after its hook.
+    const body =
+      isOpeningPair(chosen) && isOpeningPair(idea.hook ?? "")
+        ? openWithPair(idea.post.body, chosen)
+        : openWithHook(idea.post.body, idea.hook ?? "", chosen, "\n\n");
+    return { ...idea, post: { ...idea.post, body } };
   }
   const first = idea.shots.findIndex((shot) => shot.voiceover?.trim());
   if (first < 0) return idea;

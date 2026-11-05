@@ -351,18 +351,26 @@ export function ideasSchemaFor(options: {
       hook: {
         type: "string",
         description: written
-          ? 'The first line of the post — what shows above LinkedIn\'s "see more" fold. It opens a curiosity gap (a question, a scene the reader recognises or a surprising fact) without giving away the key example or the conclusion; the subject is named within the first few lines. Never a news-report line such as "X has announced…".'
+          ? 'The post\'s first TWO lines, the headline and the subheadline, separated by one newline: all LinkedIn shows on a phone before "see more". The headline makes the reader read the subheadline; the subheadline makes them click "see more". Open on the STORY TWIST: the strangest true moment in the story, as a question or plain statement, the brand held back or named in the subheadline ("Can a brand\'s mascot have a funeral and go viral?\nDuolingo\'s marketing team did just that."). Never what readers already know about a famous brand ("How did Duolingo\'s owl become a Gen Z icon?"), never the answer, never a news-report line such as "X has announced…". post.body starts with exactly these two lines.'
           : "The literal first line, spoken or on screen.",
       },
       altHooks: {
         type: "array",
-        description:
-          "Exactly 2 OTHER first lines for this same idea, for an A/B test. Each must open " +
-          "in a genuinely different way from `hook` and from each other — one may ask a " +
-          "question, another lead with a number, another contradict an assumption, name the " +
-          "brand first, or open mid-story. Three rewordings of the same opening are not a " +
-          "test and are the one thing this field must not contain. Same subject, same claim, " +
-          "same length as `hook`.",
+        description: written
+          ? "Exactly 2 OTHER openings for this same post, for a test, each a headline and subheadline " +
+            "on two lines separated by one newline, in the same form as `hook`, and each leading " +
+            "naturally into the post's THIRD line as written. The first is the LESSON opening: a " +
+            "question that challenges what the reader assumes and promises a lesson for their own " +
+            'work, then a subheadline that points to the story ("What if reaching Gen Z is more ' +
+            "than just a trend?\\nDuolingo's approach offers a lesson.\"). The second opens another " +
+            "way: a clear position a marketer could disagree with, or a different surprising fact. " +
+            "Same subject, same claim; never three rewordings of one opening."
+          : "Exactly 2 OTHER first lines for this same idea, for an A/B test. Each must open " +
+            "in a genuinely different way from `hook` and from each other — one may ask a " +
+            "question, another lead with a number, another contradict an assumption, name the " +
+            "brand first, or open mid-story. Three rewordings of the same opening are not a " +
+            "test and are the one thing this field must not contain. Same subject, same claim, " +
+            "same length as `hook`.",
         items: { type: "string" },
       },
       ...(written

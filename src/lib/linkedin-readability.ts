@@ -29,6 +29,14 @@ export const MAX_MEDIAN_LINE_WORDS = 13;
 export const MIN_READING_EASE = 42;
 /** The opening a reader sees before deciding: the subject must appear in it. */
 export const OPENING_LINES = 4;
+/**
+ * The highest reading grade a post may score: Pritesh Sir's review of 5 Nov
+ * 2026 asked for Grade 8 or lower in Hemingway. 30 of his own 43 posts
+ * score 8 or lower (median 6.6), as do his five best by impressions (619,
+ * 505, 470, 424, 418); the dashboard's 19 drafts ran 7.7 to 14.1, and 18 of
+ * them were over.
+ */
+export const MAX_GRADE = 8;
 
 /**
  * Marketing and tech terms that need saying in plain words, with what to say
@@ -113,6 +121,52 @@ export function readingEase(text: string): number {
   return Math.round(206.835 - 1.015 * perSentence - 84.6 * perWord);
 }
 
+/**
+ * The sentences of a post as a grader reads them: a line break ends one, as
+ * it does in Hemingway, so a heading or a list point is its own sentence.
+ */
+function sentencesOf(body: string): string[] {
+  return lineList(body).flatMap((line) =>
+    line.split(/(?<=[.!?…]["'’”)]*)\s+/).filter((part) => /[a-z0-9]/i.test(part)),
+  );
+}
+
+const tokensOf = (text: string) => text.match(/[a-z0-9][a-z0-9'’-]*/gi) ?? [];
+
+/** The Automated Readability Index of some words over some sentences. */
+function readabilityIndex(words: string[], sentences: number): number {
+  if (!words.length || !sentences) return 0;
+  const characters = words.reduce((sum, word) => sum + word.replace(/[^a-z0-9]/gi, "").length, 0);
+  return 4.71 * (characters / words.length) + 0.5 * (words.length / sentences) - 21.43;
+}
+
+/**
+ * The US school grade a post reads at, by the Automated Readability Index,
+ * the formula Hemingway's grade is reported to use. An estimate to aim with:
+ * Hemingway's own number is the one the team checks, and may differ by a
+ * grade or so. Pritesh Sir asks for MAX_GRADE or lower.
+ */
+export function readingGrade(body: string): number {
+  const sentences = sentencesOf(body);
+  const words = sentences.flatMap(tokensOf);
+  return Math.max(0, Math.round(readabilityIndex(words, sentences.length) * 10) / 10);
+}
+
+/**
+ * The sentences Hemingway would mark hard to read (14 words or more, at grade
+ * 10 or above) or very hard (grade 14 or above), hardest first.
+ */
+export function hardSentences(body: string): Array<{ sentence: string; grade: number }> {
+  return sentencesOf(body)
+    .map((sentence) => {
+      const words = tokensOf(sentence);
+      return { sentence, words: words.length, grade: readabilityIndex(words, 1) };
+    })
+    .filter((entry) => entry.words >= 14 && entry.grade >= 10)
+    .sort((a, b) => b.grade - a.grade)
+    .map(({ sentence, grade }) => ({ sentence, grade: Math.round(grade) }));
+}
+
 /** The jargon in a post, each with its plain replacement. */
 export function jargonIn(body: string): Array<{ term: string; plain: string }> {
   const found: Array<{ term: string; plain: string }> = [];
@@ -182,6 +236,14 @@ export function readabilityProblems(body: string): string[] {
       `packs three or more sentences into one line ("${layout.packed[0]!.slice(0, 50)}…"); one sentence a line, as his posts do`,
     );
   }
+  // Pritesh Sir's Grade 8 (5 Nov 2026), with the sentence doing most harm.
+  const grade = readingGrade(body);
+  if (grade > MAX_GRADE) {
+    const hardest = hardSentences(body)[0];
+    problems.push(
+      `reads at about Grade ${grade}; Pritesh Sir wants Grade ${MAX_GRADE} or lower (his own posts run about 6.6): shorter sentences and shorter, everyday words${hardest ? `, starting with "${hardest.sentence.slice(0, 70)}"` : ""}`,
+    );
+  }
   const ease = readingEase(body);
   if (ease < MIN_READING_EASE) {
     problems.push(
@@ -207,6 +269,32 @@ export function readabilityProblems(body: string): string[] {
 /** The opening a reader sees: the first OPENING_LINES lines of the post. */
 export function openingOf(body: string): string {
   return lineList(body).slice(0, OPENING_LINES).join(" ");
+}
+
+/**
+ * The headline and subheadline: a post's first two lines, about all LinkedIn
+ * shows on a phone before "see more". Each of his 43 posts opens on such a
+ * pair, the second line pulling the reader into the post ("McDonald's wants
+ * to make $1 billion from advertising." / "Yes, the company known for selling
+ * burgers is now building an advertising business.").
+ */
+export function foldOf(body: string): { headline: string; subheadline: string } {
+  const [headline = "", subheadline = ""] = lineList(body);
+  return { headline, subheadline };
+}
+
+/**
+ * A headline that tells the reader what they already know about a famous
+ * brand: "How did Duolingo's owl become a Gen Z icon?". Pritesh Sir, 5 Nov
+ * 2026: a reader who already knows Duolingo and Gen Z scrolls past it. None
+ * of his 43 posts opens this way.
+ */
+const FAMILIAR_OPENING =
+  /^(how|why) (did|does|do|has|have|is|are) [^?\n]{1,60}\b(become|became|win|won|wins|take over|took over|dominate[sd]?|rule[sd]?|conquer(ed|s)?|go viral)\b[^?\n]*(icon|favou?rite|famous|legend(ary)?|household name|obsession|sensation|king|queen|phenomenon|viral|hearts|internet)\b|^(why is everyone talking about|the secret (behind|to) [^\n]*success|what makes [^\n?]{1,40} so (popular|successful|special))\b/i;
+
+/** Whether a headline only restates what readers already know (FAMILIAR_OPENING). */
+export function familiarOpening(headline: string): boolean {
+  return FAMILIAR_OPENING.test(headline.replace(/[‘’]/g, "'").trim());
 }
 
 /**
@@ -261,7 +349,10 @@ const STOCK_PHRASES: Array<[RegExp, string]> = [
   [/\bcapture (their )?attention\b/i, "get noticed"],
   [/\baligned with (current )?trends\b/i, "say which trend"],
   [/\bresonat\w+/i, "matter to people"],
-  [/\b(engage creatively|engaging content|fun and engaging)\b/i, "say what to make"],
+  // "Fun and engaging" is not on the list: Pritesh Sir held up "create content
+  // that's fun and engaging" as the plain version of "use unconventional
+  // tactics to capture attention" (5 Nov 2026).
+  [/\bengage creatively\b/i, "say what to make"],
   [/\bpreferences of\b/i, "what they want"],
   [/\b(stand out from the crowd|cut through the noise)\b/i, "say how"],
   [/\bin today'?s (fast-paced|digital)\b/i, "cut it"],
@@ -294,6 +385,12 @@ export function writingProblems(body: string): string[] {
   if (stock) {
     problems.push(
       `uses a stock example line ("${stock[0]}…"); use a real scene the reader recognises, or cut it`,
+    );
+  }
+  const { headline } = foldOf(body);
+  if (familiarOpening(headline)) {
+    problems.push(
+      `opens on what the reader already knows ("${headline}"), so a reader who knows the brand scrolls past; open on the strangest true moment in the story ("Can a brand's mascot have a funeral and go viral?") or on the lesson it holds for the reader ("What if reaching Gen Z is more than just a trend?")`,
     );
   }
   const opening = lineList(body.replace(/[‘’]/g, "'")).slice(0, OPENING_LINES).join("\n");

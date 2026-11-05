@@ -193,6 +193,10 @@ for each. This is how his LinkedIn posts are built; it is not a reel:
   work too when the surprise is held back ("McDonald's wants to make $1 billion from
   advertising.", 505). Name the subject within the first few lines; it need not be the first.
   Never a news-report opening ("X has announced…", "In a recent development…").
+- The first two lines are a headline and a subheadline, as in every one of his posts: the
+  second pulls the reader on to "see more" ("McDonald's wants to make $1 billion from
+  advertising." / "Yes, the company known for selling burgers is now building an advertising
+  business.").
 - One sentence per line, about nine words, a blank line between them: a post is skimmed on a
   phone, never read as a block. Plain words, not marketing terms. Use only the three to five
   facts that serve the post's one idea, and name the source of each ("According to The Wall

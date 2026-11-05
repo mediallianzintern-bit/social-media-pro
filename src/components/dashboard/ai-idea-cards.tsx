@@ -49,13 +49,15 @@ import type { Prediction } from "@/lib/prediction";
 import {
   FORMAT_LABEL,
   HOOK_STYLE_LABEL,
+  LINKEDIN_HOOK_STYLE_LABEL,
   type AiAnalysis,
   type ContentIdea,
   type HookStyle,
 } from "@/lib/ai-types";
 import type { PlatformId } from "@/lib/analytics-types";
 import { hookScores } from "@/lib/double-down";
-import { hookTest, VARIANT_LABELS, withChosenHook } from "@/lib/hook-variants";
+import { hookTest, isOpeningPair, VARIANT_LABELS, withChosenHook } from "@/lib/hook-variants";
+import { MAX_GRADE, readingGrade } from "@/lib/linkedin-readability";
 import { voiceFlags } from "@/lib/voice-check";
 import { computeInsights } from "@/lib/insights";
 import { usePlatform } from "@/lib/use-dashboard";
@@ -645,6 +647,7 @@ export function AiIdeaCards({
                     <p className="whitespace-pre-line rounded-lg border bg-card p-4 text-sm leading-relaxed">
                       {open.post.body}
                     </p>
+                    {open.format === "text_post" ? <GradeLine body={open.post.body} /> : null}
                     {open.post.sections.length ? (
                       <ol className="mt-3 space-y-3">
                         {open.post.sections.map((section, index) => (
@@ -1030,6 +1033,25 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * The post's reading grade, by the formula Hemingway's grade is reported to
+ * use, so the team can see it before pasting the post into Hemingway, where
+ * Pritesh Sir wants Grade 8 or lower (5 Nov 2026).
+ */
+function GradeLine({ body }: { body: string }) {
+  const grade = readingGrade(body);
+  const over = grade > MAX_GRADE;
+  return (
+    <p
+      className={`mt-2 text-xs ${over ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}
+    >
+      Reads at about Grade {grade}
+      {over ? `, over the Grade ${MAX_GRADE} Pritesh Sir asks for` : `, within Grade ${MAX_GRADE}`}.
+      An estimate; Hemingway's own number may differ by a grade or so.
+    </p>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // T63 — the hook A/B
 // ---------------------------------------------------------------------------
@@ -1098,6 +1120,7 @@ function HookChoice({
   });
   const full =
     [idea.hook, ...(idea.altHooks ?? [])].filter(Boolean).length >= VARIANT_LABELS.length;
+  const styleLabel = idea.post ? LINKEDIN_HOOK_STYLE_LABEL : HOOK_STYLE_LABEL;
 
   if (!test.variants.length) return null;
 
@@ -1138,7 +1161,7 @@ function HookChoice({
                 ) : null}
                 {idea.hookStyles?.[variant.hook] ? (
                   <Badge variant="secondary" className="text-[10px] font-medium">
-                    {HOOK_STYLE_LABEL[idea.hookStyles[variant.hook]!]} hook
+                    {styleLabel[idea.hookStyles[variant.hook]!]} hook
                   </Badge>
                 ) : null}
                 <Badge variant="outline" className="text-[10px] font-normal">
@@ -1165,7 +1188,9 @@ function HookChoice({
                 ) : null}
               </div>
 
-              <p className="mt-2 text-base font-semibold leading-snug">“{variant.hook}”</p>
+              <p className="mt-2 whitespace-pre-line text-base font-semibold leading-snug">
+                “{variant.hook}”
+              </p>
 
               {!single && !variant.chosen ? (
                 <Button
@@ -1192,11 +1217,13 @@ function HookChoice({
         <p className="text-xs font-medium">Get more hooks</p>
         <p className="mt-0.5 text-[11px] text-muted-foreground">
           {idea.post
-            ? "Three more first lines for this same post, the line LinkedIn shows above “see more”, in the style you pick. Written from his LinkedIn voice and the first lines LinkedIn showed most. One AI call each."
+            ? isOpeningPair(idea.hook ?? "")
+              ? "Three more openings for this same post, each a headline and the subheadline under it (all a phone shows before “see more”), in the style you pick. Story twist and Lesson are the two Pritesh Sir asked to test. One AI call each."
+              : "Three more first lines for this same post, the line LinkedIn shows above “see more”, in the style you pick. Written from his LinkedIn voice and the first lines LinkedIn showed most. One AI call each."
             : "Three more openings for this same script, in the style you pick. One AI call each."}
         </p>
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {(Object.keys(HOOK_STYLE_LABEL) as HookStyle[]).map((style) => (
+          {(Object.keys(styleLabel) as HookStyle[]).map((style) => (
             <Button
               key={style}
               size="sm"
@@ -1208,7 +1235,7 @@ function HookChoice({
               {extend.isPending && extend.variables === style ? (
                 <Loader2 className="size-3 animate-spin" aria-hidden />
               ) : null}
-              {HOOK_STYLE_LABEL[style]}
+              {styleLabel[style]}
             </Button>
           ))}
         </div>

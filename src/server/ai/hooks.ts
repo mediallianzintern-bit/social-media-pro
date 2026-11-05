@@ -15,7 +15,8 @@ import { z } from "zod";
 
 import type { ContentIdea, HookStyle } from "@/lib/ai-types";
 import { hookIssue, newsOpenerIssue } from "@/lib/hook-check";
-import { jargonIn } from "@/lib/linkedin-readability";
+import { isOpeningPair } from "@/lib/hook-variants";
+import { familiarOpening, jargonIn } from "@/lib/linkedin-readability";
 import { voiceFlags } from "@/lib/voice-check";
 import { hookTypeOf } from "@/lib/reel-parts";
 import { NO_RULES } from "@/lib/reel-learning-types";
@@ -50,15 +51,17 @@ const STYLE_BRIEF: Record<HookStyle, string> = {
 
 /**
  * The same three styles for a LinkedIn post's first line, each with the shape
- * taken from his own LinkedIn openings.
+ * taken from his own LinkedIn openings. Curiosity and question are the two
+ * openings Pritesh Sir asked to test on 5 Nov 2026: the story twist, which he
+ * found more exciting, and the lesson.
  */
 const LINKEDIN_STYLE_BRIEF: Record<HookStyle, string> = {
   authority:
     'AUTHORITY: open with a clear POSITION on the subject, stated plainly, that a marketer or business owner could disagree with. Shape, from his own posts: "Meta is moving beyond AI that creates ads." / "AI has made content creation cheaper. It hasn\'t made good content easier." A line that only reports what happened is a description and fails. Sure, never superior. Use "I" only where the post itself does, and never invent an experience, a client or a result to sound credible.',
   curiosity:
-    'CURIOSITY: open on the most surprising TRUE fact in the post, with its brand, tool or figure named, and hold back the why so the reader clicks "see more". Shape, from his best posts: "McDonald\'s wants to make $1 billion from advertising." / "AI just uncovered a security flaw that could put 70% of the world\'s websites at risk." Never exaggerate, never promise more than the post delivers.',
+    'CURIOSITY, THE STORY TWIST: open on the strangest TRUE moment in the post, as a question or a plain statement, and hold back the how and the why so the reader clicks "see more". The brand may wait for the subheadline. Shape: "Can a brand\'s mascot have a funeral and go viral?" / "Duolingo\'s marketing team did just that."; from his best posts: "McDonald\'s wants to make $1 billion from advertising." Never exaggerate, never promise more than the post delivers.',
   question:
-    'QUESTION: open with ONE specific question a business owner or marketer would genuinely ask about the subject, which the post then answers. Shape, from his posts: "What happens when AI starts finding security weaknesses faster than businesses can fix them?" / "Are Businesses Missing Out by Ignoring Google\'s Gemini 4 Argon?" It names the subject. Never "did you know", never "have you ever wondered", never "What do you think about AI?".',
+    'QUESTION, THE LESSON: open with ONE question that challenges what a marketer or business owner assumes and promises a lesson for their own work, which the post then teaches. Shape: "What if reaching Gen Z is more than just a trend?" / "Duolingo\'s approach offers a lesson."; from his posts: "Can an ad be so relevant that it actually pushes customers away?" Never "did you know", never "have you ever wondered", never "What do you think about AI?", and never a question whose answer the reader already knows ("How did Duolingo\'s owl become a Gen Z icon?").',
 };
 
 /** How many of his best and weakest first lines the LinkedIn writer is shown. */
@@ -158,6 +161,10 @@ export async function moreHooks(
   const existing = [idea.hook, ...(idea.altHooks ?? [])].filter(Boolean);
   // A LinkedIn post or article: its first line, not a spoken hook.
   const written = Boolean(idea.post);
+  // Written as a headline and subheadline, so new hooks are pairs too and are
+  // swapped in whole (lib/hook-variants.ts). Posts from before 5 Nov 2026
+  // have a one-line hook and still get one-line hooks.
+  const pairs = written && isOpeningPair(idea.hook ?? "");
   // What filmed reels have proved: losing hook types are dropped below, and
   // hypothetical openers are allowed again once they have proved they work.
   // Filmed reels are Instagram's; they say nothing about a LinkedIn post.
@@ -182,8 +189,7 @@ export async function moreHooks(
     ? `${LINKEDIN_VOICE}
 
 YOUR TASK NOW is narrower than the voice above. The LinkedIn ${idea.format === "article" ? "article" : "post"} below is
-finished and approved. Write only new FIRST LINES for it: the line LinkedIn shows above "see
-more", which decides whether anyone reads on. Each must lead naturally into the rest of the
+finished and approved. Write only new ${pairs ? 'OPENINGS for it, each a HEADLINE and a SUBHEADLINE: its first two lines, all LinkedIn shows on a phone before "see more"' : 'FIRST LINES for it: the line LinkedIn shows above "see more"'}, which decides whether anyone reads on. Each must lead naturally into the rest of the
 ${idea.format === "article" ? "article" : "post"} as written.`
     : `${INSTAGRAM_MASTER_PROMPT}
 
@@ -192,15 +198,25 @@ approved. Write only new OPENING LINES for it: each must be a line Pritesh says
 first, on camera, that leads naturally into the rest of the script as written.`;
 
   const rulesFor = written
-    ? `Rules for every line:
-- One or two short sentences, at most 22 words in all: what fits above "see more".
-- It must fit THIS post: the line after it, as written, still follows naturally.
+    ? `Rules for every ${pairs ? "opening" : "line"}:
+${
+  pairs
+    ? `- Two lines separated by one newline: the headline, at most 15 words, then the subheadline,
+  at most 18. The headline makes the reader read the subheadline; the subheadline makes them
+  click "see more" (Pritesh Sir, 5 Nov 2026).
+- It must fit THIS post: the post's THIRD line, as written, still follows naturally.`
+    : `- One or two short sentences, at most 22 words in all: what fits above "see more".
+- It must fit THIS post: the line after it, as written, still follows naturally.`
+}
 - It opens a real curiosity gap: a question, a scene the reader recognises or a surprising fact,
   without giving away the key example or the conclusion. His best opening of the last 90 days
   (619 impressions): "Can an ad be so relevant that it actually pushes customers away?". It may
   hold the brand back when the post names it a line or two later; never a general principle
   about nothing in particular, and never a news-report line ("X has announced…").
-- Plain, everyday words: no marketing terms a broad reader would stop at.
+- Plain, everyday words a 13-year-old would follow (Hemingway Grade 8 or lower): no marketing
+  terms a broad reader would stop at.
+- Never what the reader already knows about a famous brand ("How did Duolingo's owl become a
+  Gen Z icon?"): a reader who knows the brand scrolls past.
 - Different from every opening already offered below, and from each other.
 - No emoji, no dashes, no exclamation marks, no hype words ("game-changer", "revolutionary",
   "the possibilities are endless"), no "Agree?" or "Thoughts?".${openings ? `\n\n${openings}` : ""}`
@@ -218,7 +234,7 @@ ${rulesFor}${reaction}
 
 Title: ${idea.title}
 Openings already offered (do not repeat or reword these):
-${existing.map((hook) => `- ${hook}`).join("\n")}
+${existing.map((hook) => `- ${hook.replace(/\s*\n\s*/g, " / ")}`).join("\n")}
 
 The ${written ? (idea.format === "article" ? "article" : "post") : "script"}:
 ${scriptText(idea)}`;
@@ -242,11 +258,15 @@ ${scriptText(idea)}`;
       hook
         .trim()
         .replace(/^["“”']+|["“”']+$/g, "")
-        .trim(),
+        .trim()
+        // A pair as the post holds its hook: one newline between the lines.
+        .replace(/[ \t]*\n\s*/g, "\n"),
     )
     .filter((hook) => {
       if (!hook || seen.has(hook.toLowerCase())) return false;
-      if (hook.split(/\s+/).length > (written ? 26 : 18)) return false;
+      // A pair is two lines, or it would be swapped in over only the headline.
+      if (pairs && hook.split("\n").filter((line) => line.trim()).length !== 2) return false;
+      if (hook.split(/\s+/).length > (pairs ? 36 : written ? 26 : 18)) return false;
       if (CLICHES.test(hook)) return false;
       // A LinkedIn first line may hold the subject back: the post names it a
       // line or two later (his best opening, 619 impressions, names nothing).
@@ -254,6 +274,7 @@ ${scriptText(idea)}`;
         return false;
       if (written && newsOpenerIssue(hook)) return false;
       if (written && jargonIn(hook).length) return false;
+      if (written && familiarOpening(hook.split("\n")[0] ?? "")) return false;
       // A kind of hook filmed reels proved losing is not offered again.
       if (rules.blockedHookTypes.some((rule) => rule.type === hookTypeOf(hook))) return false;
       // The same checks the script itself is held to, applied to the line alone.

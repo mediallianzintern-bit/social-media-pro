@@ -29,6 +29,7 @@ import { z } from "zod";
 
 import { costOf, type GenerationCost } from "@/lib/ai-cost";
 import type { ContentIdea } from "@/lib/ai-types";
+import { isOpeningPair } from "@/lib/hook-variants";
 import { linkedInShapesBlock } from "@/lib/linkedin-shapes";
 import { factSheetText, type StoryResearch } from "@/lib/research";
 import type { SourceItem } from "@/lib/sources";
@@ -327,6 +328,15 @@ one person: simpler where it can be simpler, specific where it is vague, never o
      the preferences of younger consumers?").
   12. Replace every stock marketing phrase ("authenticity", "genuine connections", "shine
      through", "capture attention", "resonate") with the concrete thing it stands for.
+  13. The pull from part to part (Pritesh Sir, 5 Nov 2026): would the headline (line 1) make a
+     reader read the subheadline (line 2), and the subheadline make them click "see more"? Does
+     the body teach something useful and carry them on to the closing question? Keep the
+     opening's approach (the story twist or the lesson), but sharpen it where it falls flat, and
+     never open on what readers already know about a famous brand ("How did Duolingo's owl
+     become a Gen Z icon?").
+  14. Would it score Hemingway Grade 8 or lower? Shorten long sentences and swap long words for
+     short everyday ones: "create content that's fun and engaging", not "use unconventional
+     tactics to capture attention".
 - What happened in two or three short sentences, then why it matters as the largest part, two or
   three real business implications and the bigger lesson. Cut every fact that does not serve the
   one idea, even when the draft used it.
@@ -379,11 +389,20 @@ ${draftText(body, sections)}`,
     }
     reviewed += 1;
     const { review } = best;
-    const firstLine = review.body.trim().split("\n")[0]!.trim();
+    const lines = review.body
+      .trim()
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    // The post's first line is its hook, or its first two when the hook was
+    // written as a headline and subheadline; the alternatives stay as offered.
+    const opening =
+      typeof raw.hook === "string" && isOpeningPair(raw.hook)
+        ? lines.slice(0, 2).join("\n")
+        : lines[0];
     next.push({
       ...raw,
-      // The post's first line is its hook; the alternatives stay as offered.
-      hook: firstLine || raw.hook,
+      hook: opening || raw.hook,
       post: {
         ...raw.post,
         body: review.body.trim(),

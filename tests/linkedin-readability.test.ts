@@ -3,10 +3,14 @@ import { describe, expect, it } from "vitest";
 
 import type { PostRecord } from "@/lib/analytics-types";
 import {
+  familiarOpening,
+  foldOf,
+  hardSentences,
   jargonIn,
   layoutOf,
   readabilityProblems,
   readingEase,
+  readingGrade,
   stockPhrasesIn,
   writingProblems,
 } from "@/lib/linkedin-readability";
@@ -151,8 +155,11 @@ describe("writing like him, beyond layout", () => {
     "You win by giving them something worth joining in.",
   ].join("\n\n");
 
-  it("catches the stock example, the answer up front and bare points", () => {
+  it("catches the stock example, the answer up front, bare points and the familiar opening", () => {
     const problems = writingProblems(generated);
+    expect(
+      problems.some((problem) => problem.startsWith("opens on what the reader already knows")),
+    ).toBe(true);
     expect(problems.some((problem) => problem.startsWith("uses a stock example line"))).toBe(true);
     expect(problems.some((problem) => problem.startsWith("gives the answer away"))).toBe(true);
     expect(problems.some((problem) => problem.startsWith("has bare numbered points"))).toBe(true);
@@ -188,5 +195,51 @@ describe("stock marketing phrases", () => {
         problem.startsWith("uses stock marketing phrases"),
       ),
     ).toBe(true);
+  });
+});
+
+describe("Pritesh Sir's review of 5 Nov 2026", () => {
+  // Column D of the review sheet ("latest"), the opening he found more exciting.
+  const twist = [
+    "Can a brand's mascot have a funeral and go viral?",
+    "Duolingo's marketing team did just that.",
+    "They staged a 'funeral' for their mascot, Duo the Owl, after an incident with a Tesla Cybertruck.",
+    "The TikTok livestream drew 66 million viewers and even got responses from the World Health Organization and Netflix.",
+    "Here's why this matters.",
+    "1. Engage creatively: Use unconventional tactics to capture attention.",
+  ].join("\n\n");
+
+  it('reads the headline and subheadline above "see more"', () => {
+    expect(foldOf(twist)).toEqual({
+      headline: "Can a brand's mascot have a funeral and go viral?",
+      subheadline: "Duolingo's marketing team did just that.",
+    });
+  });
+
+  it("sends back an opening that tells the reader what they already know", () => {
+    expect(familiarOpening("How did Duolingo's owl become a Gen Z icon?")).toBe(true);
+    expect(familiarOpening("Why is everyone talking about Duolingo?")).toBe(true);
+    // Both openings he asked to test, and his own.
+    expect(familiarOpening("Can a brand's mascot have a funeral and go viral?")).toBe(false);
+    expect(familiarOpening("What if reaching Gen Z is more than just a trend?")).toBe(false);
+    expect(
+      familiarOpening("Gen Z can tell when your brand is trying too hard to be “Gen Z.”"),
+    ).toBe(false);
+  });
+
+  it("grades a post as Hemingway does, a line break ending a sentence", () => {
+    expect(readingGrade(scannable)).toBeLessThanOrEqual(8);
+    expect(readingGrade(paragraphs)).toBeGreaterThan(8);
+    expect(readabilityProblems(paragraphs).some((problem) => /Grade \d/.test(problem))).toBe(true);
+    expect(hardSentences(twist)[0]!.sentence).toMatch(/^The TikTok livestream/);
+  });
+
+  it('keeps "fun and engaging", his plain version, and catches the jargon he contrasted it with', () => {
+    expect(stockPhrasesIn("Create content that's fun and engaging.")).toEqual([]);
+    expect(stockPhrasesIn(twist).map((entry) => entry.phrase)).toEqual([
+      "unconventional tactics",
+      "capture attention",
+      "Engage creatively",
+    ]);
   });
 });

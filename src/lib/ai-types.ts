@@ -204,6 +204,17 @@ export const HOOK_STYLE_LABEL: Record<HookStyle, string> = {
   question: "Question",
 };
 
+/**
+ * The same styles as a LinkedIn post's opening calls them: curiosity and
+ * question are the story twist and the lesson Pritesh Sir asked to test
+ * (5 Nov 2026).
+ */
+export const LINKEDIN_HOOK_STYLE_LABEL: Record<HookStyle, string> = {
+  authority: "Authority",
+  curiosity: "Story twist",
+  question: "Lesson",
+};
+
 export interface IdeaSource {
   verified: boolean;
   /** The source_items row, when verified. */

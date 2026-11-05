@@ -64,6 +64,7 @@ import { goalReadFor, laneExpectations, type LaneExpectation } from "@/lib/predi
 import { trajectoryStatement, type GrowthGoal, type GrowthTrajectory } from "@/lib/growth";
 import type { GoalScorecard } from "@/lib/goal-scorecard";
 import { classifyHook } from "@/lib/script-features";
+import { isOpeningPair } from "@/lib/hook-variants";
 import { blockReason } from "@/lib/loop";
 import type { SourceItem } from "@/lib/sources";
 import type { BlockedPattern } from "@/lib/analytics-types";
@@ -660,13 +661,16 @@ not notes for someone else to expand:
   team's LinkedIn writing brief in the VOICE block.
 - angle: the post's ONE idea, what the development means for businesses, not what happened.
 - It is a POST to be skimmed on a phone, not a reel script and not an article.
-- hook: the first line, which is all LinkedIn shows above "see more". It opens a real curiosity
-  gap: a question, a scene the reader recognises or a surprising fact, without giving away the
-  key example or the conclusion. Name the subject within the first few lines; for a brand case
-  study the name may wait a line or two. Never a news-report opening ("X has announced…", "In a
-  recent development…") and never a warm-up.
-- text_post: post.body is the complete post, about 150-220 words (300 at most), with the hook as
-  its first line. One sentence per line, about nine words, a blank line between lines: never a
+- hook: the headline and subheadline, the post's first two lines, which is all LinkedIn shows on
+  a phone before "see more". Each part pulls the reader to the next (Pritesh Sir, 5 Nov 2026):
+  the headline to the subheadline, the subheadline to "see more", the body to the closing
+  question. The hook is the STORY TWIST opening and altHooks[0] the LESSON opening, so both can be
+  tested. Neither gives away the key example or the conclusion, and neither tells the reader
+  what they already know about a famous brand. Name the subject within the first few lines.
+  Never a news-report opening ("X has announced…", "In a recent development…") and never a
+  warm-up.
+- text_post: post.body is the complete post, about 150-220 words (300 at most), with the hook's
+  two lines as its first two lines. One sentence per line, about nine words, a blank line between lines: never a
   paragraph. Plain, conversational words in place of marketing terms. post.sections is empty.
 - article: post.body is the introduction; post.sections are 4-7 sections, each a heading and its
   full paragraphs. An article is analysis, not a stretched post: every section adds something
@@ -1415,6 +1419,9 @@ export function closingCta(
   return { shots: timed, production: { ...raw.production, durationSeconds } };
 }
 
+/** A LinkedIn hook as the post holds it: trimmed, one newline between headline and subheadline. */
+const onePairLine = (hook: string) => hook.trim().replace(/[ \t]*\n\s*/g, "\n");
+
 export function finalizeIdeas(
   data: unknown,
   options: {
@@ -1474,17 +1481,30 @@ export function finalizeIdeas(
       contentLane: raw.contentLane,
       sourceSignal: raw.sourceSignal,
       source,
-      hook: raw.hook,
+      hook: written ? onePairLine(raw.hook) : raw.hook,
       // T63's alternatives. Copied explicitly because this object is built
       // field by field: for a while the schema asked the model for them and
       // this step silently dropped them, so every idea arrived with one hook.
       // Trimmed, de-blanked and capped at two — the A/B is three hooks total.
       ...(() => {
         const altHooks = raw.altHooks
-          .map((hook) => hook.trim())
+          .map((hook) => (written ? onePairLine(hook) : hook.trim()))
           .filter(Boolean)
           .slice(0, 2);
-        return altHooks.length ? { altHooks } : {};
+        if (!altHooks.length) return {};
+        // A LinkedIn opening pair is written as the story twist, its first
+        // alternative as the lesson (Pritesh Sir, 5 Nov 2026), and labelled
+        // so in the picker.
+        const pairs = written && isOpeningPair(raw.hook) && isOpeningPair(altHooks[0]!);
+        return pairs
+          ? {
+              altHooks,
+              hookStyles: {
+                [onePairLine(raw.hook)]: "curiosity" as const,
+                [altHooks[0]!]: "question" as const,
+              },
+            }
+          : { altHooks };
       })(),
       // A written format has no shot list and no production brief; the post
       // IS the deliverable.

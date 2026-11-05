@@ -15,6 +15,7 @@
 // for a post already in range. Never fatal: on any failure the draft stands.
 import { costOf, type GenerationCost } from "@/lib/ai-cost";
 import type { ContentIdea } from "@/lib/ai-types";
+import { isOpeningPair } from "@/lib/hook-variants";
 import { linkedInShapesBlock } from "@/lib/linkedin-shapes";
 import type { SourceItem } from "@/lib/sources";
 import { linkedInLength, voiceFlags } from "@/lib/voice-check";
@@ -63,8 +64,9 @@ function problemsOf(raw: RawPost, body: string): string[] {
   // His voice rules, checked on the post alone. The length flag is the one above.
   const probe = { ...raw, altHooks: [], shots: [], caption: "", post: { body, sections: [] } };
   for (const flag of voiceFlags(probe as unknown as ContentIdea)) {
-    // The opening is the review's to fix: this pass keeps the first line as it is.
-    if (!/ words: |opens like a news report/.test(flag)) problems.push(`It ${flag}.`);
+    // The opening is the review's to fix: this pass keeps it as it is.
+    if (!/ words: |opens like a news report|opens on what the reader already knows/.test(flag))
+      problems.push(`It ${flag}.`);
   }
   return problems;
 }
@@ -111,7 +113,13 @@ export async function fitLinkedInPosts(
       if (!best.problems.length) return raw;
 
       const lane = typeof raw.contentLane === "string" ? raw.contentLane : "";
-      const firstLine = draft.trim().split("\n")[0]!.trim();
+      // The headline, and the subheadline when the hook was written as a pair.
+      const kept = draft
+        .trim()
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .slice(0, typeof raw.hook === "string" && isOpeningPair(raw.hook) ? 2 : 1);
       try {
         for (let round = 0; round < ROUNDS && best.problems.length; round += 1) {
           if (deadline && deadline - Date.now() < ROUND_MIN_MS) break;
@@ -129,7 +137,7 @@ PROBLEMS, counted by code:
 ${best.problems.map((problem) => `- ${problem}`).join("\n")}
 
 HOW:
-- Keep the first line exactly as it is: "${firstLine}"
+- Keep the ${kept.length > 1 ? "first two lines" : "first line"} exactly as ${kept.length > 1 ? "they are" : "it is"}: ${kept.map((line) => `"${line}"`).join(" / ")}
 - Keep the idea, the order of the argument, the closing question and the closing line.
 - When it needs more words, add substance from THIS story: a detail from the facts below, or a
   clearer explanation of the one idea. Never a stock example ("Suppose you're a marketer
