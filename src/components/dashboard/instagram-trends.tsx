@@ -78,7 +78,7 @@ export function InstagramTrends({ platform }: { platform: PlatformId }) {
   return (
     <>
       <SectionHeading
-        title={`Rising on ${meta.label}`}
+        title={platform === "instagram" ? "Reaction hooks" : `Rising on ${meta.label}`}
         note="Posts beating their own account's median, from the competitors you track — with the post itself as the source"
         action={
           <Button
@@ -246,7 +246,11 @@ export function InstagramTrends({ platform }: { platform: PlatformId }) {
               placement="bottom"
               collapsed={collapsed}
               onToggle={() => setCollapsed((value) => !value)}
-              showLabel={`Expand Rising on ${meta.label}`}
+              showLabel={
+                platform === "instagram"
+                  ? "Expand Reaction hooks"
+                  : `Expand Rising on ${meta.label}`
+              }
             />
           </div>
         </CardContent>

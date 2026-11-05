@@ -22,7 +22,7 @@ import { PostPerformanceChart } from "@/components/dashboard/post-performance-ch
 import { PostsTable } from "@/components/dashboard/posts-table";
 import { TopicCards } from "@/components/dashboard/topic-cards";
 import { CollapseToggle } from "@/components/dashboard/collapse-toggle";
-import { SectionHeading } from "@/components/dashboard/section-heading";
+import { SectionHeading, StrongSectionHeadings } from "@/components/dashboard/section-heading";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -207,7 +207,7 @@ export function PlatformView({
     }),
   ];
 
-  return (
+  const page = (
     <>
       <CadenceNudge platform={data.platform} />
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -466,7 +466,7 @@ export function PlatformView({
           say is "reuse this structure" or "move this slot". Calling them the
           next reel implied a topic they never contained. */}
       <SectionHeading
-        title="Plays from your own data"
+        title={isInstagram ? "Insights from your own data" : "Plays from your own data"}
         note="Rule-based — each card is triggered by a measured pattern, no model involved"
       />
       <TopicCards recommendations={recommendations} />
@@ -503,4 +503,6 @@ export function PlatformView({
       }
     </>
   );
+  // Instagram's section titles stand out, so each section is easy to find.
+  return isInstagram ? <StrongSectionHeadings>{page}</StrongSectionHeadings> : page;
 }

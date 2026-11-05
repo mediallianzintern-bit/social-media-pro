@@ -1,5 +1,13 @@
 import { ExternalLink } from "lucide-react";
-import type { ReactNode } from "react";
+import { useContext, type ReactNode } from "react";
+
+import { StrongHeadings, useSectionTitleClass } from "@/components/dashboard/section-title";
+import { cn } from "@/lib/utils";
+
+/** Turns on bold, full-colour section titles for every section inside it. */
+export function StrongSectionHeadings({ children }: { children: ReactNode }) {
+  return <StrongHeadings.Provider value>{children}</StrongHeadings.Provider>;
+}
 
 /** The thin rule-and-label divider used between dashboard sections. */
 export function SectionHeading({
@@ -19,9 +27,11 @@ export function SectionHeading({
   /** Optional control for this section, placed after the rule. */
   action?: ReactNode;
 }) {
+  const strong = useContext(StrongHeadings);
+  const titleClass = useSectionTitleClass();
   return (
     <div className="flex flex-wrap items-baseline gap-3 pt-2">
-      <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{title}</h2>
+      <h2 className={titleClass}>{title}</h2>
       {note && noteHref ? (
         <a
           href={noteHref}
@@ -35,7 +45,10 @@ export function SectionHeading({
       ) : note ? (
         <span className="text-xs text-muted-foreground/70">{note}</span>
       ) : null}
-      <span aria-hidden className="h-px min-w-8 flex-1 bg-border" />
+      <span
+        aria-hidden
+        className={cn("h-px min-w-8 flex-1", strong ? "bg-foreground/20" : "bg-border")}
+      />
       {action ? <div className="shrink-0">{action}</div> : null}
     </div>
   );

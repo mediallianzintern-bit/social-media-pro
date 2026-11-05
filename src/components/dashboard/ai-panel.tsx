@@ -18,6 +18,7 @@ import { CollapsibleAnalysisCard } from "@/components/dashboard/collapsible-anal
 import { AiIdeaCards } from "@/components/dashboard/ai-idea-cards";
 import { CollapseToggle } from "@/components/dashboard/collapse-toggle";
 import { SectionHeading } from "@/components/dashboard/section-heading";
+import { useSectionTitleClass } from "@/components/dashboard/section-title";
 import { InstagramTrends } from "@/components/dashboard/instagram-trends";
 import { TopicInbox } from "@/components/dashboard/topic-inbox";
 import { Badge } from "@/components/ui/badge";
@@ -202,6 +203,7 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
   });
 
   const { mutate, isPending } = mutation;
+  const titleClass = useSectionTitleClass();
   const discovery = analysis?.discovery;
   const competitors = normalizeCompetitors(analysis?.competitors ?? null);
   const analyst = analysis?.analyst ?? null;
@@ -213,7 +215,7 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
   return (
     <>
       <div className="flex flex-wrap items-baseline gap-3 pt-2">
-        <h2 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+        <h2 className={`flex items-center gap-1.5 ${titleClass}`}>
           <Sparkles className="size-3.5" aria-hidden />
           AI analysis
         </h2>
