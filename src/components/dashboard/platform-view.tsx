@@ -466,7 +466,7 @@ export function PlatformView({
           say is "reuse this structure" or "move this slot". Calling them the
           next reel implied a topic they never contained. */}
       <SectionHeading
-        title={isInstagram ? "Insights from your own data" : "Plays from your own data"}
+        title="Insights from your own data"
         note="Rule-based — each card is triggered by a measured pattern, no model involved"
       />
       <TopicCards recommendations={recommendations} />
