@@ -28,6 +28,36 @@ import {
 } from "@/lib/linkedin-analytics";
 import { articlesVsPosts, type LinkedInArticle } from "@/lib/linkedin-articles";
 import { linkedInAnalyticsQueryOptions } from "@/lib/linkedin-api.functions";
+import { cn } from "@/lib/utils";
+
+/**
+ * What the post list ranks by. Engagements first (5 Nov 2026): the team wants
+ * to see which posts people actually reacted to, commented on and reposted.
+ */
+type PostOrder = "engagements" | "rate" | "impressions";
+
+const POST_ORDER_LABEL: Record<PostOrder, string> = {
+  engagements: "Engagements",
+  rate: "Engagement rate",
+  impressions: "Impressions",
+};
+
+type MeasuredRow = { post: PostRecord; figures: LinkedInPostFigures };
+
+const engagementsOf = (row: MeasuredRow) => row.post.likes + row.post.comments + row.post.shares;
+
+/** The measured posts in the order picked, ties broken by impressions. */
+function ordered(rows: MeasuredRow[], order: PostOrder): MeasuredRow[] {
+  const value = (row: MeasuredRow) =>
+    order === "engagements"
+      ? engagementsOf(row)
+      : order === "rate"
+        ? (trueEngagementRate(engagementsOf(row), row.figures.impressions) ?? 0)
+        : (row.figures.impressions ?? 0);
+  return [...rows].sort(
+    (a, b) => value(b) - value(a) || (b.figures.impressions ?? 0) - (a.figures.impressions ?? 0),
+  );
+}
 
 const AUDIENCE_PANEL = {
   title: "Who you reach vs who follows you",
@@ -196,6 +226,8 @@ export function LinkedInOwnerMetrics({
   const { data } = useQuery(linkedInAnalyticsQueryOptions);
   // The posts in the selected range that LinkedIn has measured.
   const measured = useMemo(() => measuredByImpressions(posts, data?.posts), [posts, data]);
+  const [order, setOrder] = useState<PostOrder>("engagements");
+  const ranked = useMemo(() => ordered(measured, order), [measured, order]);
 
   if (!data || !measured.length) {
     return (
@@ -259,11 +291,38 @@ export function LinkedInOwnerMetrics({
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Each post, as LinkedIn measured it</CardTitle>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle className="text-base">
+              Top posts by {POST_ORDER_LABEL[order].toLowerCase()}
+            </CardTitle>
+            <div
+              className="flex flex-wrap gap-1 rounded-lg border p-0.5"
+              role="tablist"
+              aria-label="Rank posts by"
+            >
+              {(Object.keys(POST_ORDER_LABEL) as PostOrder[]).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="tab"
+                  aria-selected={order === value}
+                  onClick={() => setOrder(value)}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                    order === value
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  {POST_ORDER_LABEL[value]}
+                </button>
+              ))}
+            </div>
+          </div>
           <CardDescription>
-            Reactions, comments and reposts from each public post; impressions, reach, saves and
-            sends from LinkedIn&rsquo;s own API. Refreshed daily while a post is under {TRACK_DAYS}{" "}
-            days old, then kept.
+            Each post as LinkedIn measured it. Reactions, comments and reposts from each public
+            post; impressions, reach, saves and sends from LinkedIn&rsquo;s own API. Refreshed daily
+            while a post is under {TRACK_DAYS} days old, then kept.
             {lastFetched ? ` Last read ${dateTime(lastFetched)}.` : ""}
             {data.account
               ? ` Account, ${shortDate(data.account.day)}: ${fullNumber(data.account.followers ?? 0)} followers, ${compactNumber(data.account.impressions30d ?? 0)} impressions and ${compactNumber(data.account.membersReached30d ?? 0)} members reached in 30 days.`
@@ -271,7 +330,7 @@ export function LinkedInOwnerMetrics({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <LinkedInPostList rows={measured} first={5} detail />
+          <LinkedInPostList rows={ranked} first={5} detail />
         </CardContent>
       </Card>
 
