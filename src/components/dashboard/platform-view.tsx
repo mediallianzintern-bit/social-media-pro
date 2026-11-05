@@ -503,6 +503,6 @@ export function PlatformView({
       }
     </>
   );
-  // Instagram's section titles stand out, so each section is easy to find.
-  return isInstagram ? <StrongSectionHeadings>{page}</StrongSectionHeadings> : page;
+  // Section titles stand out on both platform pages, so each section is easy to find.
+  return <StrongSectionHeadings>{page}</StrongSectionHeadings>;
 }
