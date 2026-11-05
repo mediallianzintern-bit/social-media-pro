@@ -76,11 +76,16 @@ export const LANE_QUERIES: Record<string, string[]> = {
     `"brand marketing" campaign${NO_JOB_MOVES}`,
     `consumers survey advertising brands${NO_JOB_MOVES}`,
   ],
+  // Re-searched again on 5 Nov 2026, tested on the live feed: the storytelling
+  // OR list brought in award deadlines and golf media, and "creators trust
+  // audiences" drifted. AI-made content and its trust, creators' business,
+  // and YouTube for creators came back on topic, as his own posts are.
   "content and creator craft": [
     `"AI slop" brands${NO_JOB_MOVES}`,
+    `"AI-generated content" brands${NO_JOB_MOVES}`,
     `"creator marketing"${NO_JOB_MOVES}`,
-    `creators trust audiences brands content${NO_JOB_MOVES}`,
-    `"video storytelling" OR "storytelling" brands content${NO_JOB_MOVES}`,
+    `intitle:creators AI content brands${NO_JOB_MOVES}`,
+    `intitle:YouTube creators brands${NO_JOB_MOVES}`,
   ],
 };
 

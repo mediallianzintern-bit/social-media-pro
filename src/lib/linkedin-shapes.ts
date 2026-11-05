@@ -88,17 +88,23 @@ const SHAPES: Record<string, LinkedInShape> = {
       "End on the responsibility it puts on businesses (“Having a secure website is no longer just an IT responsibility. / It is a business responsibility.”) or the real question (“The question is not whether AI will change cybersecurity. It already is. The question is whether businesses can keep up.”), then “Repost to help …”.",
     best: "AI found PHP flaws that put 70% of websites at risk, 263 words; AI agents escaping a sandbox, 243 impressions",
   },
+  // Rewritten on 5 Nov 2026 to Pritesh Sir's review and the team's model
+  // post. It used to open on "a real moment from his own work" ("I almost
+  // approved an AI-generated campaign…"), which the writer cannot know and
+  // must never invent; the day's posts in this lane also read at Grade 9.6 to
+  // 9.9 with points that could sit in any post ("Embrace tradition", "Stand
+  // out with authenticity").
   "content and creator craft": {
     is: "how to make content that works: on camera, YouTube, creators, and the quality of AI-generated content",
     opening:
-      "A real moment from his own work in one or two lines (“I almost approved an AI-generated campaign. Then one sentence stopped me.”), or a concrete contrast (“AI can help you create 100 pieces of content instead of 10. But what if those 100 pieces are just average?”).",
+      "The STORY TWIST: the most surprising thing a brand, platform or creator did with content, as a headline and a subheadline that pulls the reader on (“Can a luxury brand win by refusing AI?” / “Prada just did.”). Or the LESSON: a concrete contrast that promises a lesson for the reader's own content (“AI can help you create 100 pieces of content instead of 10.” / “But what if those 100 pieces are just average?”). Open on a moment from his own work only when the team's notes say it happened; never invent one.",
     middle: [
-      "the situation, with the exact line or example quoted (“Take your business to the next level with intelligent solutions designed for your success.”)",
-      "the turn: “That's when I went back to the customer conversations.”",
-      "the questions he asks, as a short run (“What problems were customers actually facing? / What words were they using?”), and where he teaches it (“This is something I emphasise in my AI and digital marketing sessions.”)",
+      "what the brand, platform or creator did, as short scenes, one fact a line, with the exact line, campaign or example quoted where the story has one",
+      "the turn (“Here's why this matters.”), then the contrast in two short lines: what most brands or creators do, and what this one did (“Most brands are using AI to make more ads. / Prada paid an artist to draw them by hand.”)",
+      "“I see three lessons here:”, then each point as a short plain heading on its own line and one concrete line from THIS story under it, never “Heading: general advice”; where it helps, the question a creator or marketer should ask themselves (“What problems were customers actually facing?”)",
     ],
     ending:
-      "End on a closing contrast (“The goal isn't to make AI-generated content sound human. It's to make your marketing relevant to humans.”), then “Repost to help …”.",
+      "End on a two-line closing contrast specific to the story (“Polished ads get seen. / Stories people can join get shared.”, “The goal isn't to make AI-generated content sound human. It's to make your marketing relevant to humans.”), a question about the reader's own content, then “Repost to help …”.",
     best: "I almost approved an AI-generated campaign, 219 words, 393 impressions",
   },
   "marketing fundamentals": {

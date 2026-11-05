@@ -185,6 +185,26 @@ export function hardSentences(body: string): Array<{ sentence: string; grade: nu
     .map(({ sentence, grade }) => ({ sentence, grade: Math.round(grade) }));
 }
 
+/**
+ * The long words that raise a post's grade, most used first. With his short
+ * sentences the grade is mostly word length: the dashboard's creator posts of
+ * 5 Nov ran 9 words a sentence, like his, and still read at Grade 9.6 to 9.9
+ * on words like "educational", "illustrations", "partnerships" and
+ * "engagement" (5.6 letters a word, where Grade 6 needs about 4.8).
+ */
+export function longWordsIn(body: string, limit = 8): string[] {
+  const counts = new Map<string, number>();
+  for (const word of tokensOf(body)) {
+    if (word.replace(/[^a-z]/gi, "").length < 9) continue;
+    const key = word.replace(/['’]s$/i, "");
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([word, count]) => (count > 1 ? `${word} ×${count}` : word));
+}
+
 /** The jargon in a post, each with its plain replacement. */
 export function jargonIn(body: string): Array<{ term: string; plain: string }> {
   const found: Array<{ term: string; plain: string }> = [];
@@ -258,8 +278,9 @@ export function readabilityProblems(body: string): string[] {
   const grade = readingGrade(body);
   if (grade > MAX_GRADE) {
     const hardest = hardSentences(body)[0];
+    const long = longWordsIn(body);
     problems.push(
-      `reads at about Grade ${grade}; the team wants Grade 5 to 6 (never above ${GRADE_LIMIT}): shorter sentences and shorter, everyday words${hardest ? `, starting with "${hardest.sentence.slice(0, 70)}"` : ""}`,
+      `reads at about Grade ${grade}; the team wants Grade 5 to 6 (never above ${GRADE_LIMIT}): shorter sentences and shorter, everyday words${hardest ? `, starting with "${hardest.sentence.slice(0, 70)}"` : ""}${long.length ? `. Its long words raise the grade most: ${long.join(", ")}. Swap each everyday one for a short word ("drawings" for "illustrations", "deals" for "partnerships", "likes and comments" for "engagement"), and name a long brand or product once, then say "it"` : ""}`,
     );
   }
   const ease = readingEase(body);
