@@ -93,14 +93,15 @@ const SHAPES: Record<string, LinkedInShape> = {
   // approved an AI-generated campaign…"), which the writer cannot know and
   // must never invent; the day's posts in this lane also read at Grade 9.6 to
   // 9.9 with points that could sit in any post ("Embrace tradition", "Stand
-  // out with authenticity").
+  // out with authenticity"). Its examples cover each kind of story the lane
+  // gets, mostly from his own openings, so no one example becomes the template.
   "content and creator craft": {
-    is: "how to make content that works: on camera, YouTube, creators, and the quality of AI-generated content",
+    is: "how to make content that works, whatever kind of story it is: a platform feature (YouTube, Instagram, LinkedIn), a creator's business or the creator economy, AI-made content and whether people trust it, a brand's content or campaign choice, or making content on camera",
     opening:
-      "The STORY TWIST: the most surprising thing a brand, platform or creator did with content, as a headline and a subheadline that pulls the reader on (“Can a luxury brand win by refusing AI?” / “Prada just did.”). Or the LESSON: a concrete contrast that promises a lesson for the reader's own content (“AI can help you create 100 pieces of content instead of 10.” / “But what if those 100 pieces are just average?”). Open on a moment from his own work only when the team's notes say it happened; never invent one.",
+      "The STORY TWIST or the LESSON, as a headline and a subheadline that pulls the reader on, built from THIS story whatever kind it is. Shapes from his own posts and the team's model, one per kind of story: a platform feature (“Your YouTube videos can now become sources for AI answers.” / “And this could change how you should create YouTube content.”); a creator's business (“Most creators think monetization starts with followers.” / “It doesn't.”); creators and brands (“Creators are no longer just the face of the brand.” / “They're starting to become part of the leadership team.”); AI-made content (“AI can help you create 100 pieces of content instead of 10.” / “But what if those 100 pieces are just average?”); a brand's content choice (“Can a luxury brand win by refusing AI?” / “Prada just did.”). These show the SHAPE only: never reuse their words or facts. Open on a moment from his own work only when the team's notes say it happened; never invent one.",
     middle: [
-      "what the brand, platform or creator did, as short scenes, one fact a line, with the exact line, campaign or example quoted where the story has one",
-      "the turn (“Here's why this matters.”), then the contrast in two short lines: what most brands or creators do, and what this one did (“Most brands are using AI to make more ads. / Prada paid an artist to draw them by hand.”)",
+      "what the platform, creator or brand did, as short scenes, one fact a line, with the exact feature, line, campaign or figure quoted where the story has one",
+      "the turn (“Here's why this matters.”), then the contrast in two short lines: what most brands or creators do, and what this story's platform, creator or brand did differently (shape: “Most brands are using AI to make more ads. / Prada paid an artist to draw them by hand.”; “Most businesses are using YouTube to sell. / That might be exactly why their videos don't work.”)",
       "“I see three lessons here:”, then each point as a short plain heading on its own line and one concrete line from THIS story under it, never “Heading: general advice”; where it helps, the question a creator or marketer should ask themselves (“What problems were customers actually facing?”)",
     ],
     ending:
