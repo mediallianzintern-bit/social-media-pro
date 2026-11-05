@@ -46,6 +46,9 @@ export interface ArticleText {
   words: number;
   /** False when the story's own outlet refused and another outlet's report was read. */
   sameOutlet: boolean;
+  /** An older explainer of the story's subject, not a report of the story (backgroundReading). */
+  background?: boolean;
+  publishedAt?: string | null;
 }
 
 async function get(url: string, init: RequestInit = {}): Promise<Response | null> {
@@ -393,12 +396,23 @@ async function readReel(source: SourceItem): Promise<ArticleText | null> {
  * More outlets covering the same story, for research: every anchor word is
  * searched (not only until the first one finds something, as for readStory),
  * with the same strict matching, until `want` candidates are found.
+ *
+ * Near matches come after the strict ones (5 Nov 2026): a headline with the
+ * anchor and only ONE more of the story's words. A short headline has few
+ * words to share: "Meta Andromeda reshapes AI ad retrieval" has four, and
+ * PPC Land's "Meta says Andromeda lifted Facebook conversions 2.4%" and
+ * AdExchanger's "…Upgrades To Andromeda And GEM" share two of them, so only
+ * two outlets were ever read. A near match is read only when its OPENING
+ * passes the stricter check in coverageReader, never on its headline alone,
+ * and only when one of the two words is a NAME rare in the inbox: tried
+ * without that, "Google Ads Adds New Telemedicine Certification Option" took
+ * Coursera's "Data Structures Certification and Course Options".
  */
 async function moreCoverage(
   source: SourceItem,
   inboxTitles: string[],
   want: number,
-): Promise<Array<{ url: string; publisher: string | null }>> {
+): Promise<Array<{ url: string; publisher: string | null; near?: NearMatch }>> {
   const original = stem(titleTokens(source.title));
   const frequency = new Map<string, number>();
   for (const title of inboxTitles) {
@@ -411,22 +425,61 @@ async function moreCoverage(
     .slice(0, 4);
   const seen = new Set([source.url, (source.publisher ?? "").toLowerCase()]);
   const found: Array<{ url: string; publisher: string | null }> = [];
+  const near: Array<{ url: string; publisher: string | null; near: NearMatch }> = [];
   for (const anchor of anchors) {
     const results = await searchNews(anchor, null, { days: 14 }).catch(() => []);
     for (const result of results) {
       const words = stem(titleTokens(result.title));
       const shared = [...original].filter((word) => word !== anchor && words.has(word));
       const outlet = (result.publisher ?? "").toLowerCase();
-      if (!words.has(anchor) || shared.length < 2 || seen.has(result.url) || seen.has(outlet)) {
+      if (!words.has(anchor) || !shared.length || seen.has(result.url) || seen.has(outlet)) {
         continue;
       }
       seen.add(result.url);
       seen.add(outlet);
-      found.push({ url: result.url, publisher: result.publisher });
+      if (shared.length >= 2) found.push({ url: result.url, publisher: result.publisher });
+      else {
+        const words = [anchor, ...shared];
+        const rare = words.filter((word) => (frequency.get(word) ?? 0) <= NEAR_RARE_IN_INBOX);
+        if (rare.length) {
+          near.push({ url: result.url, publisher: result.publisher, near: { words, rare } });
+        }
+      }
     }
     if (found.length >= want) break;
   }
-  return found;
+  return [...found, ...near.slice(0, Math.max(0, want - found.length))];
+}
+
+/** The two words a near match shares with the story, and which of them are rare in the inbox. */
+export interface NearMatch {
+  words: string[];
+  rare: string[];
+}
+
+/** A word in at most this many inbox headlines is rare enough to identify a story ("Andromeda", not "Meta"). */
+const NEAR_RARE_IN_INBOX = 2;
+
+/** Share of the headline's words a near match's opening must name, beside both shared words. */
+const NEAR_LEDE_SHARE = 0.5;
+
+/** Whether `word` (lowercase stem) is written as a name mid-sentence: "…said Andromeda", not "Certification". */
+function writtenAsName(text: string, word: string): boolean {
+  const name = word.charAt(0).toUpperCase() + word.slice(1).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`[a-z0-9,;:)]\\s+${name}s?\\b`).test(text);
+}
+
+/**
+ * Whether a near match's opening is about the story: it names both shared
+ * words, half the headline's words, and writes a rare one as a name.
+ */
+export function nearMatchCovers(text: string, headline: string, near: NearMatch): boolean {
+  const opening = text.split(/\s+/).slice(0, LEDE_WORDS).join(" ");
+  const lede = stem(titleTokens(opening));
+  if (!near.words.every((word) => lede.has(word))) return false;
+  if (!near.rare.some((word) => writtenAsName(opening, word))) return false;
+  const wanted = [...stem(titleTokens(headline))];
+  return wanted.filter((word) => lede.has(word)).length / wanted.length >= NEAR_LEDE_SHARE;
 }
 
 /**
@@ -439,7 +492,12 @@ async function moreCoverage(
  * Free: plain page fetches and news searches.
  */
 export async function coverageReader(source: SourceItem, inboxTitles: string[] = []) {
-  const candidates: Array<{ url: string; publisher: string | null; own: boolean }> = [
+  const candidates: Array<{
+    url: string;
+    publisher: string | null;
+    own: boolean;
+    near?: NearMatch;
+  }> = [
     { url: source.url, publisher: source.publisher, own: true },
     ...(await moreCoverage(source, inboxTitles, 10)).map((other) => ({ ...other, own: false })),
   ];
@@ -450,6 +508,7 @@ export async function coverageReader(source: SourceItem, inboxTitles: string[] =
     if (!url) return null;
     const text = await readPage(url);
     if (!text || (!candidate.own && !coversStory(text, source.title))) return null;
+    if (candidate.near && !nearMatchCovers(text, source.title, candidate.near)) return null;
     return {
       publisher: candidate.publisher,
       url: (await publisherUrl(url)) ?? url,
@@ -478,6 +537,169 @@ export async function coverageReader(source: SourceItem, inboxTitles: string[] =
     /** Outlets found for the story that could not be read. */
     unreadable: () => unreadable,
   };
+}
+
+/**
+ * The story's subject as a name, from the reports already read: the run of
+ * capitalised headline words its reports write most often mid-sentence
+ * ("Meta Andromeda", from "Meta's Andromeda" and "Meta Andromeda"). Null when
+ * no name is written often enough to be sure, which is the usual case for a
+ * headline about a trend ("Why Trust Is Becoming Essential for Agentic
+ * Commerce" names nothing its reports capitalise): no background is then
+ * searched. A single word counts only when it is rare in the inbox, since
+ * background on "Meta" alone would be about anything Meta does.
+ */
+export function storySubject(
+  headline: string,
+  texts: string[],
+  inboxTitles: string[] = [],
+): string | null {
+  const wanted = stem(titleTokens(headline));
+  const generic = new Set(
+    "ai ad ads app apps tool tools model models brand brands campaign marketing advertising new first global world india ceo".split(
+      " ",
+    ),
+  );
+  const counts = new Map<string, { count: number; text: string }>();
+  for (const text of texts) {
+    // A word after a sentence's end is capitalised for grammar, not as a name.
+    const words = text.replace(/[’']s\b/g, "").split(/\s+/);
+    let run: string[] = [];
+    const close = () => {
+      for (let start = 0; start < run.length; start += 1) {
+        for (let end = start + 1; end <= Math.min(run.length, start + 3); end += 1) {
+          const phrase = run.slice(start, end);
+          const key = phrase.map((word) => word.toLowerCase()).join(" ");
+          const entry = counts.get(key) ?? { count: 0, text: phrase.join(" ") };
+          entry.count += 1;
+          counts.set(key, entry);
+        }
+      }
+      run = [];
+    };
+    for (let index = 0; index < words.length; index += 1) {
+      const raw = words[index]!;
+      const word = raw.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9-]+$/g, "");
+      const previous = words[index - 1] ?? "";
+      const midSentence = index > 0 && !/[.!?:"“”]$/.test(previous);
+      const key = word.toLowerCase().replace(/s$/, "");
+      if (
+        midSentence &&
+        /^[A-Z]/.test(word) &&
+        wanted.has(key) &&
+        !generic.has(word.toLowerCase())
+      ) {
+        run.push(word);
+        // Punctuation after the word ends the name: "Andromeda, GEM" is two.
+        if (/[,;:.!?)]$/.test(raw)) close();
+      } else {
+        close();
+      }
+    }
+    close();
+  }
+  const frequency = new Map<string, number>();
+  for (const title of inboxTitles) {
+    for (const word of stem(titleTokens(title))) {
+      frequency.set(word, (frequency.get(word) ?? 0) + 1);
+    }
+  }
+  const best = [...counts.entries()]
+    .filter(([key, entry]) => {
+      if (entry.count < SUBJECT_MIN_MENTIONS) return false;
+      if (key.includes(" ")) return true;
+      return (frequency.get(key.replace(/s$/, "")) ?? 0) <= NEAR_RARE_IN_INBOX;
+    })
+    // The longest name that is written often, then the most often written.
+    .sort(([a, x], [b, y]) => b.split(" ").length - a.split(" ").length || y.count - x.count)[0];
+  return best ? best[1].text : null;
+}
+
+/** Times a name must be written across the reports read before it is taken as the subject. */
+const SUBJECT_MIN_MENTIONS = 3;
+
+/** Background articles read per story, at most. */
+const BACKGROUND_MAX = 2;
+
+/** Background pages tried per story, read or not. */
+const BACKGROUND_FETCHES = 4;
+
+/** How far back background is searched. */
+const BACKGROUND_DAYS = 365;
+
+/** An article this close to the story's own date is a report of it, not background. */
+const BACKGROUND_GAP_DAYS = 10;
+
+/** Headlines that explain a subject rather than report on it; read first. */
+const EXPLAINER =
+  /\b(what is|what are|what .{1,40} means|how .{1,40} works?|explained|explainer|guide|everything|inside|why|meet|what .{1,40} changes)\b/i;
+
+/**
+ * Up to two older articles that EXPLAIN the story's subject (5 Nov 2026), as
+ * background beside the reports of the story: Nest Commerce's "What Is Meta
+ * Andromeda?" (Feb 2026) beside the news of Andromeda's October update.
+ *
+ * Searched on the subject's name (storySubject) over the past year, keeping
+ * only articles from before the story (a later or same-week one is a report
+ * of it), whose headline and opening both name the subject. Explainers
+ * ("What is…", "How … works", "Inside…") are read first. Free: one news
+ * search and a few page reads. Google News only lists what it indexes, so a
+ * company's own blog post may not be found.
+ */
+export async function backgroundReading(
+  source: SourceItem,
+  subject: string,
+  alreadyRead: string[],
+): Promise<ArticleText[]> {
+  const words = [...stem(titleTokens(subject))];
+  if (!words.length) return [];
+  const storyTime = source.publishedAt ? new Date(source.publishedAt).getTime() : Date.now();
+  const before = storyTime - BACKGROUND_GAP_DAYS * 86_400_000;
+  const seen = new Set(alreadyRead.map((value) => value.toLowerCase()));
+  const results = await searchNews(`"${subject}"`, null, { days: BACKGROUND_DAYS }).catch(() => []);
+  const candidates = results
+    .filter((result) => {
+      const time = result.publishedAt ? new Date(result.publishedAt).getTime() : NaN;
+      if (!Number.isFinite(time) || time > before) return false;
+      const title = stem(titleTokens(result.title));
+      return words.every((word) => title.has(word));
+    })
+    .sort(
+      (a, b) =>
+        Number(EXPLAINER.test(b.title)) - Number(EXPLAINER.test(a.title)) ||
+        new Date(b.publishedAt!).getTime() - new Date(a.publishedAt!).getTime(),
+    );
+
+  const got: ArticleText[] = [];
+  let fetches = 0;
+  for (const candidate of candidates) {
+    if (got.length >= BACKGROUND_MAX || fetches >= BACKGROUND_FETCHES) break;
+    const outlet = (candidate.publisher ?? "").toLowerCase();
+    if (seen.has(candidate.url.toLowerCase()) || (outlet && seen.has(outlet))) continue;
+    fetches += 1;
+    const url = await publisherUrl(candidate.url);
+    if (!url || seen.has(url.toLowerCase())) continue;
+    const text = await readPage(url).catch(() => null);
+    if (!text) continue;
+    const opening = text
+      .split(/\s+/)
+      .slice(0, LEDE_WORDS * 2)
+      .join(" ");
+    const lede = stem(titleTokens(opening));
+    if (!words.every((word) => lede.has(word))) continue;
+    seen.add(url.toLowerCase());
+    if (outlet) seen.add(outlet);
+    got.push({
+      publisher: candidate.publisher,
+      url,
+      text,
+      words: countWords(text),
+      sameOutlet: false,
+      background: true,
+      publishedAt: candidate.publishedAt,
+    });
+  }
+  return got;
 }
 
 export async function readStory(

@@ -66,7 +66,7 @@ import { ResearchBlock } from "@/components/dashboard/research-block";
 import { ScriptVerdictButtons } from "@/components/dashboard/script-verdict";
 import { scriptVerdictsQueryOptions } from "@/lib/script-feedback.functions";
 import { ToneReferencesBlock } from "@/components/dashboard/tone-references-block";
-import { factSheetText } from "@/lib/research";
+import { factSheetText, newsSources, sourceLabel } from "@/lib/research";
 
 /**
  * The handover document, as plain text.
@@ -114,8 +114,12 @@ function toPlainText(idea: ContentIdea): string {
     // outlet, or another outlet's report of it when that one blocks reading.
     if (source.research) {
       lines.push(
-        `Researched: ${source.research.sources.length} outlets — ${source.research.sources
-          .map((outlet, index) => `${index + 1}. ${outlet.publisher ?? "unknown"} ${outlet.url}`)
+        `Researched: ${newsSources(source.research).length} outlets${
+          source.research.sources.length > newsSources(source.research).length
+            ? ` + ${source.research.sources.length - newsSources(source.research).length} background`
+            : ""
+        } — ${source.research.sources
+          .map((outlet, index) => `${index + 1}. ${sourceLabel(outlet, index + 1)} ${outlet.url}`)
           .join("; ")}`,
       );
       lines.push("Facts, with the outlets that state them:");

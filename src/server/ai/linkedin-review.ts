@@ -32,7 +32,7 @@ import { earlyYears, figuresOf, sharesFigures, unsupportedFigures } from "@/lib/
 import type { ContentIdea } from "@/lib/ai-types";
 import { isOpeningPair } from "@/lib/hook-variants";
 import { linkedInShapesBlock } from "@/lib/linkedin-shapes";
-import { factSheetText, type StoryResearch } from "@/lib/research";
+import { factSheetText, monthOf, type StoryResearch } from "@/lib/research";
 import type { SourceItem } from "@/lib/sources";
 import { linkedInLength, voiceFlags } from "@/lib/voice-check";
 
@@ -273,7 +273,19 @@ export function withFactNotes(data: unknown, sources: SourceItem[]): unknown {
         `Verify before posting: the post dates something to ${year}, but the story is from ${source!.publishedAt!.slice(0, 4)}. Check the year in the original article; the research can get it wrong.`,
       );
     }
-    for (const fact of source?.research?.facts ?? []) {
+    // A figure only an older explainer states may be out of date (5 Nov 2026).
+    const research = source?.research;
+    const newsFacts = (research?.facts ?? []).filter((fact) => !fact.background);
+    for (const fact of research?.facts ?? []) {
+      if (!fact.background || !sharesFigures(text, fact.text)) continue;
+      if (newsFacts.some((other) => sharesFigures(fact.text, other.text))) continue;
+      const from = research!.sources[fact.sources[0]! - 1];
+      const month = monthOf(from?.publishedAt);
+      added.push(
+        `Verify before posting: "${fact.text}" comes from background (${from?.publisher ?? "an older article"}${month ? `, ${month}` : ""}), not from this story's news. Say it as past context, or check it is still current.`,
+      );
+    }
+    for (const fact of research?.facts ?? []) {
       if (fact.conflict && sharesFigures(text, fact.text)) {
         added.push(
           `Verify before posting: the outlets disagree on "${fact.text}" (${fact.conflict}). Use the figure a primary source gives, and never mix the two.`,

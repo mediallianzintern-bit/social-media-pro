@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { FORMAT_LABEL, type ContentIdea } from "@/lib/ai-types";
 import { withChosenHook } from "@/lib/hook-variants";
+import { sourceLabel } from "@/lib/research";
 
 /**
  * One written script, read-only.
@@ -94,7 +95,7 @@ export function IdeaScriptBody({ idea: written }: { idea: ContentIdea }) {
               {" "}
               Researched across {idea.source.research.sources.length} outlets (
               {idea.source.research.sources
-                .map((outlet) => outlet.publisher ?? "unknown")
+                .map((outlet, index) => sourceLabel(outlet, index + 1))
                 .join(", ")}
               ), {idea.source.research.facts.length} facts.
             </>
