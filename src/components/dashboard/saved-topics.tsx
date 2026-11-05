@@ -19,6 +19,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   analysisQueryOptions,
   generateOneIdea,
   getScriptForSource,
@@ -47,6 +54,10 @@ const PLATFORMS: PlatformId[] = ["instagram", "linkedin"];
  * by lane there should find the same control here. Every row keeps its own
  * save button, so a topic can be taken off the shortlist from the one place
  * built to hold it.
+ *
+ * A platform menu at the top right (5 Nov 2026): All shows both platforms'
+ * saved topics and every lane, Instagram or LinkedIn only that platform's
+ * topics and its own lanes.
  */
 export function SavedTopics() {
   const results = useQueries({
@@ -59,14 +70,25 @@ export function SavedTopics() {
     return [...all].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }, [results]);
 
+  const [platform, setPlatform] = useState<PlatformId | "all">("all");
   const [lane, setLane] = useState<string | null>(null);
+  const onPlatform = useMemo(
+    () => (platform === "all" ? items : items.filter((item) => item.platform === platform)),
+    [items, platform],
+  );
   const lanes = useMemo(
     () => [
-      ...new Set(items.map((item) => item.lane).filter((value): value is string => Boolean(value))),
+      ...new Set(
+        onPlatform.map((item) => item.lane).filter((value): value is string => Boolean(value)),
+      ),
     ],
-    [items],
+    [onPlatform],
   );
-  const filtered = lane ? items.filter((item) => item.lane === lane) : items;
+  // A lane the chosen platform does not have is no filter at all.
+  const activeLane = lane && lanes.includes(lane) ? lane : null;
+  const filtered = activeLane ? onPlatform.filter((item) => item.lane === activeLane) : onPlatform;
+  const where =
+    platform === "all" ? "across Instagram and LinkedIn" : `on ${PLATFORM_META[platform].label}`;
 
   return (
     <div className="space-y-6">
@@ -81,35 +103,60 @@ export function SavedTopics() {
         note={
           isLoading
             ? "Loading…"
-            : items.length
-              ? `${items.length} saved across Instagram and LinkedIn`
-              : "Nothing saved yet"
+            : onPlatform.length
+              ? `${onPlatform.length} saved ${where}`
+              : items.length
+                ? `Nothing saved ${where}`
+                : "Nothing saved yet"
         }
       />
 
       <Card>
         <CardContent className="space-y-4 p-5">
-          {lanes.length > 1 ? (
-            <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filter by lane">
-              {[null, ...lanes].map((value) => (
-                <button
-                  key={value ?? "all"}
-                  type="button"
-                  role="tab"
-                  aria-selected={lane === value}
-                  onClick={() => setLane(value)}
-                  className={cn(
-                    "rounded-full border px-2.5 py-0.5 text-xs transition-colors",
-                    lane === value
-                      ? "border-foreground/30 bg-foreground text-background"
-                      : "text-muted-foreground hover:bg-muted",
-                  )}
-                >
-                  {value ?? "All lanes"}
-                </button>
-              ))}
-            </div>
-          ) : null}
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-start sm:justify-between">
+            {lanes.length > 1 ? (
+              <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filter by lane">
+                {[null, ...lanes].map((value) => (
+                  <button
+                    key={value ?? "all"}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeLane === value}
+                    onClick={() => setLane(value)}
+                    className={cn(
+                      "rounded-full border px-2.5 py-0.5 text-xs transition-colors",
+                      activeLane === value
+                        ? "border-foreground/30 bg-foreground text-background"
+                        : "text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    {value ?? "All lanes"}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <span />
+            )}
+            <Select
+              value={platform}
+              onValueChange={(value) => {
+                setPlatform(value as PlatformId | "all");
+                setLane(null);
+              }}
+            >
+              <SelectTrigger className="h-9 w-full shrink-0 sm:w-44" aria-label="Platform">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All platforms</SelectItem>
+                {PLATFORMS.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {PLATFORM_META[value].label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           {filtered.length ? (
             <ul className="divide-y">
@@ -119,9 +166,11 @@ export function SavedTopics() {
             </ul>
           ) : !isLoading ? (
             <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-              {items.length
+              {onPlatform.length
                 ? "No saved topics in this lane."
-                : "Press Save on a story in Topics in the news, or on a post in Rising on Instagram, and it will appear here."}
+                : items.length
+                  ? `Nothing saved ${where} yet.`
+                  : "Press Save on a story in Topics in the news, or on a post in Rising on Instagram, and it will appear here."}
             </p>
           ) : null}
         </CardContent>
@@ -168,7 +217,11 @@ function SavedRow({ item }: { item: SavedTopic }) {
             ) : (
               <Sparkles className="size-3" aria-hidden />
             )}
-            {reaction ? "Reaction hook reel" : "Reel topic"}
+            {reaction
+              ? "Reaction hook reel"
+              : item.platform === "linkedin"
+                ? "Post topic"
+                : "Reel topic"}
           </Badge>
           <span
             className="inline-flex items-center gap-1 font-medium"
