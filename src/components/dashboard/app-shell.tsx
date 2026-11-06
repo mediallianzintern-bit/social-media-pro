@@ -11,6 +11,7 @@ import {
   ListChecks,
   LogOut,
   Radio,
+  TrendingUp,
 } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 
@@ -48,6 +49,9 @@ const NAV = [
   { to: "/saved", label: "Saved", icon: Bookmark, group: "Analytics" },
   { to: "/filmed", label: "Filmed reels", icon: Film, group: "Analytics" },
   { to: "/sources", label: "Data sources", icon: Radio, group: "Setup" },
+  // Listed last but shown under Analytics, after Filmed: universal trends for
+  // both platforms (6 Nov 2026).
+  { to: "/trends", label: "Trends", icon: TrendingUp, group: "Analytics" },
 ] as const;
 
 const GROUPS = ["Analytics", "Platforms", "Setup"] as const;

@@ -24,6 +24,7 @@ import { Route as AppLinkedinRouteImport } from './routes/_app/linkedin'
 import { Route as AppReactionsRouteImport } from './routes/_app/reactions'
 import { Route as AppSavedRouteImport } from './routes/_app/saved'
 import { Route as AppSourcesRouteImport } from './routes/_app/sources'
+import { Route as AppTrendsRouteImport } from './routes/_app/trends'
 import { Route as AppWorkspaceRouteImport } from './routes/_app/workspace'
 import { Route as AppConnectLinkedinRouteImport } from './routes/_app/connect/linkedin'
 
@@ -101,6 +102,11 @@ const AppSourcesRoute = AppSourcesRouteImport.update({
   path: '/sources',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTrendsRoute = AppTrendsRouteImport.update({
+  id: '/trends',
+  path: '/trends',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppWorkspaceRoute = AppWorkspaceRouteImport.update({
   id: '/workspace',
   path: '/workspace',
@@ -127,6 +133,7 @@ export interface FileRoutesByFullPath {
   '/reactions': typeof AppReactionsRoute
   '/saved': typeof AppSavedRoute
   '/sources': typeof AppSourcesRoute
+  '/trends': typeof AppTrendsRoute
   '/workspace': typeof AppWorkspaceRoute
   '/connect/linkedin': typeof AppConnectLinkedinRoute
 }
@@ -144,6 +151,7 @@ export interface FileRoutesByTo {
   '/reactions': typeof AppReactionsRoute
   '/saved': typeof AppSavedRoute
   '/sources': typeof AppSourcesRoute
+  '/trends': typeof AppTrendsRoute
   '/workspace': typeof AppWorkspaceRoute
   '/': typeof AppIndexRoute
   '/connect/linkedin': typeof AppConnectLinkedinRoute
@@ -164,6 +172,7 @@ export interface FileRoutesById {
   '/_app/reactions': typeof AppReactionsRoute
   '/_app/saved': typeof AppSavedRoute
   '/_app/sources': typeof AppSourcesRoute
+  '/_app/trends': typeof AppTrendsRoute
   '/_app/workspace': typeof AppWorkspaceRoute
   '/_app/': typeof AppIndexRoute
   '/_app/connect/linkedin': typeof AppConnectLinkedinRoute
@@ -185,6 +194,7 @@ export interface FileRouteTypes {
     | '/reactions'
     | '/saved'
     | '/sources'
+    | '/trends'
     | '/workspace'
     | '/connect/linkedin'
   fileRoutesByTo: FileRoutesByTo
@@ -202,6 +212,7 @@ export interface FileRouteTypes {
     | '/reactions'
     | '/saved'
     | '/sources'
+    | '/trends'
     | '/workspace'
     | '/'
     | '/connect/linkedin'
@@ -221,6 +232,7 @@ export interface FileRouteTypes {
     | '/_app/reactions'
     | '/_app/saved'
     | '/_app/sources'
+    | '/_app/trends'
     | '/_app/workspace'
     | '/_app/'
     | '/_app/connect/linkedin'
@@ -344,6 +356,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSourcesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/trends': {
+      id: '/_app/trends'
+      path: '/trends'
+      fullPath: '/trends'
+      preLoaderRoute: typeof AppTrendsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/workspace': {
       id: '/_app/workspace'
       path: '/workspace'
@@ -368,6 +387,7 @@ interface AppRouteChildren {
   AppReactionsRoute: typeof AppReactionsRoute
   AppSavedRoute: typeof AppSavedRoute
   AppSourcesRoute: typeof AppSourcesRoute
+  AppTrendsRoute: typeof AppTrendsRoute
   AppWorkspaceRoute: typeof AppWorkspaceRoute
   AppIndexRoute: typeof AppIndexRoute
   AppConnectLinkedinRoute: typeof AppConnectLinkedinRoute
@@ -380,6 +400,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppReactionsRoute: AppReactionsRoute,
   AppSavedRoute: AppSavedRoute,
   AppSourcesRoute: AppSourcesRoute,
+  AppTrendsRoute: AppTrendsRoute,
   AppWorkspaceRoute: AppWorkspaceRoute,
   AppIndexRoute: AppIndexRoute,
   AppConnectLinkedinRoute: AppConnectLinkedinRoute,
