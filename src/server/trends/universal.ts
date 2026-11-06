@@ -2,11 +2,13 @@
 // Pritesh Sir talks about, for both platforms, before a lane or platform is
 // chosen (lib/universal-trends.ts).
 //
-// Free: Google News searches only, run one at a time as the topic refresh
-// does. Most searches are the ones each lane already runs, tested on the live
-// feed (sources/queries.ts); the companies-using-AI searches were tested on
-// 6 Nov 2026 and returned Neko Health, Stitch Fix's AI-built brands and
-// Heineken's AI decisions.
+// Free: Google News searches only, a few at a time. Its OWN searches, not
+// the lanes' (6 Nov 2026, the team's request): built around the companies and
+// platforms whose news moves first (Meta, Google, Amazon, OpenAI, Anthropic,
+// TikTok, YouTube, LinkedIn), so a story like Meta's Andromeda update is
+// caught whatever the lanes search for. Ranked by urgency: fresh and widely
+// carried first (lib/universal-trends.ts urgencyOf). Every search was tested
+// on the live feed on 6 Nov 2026.
 //
 // Stored in trend_observations under its own niche, which the opt-in niche
 // listener (listen.ts) never reads. No migration: the table already allows a
@@ -14,49 +16,108 @@
 // platform's topics, in a lane, where it is written like any other story.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { PlatformId } from "@/lib/analytics-types";
-import { clusterStories, rankSources, type SourceDraft } from "@/lib/sources";
-import type { TrendItem, TrendsView } from "@/lib/universal-trends";
+import { clusterStories, type SourceDraft } from "@/lib/sources";
+import { byUrgency, type TrendItem, type TrendsView } from "@/lib/universal-trends";
 
 import { OWNER_ACCOUNTS } from "../apify/accounts";
 import { searchNews } from "../sources/news";
-import { isNewsOffLane, LANE_QUERIES } from "../sources/queries";
+import { isNewsOffLane } from "../sources/queries";
 import { readTaxonomy, saveSourceItems } from "../store";
 
 /** The niche these rows are stored under, apart from the niche listener's. */
 const NICHE = "universal-trends";
 
-/** How far back a fetch searches. */
-const SEARCH_DAYS = 7;
+/** How far back a fetch searches: two weeks, so a big update is still here a week on. */
+const SEARCH_DAYS = 14;
 
-/** Stories kept per category per fetch. */
-const PER_CATEGORY = 12;
+/**
+ * Stories kept per category per fetch, the most urgent first. Enough to
+ * reach back two weeks: Meta's Andromeda update (28 Oct) was the 110th most
+ * urgent ad-platform story on 6 Nov, two single-outlet headlines, and was
+ * cut at 25. The page filters by age and searches by word instead.
+ */
+const PER_CATEGORY = 100;
 
 /** How long a stored trend stays on the page. */
 const KEEP_DAYS = 14;
 
+/**
+ * Fetches older than this are deleted after a new one is stored: the page
+ * shows each category's latest fetch, and one hourly fetch would otherwise
+ * add hundreds of rows an hour.
+ */
+const KEEP_FETCH_HOURS = 3;
+
 /** A second fetch within this many minutes returns the stored list instead. */
 const FLOOR_MINUTES = 10;
 
-const NO_JOB_MOVES = " -appoints -appointed -joins -hires -promoted";
-const lane = (name: string) => LANE_QUERIES[name] ?? [];
+/** Searches run at once: quick, and still gentle on a free public feed. */
+const PARALLEL = 3;
+
+/** Job moves and stock-market stories, which every company search also finds. */
+const NOISE = " -appoints -appointed -joins -hires -promoted -stock -shares -investors";
+/** Election campaigns, which "campaign" also finds. */
+const NO_POLITICS = " -election -candidate -voters -Trump -senate -congress -political -polls";
+/** A launch or an announcement, not a how-to or a review. */
+const NEWS = " launches OR announces OR releases OR unveils OR introduces";
 
 /**
- * Each category's searches. Tested on the live feed on 6 Nov 2026: the
- * Kantar OR Nielsen search is left out here (it brought Nielsen's college
- * basketball rankings to the top), and the brand searches skip job moves.
+ * Each category's searches, independent of any lane. Tested on the live feed
+ * on 6 Nov 2026: the Meta searches found Andromeda; "campaign" alone found
+ * election ads, hence NO_POLITICS; a bare "Gemini" or "Claude" found how-to
+ * reviews, hence NEWS.
  */
 const SEARCHES: Record<string, string[]> = {
-  marketing: [0, 2, 3, 4].map((index) => lane("marketing fundamentals")[index]!).filter(Boolean),
-  "ad-platforms": lane("marketing fundamentals").slice(7),
-  brands: lane("brand strategy lessons").map((query) => `${query}${NO_JOB_MOVES}`),
-  campaigns: [`"brand marketing" campaign${NO_JOB_MOVES}`, "intitle:campaign brand ad"],
+  marketing: [
+    "marketers study OR survey OR report marketing",
+    '"brand recall" OR "ad recall" OR "brand building"',
+    '"marketing funnel" OR "marketing attribution" OR "marketing measurement" OR "marketing mix"',
+    '"retail media" brands advertising',
+  ],
+  "ad-platforms": [
+    "intitle:Meta advertisers",
+    "intitle:Meta ads AI",
+    'intitle:"Google Ads" OR intitle:"Performance Max"',
+    'intitle:"Amazon Ads" OR intitle:"Amazon DSP"',
+    "intitle:TikTok advertisers OR brands",
+    "intitle:YouTube advertisers OR ads",
+    "intitle:LinkedIn ads OR advertisers",
+    '"Microsoft Advertising" OR intitle:Pinterest advertisers',
+  ],
+  brands: [
+    `intitle:rebrand brand${NO_POLITICS}`,
+    '"brand strategy" OR repositioning brand',
+    '"new logo" OR "brand identity" brand',
+  ],
+  campaigns: [
+    `intitle:campaign brand${NO_POLITICS}`,
+    `"new campaign" brand ad${NO_POLITICS}`,
+    '"holiday campaign" OR "Christmas ad" OR "festive campaign" brand',
+  ],
   stunts: ['"marketing stunt"', "brand stunt viral marketing", "intitle:stunt brand"],
-  ai: lane("ai launches explained"),
-  "frontier-ai": ['"frontier AI"', '"AI safety" OpenAI', '"AI agents" security risk'],
-  "ai-marketing": lane("ai x marketing bridge"),
+  ai: [
+    `intitle:OpenAI${NEWS}`,
+    `intitle:Anthropic OR intitle:Claude${NEWS}`,
+    `intitle:Gemini OR intitle:DeepMind${NEWS}`,
+    `intitle:"Meta AI" OR intitle:Llama${NEWS}`,
+    `intitle:xAI OR intitle:Grok OR intitle:DeepSeek OR intitle:Mistral${NEWS}`,
+    "intitle:AI model launch",
+  ],
+  "frontier-ai": [
+    '"frontier AI"',
+    '"AI safety" OR AGI OR superintelligence lab',
+    '"AI agents" security risk',
+  ],
+  "ai-marketing": [
+    '"AI advertising" OR "AI ads" brands',
+    '"ChatGPT ads" OR "ads in ChatGPT"',
+    '"AI search" OR "AI Overviews" brands visibility',
+    '"agentic commerce" OR "AI shopping" retailers',
+  ],
   "ai-companies": [
-    `company "uses AI" customers${NO_JOB_MOVES}`,
-    `brand "using AI" to${NO_JOB_MOVES}`,
+    'company "uses AI" customers',
+    'brand "using AI" to',
+    '"AI-powered" startup raises customers',
     '"Neko Health"',
   ],
 };
@@ -67,6 +128,9 @@ const SEARCHES: Record<string, string[]> = {
  * is kept only when its headline is about a brand or its marketing.
  */
 const MUST: Record<string, RegExp> = {
+  // "Attribution" also found a court ruling and climate science (6 Nov 2026).
+  marketing:
+    /\b(marketing|marketer\w*|brand\w*|advertis\w*|ads?|media|consumer\w*|shopper\w*|campaign\w*|cmo\w*|retail\w*|customer\w*|funnel|sponsor\w*)\b/i,
   stunts: /\b(brand|brands|campaign\w*|marketing|advertis\w*|ads?|viral)\b/i,
 };
 
@@ -132,23 +196,30 @@ export async function readUniversalTrends(): Promise<TrendsView> {
       .eq("niche", NICHE)
       .gte("observed_at", since)
       .order("observed_at", { ascending: false })
-      .limit(2000) as Promise<{ data: Row[] | null; error: { message: string } | null }>,
+      .limit(5000) as Promise<{ data: Row[] | null; error: { message: string } | null }>,
     lanesOf("instagram"),
     lanesOf("linkedin"),
   ]);
   if (result.error) throw new Error(`Could not read trends: ${result.error.message}`);
+  // Each category's latest fetch only, so the list is what is new now; a
+  // category whose searches failed keeps its previous fetch.
+  const all = (result.data ?? []).map(itemOf).filter((item): item is TrendItem => Boolean(item));
+  const latestOf = new Map<string, string>();
+  for (const item of all) {
+    if ((latestOf.get(item.category) ?? "") < item.fetchedAt) {
+      latestOf.set(item.category, item.fetchedAt);
+    }
+  }
   const seen = new Set<string>();
   const items: TrendItem[] = [];
-  for (const row of result.data ?? []) {
-    const item = itemOf(row);
-    if (!item || seen.has(item.url)) continue;
+  for (const item of all) {
+    if (item.fetchedAt !== latestOf.get(item.category) || seen.has(item.url)) continue;
     seen.add(item.url);
     items.push(item);
   }
-  // Trending first within the latest fetch, then by date.
   const latest = items[0]?.fetchedAt ?? null;
   return {
-    items: rankSources(items),
+    items: byUrgency(items),
     lastFetched: latest,
     lanes: { instagram, linkedin },
   };
@@ -179,20 +250,27 @@ export async function fetchUniversalTrends(): Promise<{
   const seen = new Set<string>();
   const now = new Date().toISOString();
   const rows: Array<Record<string, unknown>> = [];
-  for (const [category, queries] of Object.entries(SEARCHES)) {
-    const found: SourceDraft[] = [];
-    for (const query of queries) {
-      try {
-        found.push(...(await searchNews(query, null, { days: SEARCH_DAYS })));
-      } catch (error) {
-        failures.push(`${query}: ${error instanceof Error ? error.message : String(error)}`);
-      }
-    }
-    // Clustered within the category, so one story carried by four outlets is
-    // one row marked trending; the same story in two categories stays in the
-    // first.
+  // Every search, a few at a time, then grouped back into their categories.
+  const plan = Object.entries(SEARCHES).flatMap(([category, queries]) =>
+    queries.map((query) => ({ category, query })),
+  );
+  const results = new Map<string, SourceDraft[]>();
+  for (let start = 0; start < plan.length; start += PARALLEL) {
+    await Promise.all(
+      plan.slice(start, start + PARALLEL).map(async ({ category, query }) => {
+        try {
+          const found = await searchNews(`${query}${NOISE}`, null, { days: SEARCH_DAYS });
+          results.set(category, [...(results.get(category) ?? []), ...found]);
+        } catch (error) {
+          failures.push(`${query}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }),
+    );
+  }
+  for (const category of Object.keys(SEARCHES)) {
+    const found = results.get(category) ?? [];
     const must = MUST[category];
-    const stories = rankSources(
+    const stories = byUrgency(
       clusterStories(
         found.filter(
           (story) => isStory(story.title, story.publisher) && (!must || must.test(story.title)),
@@ -226,8 +304,8 @@ export async function fetchUniversalTrends(): Promise<{
     const { error } = (await table().insert(rows)) as { error: { message: string } | null };
     if (error) throw new Error(`Could not store trends: ${error.message}`);
   }
-  // Keep the table small: rows past the page's window are of no further use.
-  const cutoff = new Date(Date.now() - KEEP_DAYS * 86_400_000).toISOString();
+  // Keep the table small: the page reads each category's latest fetch.
+  const cutoff = new Date(Date.now() - KEEP_FETCH_HOURS * 3_600_000).toISOString();
   await table().delete().eq("niche", NICHE).lt("observed_at", cutoff);
   return { ran: true, stored: rows.length, failures };
 }

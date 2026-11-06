@@ -1,6 +1,6 @@
 // Universal trends (6 Nov 2026): what is new across everything Pritesh Sir
 // talks about, fetched once for both platforms, before any lane or platform
-// is chosen. A story worth a post is then added to Instagram or LinkedIn in
+// is chosen, with its own searches: no lane restricts what it finds. A story worth a post is then added to Instagram or LinkedIn in
 // one of that platform's lanes, and written there in his voice like any
 // other story (server/trends.ts).
 //
@@ -22,7 +22,8 @@ export const TREND_CATEGORIES: TrendCategory[] = [
   {
     id: "ad-platforms",
     label: "Ad platforms",
-    about: "New features on Meta, Google, Amazon, Microsoft, TikTok and LinkedIn ads",
+    about:
+      "What changes on Meta, Google, Amazon, TikTok, YouTube, LinkedIn, Microsoft and Pinterest ads",
   },
   { id: "brands", label: "Brands", about: "Brand strategy, rebrands and repositioning" },
   { id: "campaigns", label: "Brand campaigns", about: "New campaigns from brands" },
@@ -30,7 +31,7 @@ export const TREND_CATEGORIES: TrendCategory[] = [
   {
     id: "ai",
     label: "AI launches",
-    about: "New models and tools from OpenAI, Anthropic, Google, Meta",
+    about: "Launches from OpenAI, Anthropic, Google, Meta, xAI, DeepSeek and Mistral",
   },
   {
     id: "frontier-ai",
@@ -114,4 +115,52 @@ export function suggestLane(category: string, lanes: string[]): string | null {
     if (score > 0 && (!best || score > best.score)) best = { lane, score };
   }
   return best?.lane ?? null;
+}
+
+/** Hours since a story was published; Infinity when it has no date. */
+export function hoursOld(publishedAt: string | null, now = Date.now()): number {
+  const time = publishedAt ? new Date(publishedAt).getTime() : NaN;
+  return Number.isFinite(time) ? Math.max(0, (now - time) / 3_600_000) : Infinity;
+}
+
+/** Published in the last six hours and already carried by two or more outlets. */
+export const BREAKING_HOURS = 6;
+/** Published in the last day. */
+export const NEW_HOURS = 24;
+
+/**
+ * How urgent a story is (6 Nov 2026, the team's request for the latest news
+ * first): its coverage, halved for every day it has aged. Two days old with
+ * ten outlets still beats this morning's single report, and a single report
+ * from an hour ago beats one outlet's story from three days back.
+ */
+export function urgencyOf(
+  story: { coverage: number; publishedAt: string | null },
+  now = Date.now(),
+): number {
+  const hours = hoursOld(story.publishedAt, now);
+  if (!Number.isFinite(hours)) return 0;
+  return (1 + Math.log2(Math.max(1, story.coverage))) * Math.pow(0.5, hours / 24);
+}
+
+/** Most urgent first; the newest first between equals. */
+export function byUrgency<T extends { coverage: number; publishedAt: string | null }>(
+  items: T[],
+  now = Date.now(),
+): T[] {
+  return [...items].sort(
+    (a, b) =>
+      urgencyOf(b, now) - urgencyOf(a, now) ||
+      hoursOld(a.publishedAt, now) - hoursOld(b.publishedAt, now),
+  );
+}
+
+/** "40 min ago", "5 h ago", "3 days ago". */
+export function ageLabel(publishedAt: string | null, now = Date.now()): string | null {
+  const hours = hoursOld(publishedAt, now);
+  if (!Number.isFinite(hours)) return null;
+  if (hours < 1) return `${Math.max(1, Math.round(hours * 60))} min ago`;
+  if (hours < 24) return `${Math.round(hours)} h ago`;
+  const days = Math.round(hours / 24);
+  return `${days} ${days === 1 ? "day" : "days"} ago`;
 }

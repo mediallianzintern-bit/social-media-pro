@@ -4,14 +4,15 @@
 // Fetching is free (news searches); only "Add and write" makes a model call.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Check, ExternalLink, Flame, Loader2, Plus, RefreshCw, Sparkles } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Check, ExternalLink, Flame, Loader2, Plus, RefreshCw, Sparkles, Zap } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { IdeaScriptDialog } from "@/components/dashboard/idea-script-dialog";
 import { SectionHeading } from "@/components/dashboard/section-heading";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
@@ -27,6 +28,11 @@ import { dateTime } from "@/lib/format";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import { TRENDING_COVERAGE } from "@/lib/sources";
 import {
+  ageLabel,
+  BREAKING_HOURS,
+  byUrgency,
+  hoursOld,
+  NEW_HOURS,
   suggestLane,
   TREND_CATEGORIES,
   TREND_CATEGORY_LABEL,
@@ -42,14 +48,36 @@ import { cn } from "@/lib/utils";
 /** Rows shown before "Show more". */
 const PAGE = 15;
 
+/** Opening the page fetches again when the list is older than this. Free. */
+const STALE_MINUTES = 60;
+
+type Sort = "urgent" | "newest" | "outlets";
+
+/** How far back the list reaches, in hours. */
+type Within = 24 | 72 | 168 | 336;
+const WINDOW_LABEL: Record<Within, string> = {
+  24: "24 hours",
+  72: "3 days",
+  168: "7 days",
+  336: "14 days",
+};
+const SORT_LABEL: Record<Sort, string> = {
+  urgent: "Most urgent",
+  newest: "Newest",
+  outlets: "Most outlets",
+};
+
 const PLATFORMS: PlatformId[] = ["instagram", "linkedin"];
 
 export function UniversalTrends() {
   const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery(universalTrendsQueryOptions);
   const [category, setCategory] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [shown, setShown] = useState(PAGE);
+  const [within, setWithin] = useState<Within>(336);
+  const [search, setSearch] = useState("");
   const [viewing, setViewing] = useState<ContentIdea | null>(null);
+  const [sort, setSort] = useState<Sort>("urgent");
 
   const fetchNow = useMutation({
     mutationFn: () => fetchTrendsNow(),
@@ -57,24 +85,56 @@ export function UniversalTrends() {
       queryClient.invalidateQueries({ queryKey: universalTrendsQueryOptions.queryKey }),
   });
 
+  // The latest news without a click: opening the page fetches again when the
+  // stored list is over an hour old. Free, and only once per visit.
+  const autoFetched = useRef(false);
+  useEffect(() => {
+    if (!data || autoFetched.current || fetchNow.isPending) return;
+    const age = data.lastFetched ? Date.now() - new Date(data.lastFetched).getTime() : Infinity;
+    if (age > STALE_MINUTES * 60_000) {
+      autoFetched.current = true;
+      fetchNow.mutate();
+    }
+  }, [data, fetchNow]);
+
   const items = useMemo(() => data?.items ?? [], [data]);
   const counts = useMemo(() => {
     const map = new Map<string, number>();
     for (const item of items) map.set(item.category, (map.get(item.category) ?? 0) + 1);
     return map;
   }, [items]);
-  const filtered = category ? items.filter((item) => item.category === category) : items;
-  const visible = expanded ? filtered : filtered.slice(0, PAGE);
+  const filtered = useMemo(() => {
+    const words = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const inCategory = items.filter(
+      (item) =>
+        (!category || item.category === category) &&
+        hoursOld(item.publishedAt) <= within &&
+        words.every((word) => `${item.title} ${item.publisher ?? ""}`.toLowerCase().includes(word)),
+    );
+    if (sort === "newest") {
+      return [...inCategory].sort((a, b) => hoursOld(a.publishedAt) - hoursOld(b.publishedAt));
+    }
+    if (sort === "outlets") {
+      return [...inCategory].sort(
+        (a, b) => b.coverage - a.coverage || hoursOld(a.publishedAt) - hoursOld(b.publishedAt),
+      );
+    }
+    return byUrgency(inCategory);
+  }, [items, category, sort, within, search]);
+  const fresh = filtered.filter((item) => hoursOld(item.publishedAt) <= NEW_HOURS).length;
+  const visible = filtered.slice(0, shown);
   const trending = filtered.filter((item) => item.coverage >= TRENDING_COVERAGE).length;
   const about = TREND_CATEGORIES.find((entry) => entry.id === category)?.about;
 
   return (
     <div className="space-y-6">
       <p className="max-w-3xl text-sm text-muted-foreground">
-        What is new across everything Pritesh Sir talks about: marketing, ad platforms, brands,
-        campaigns, stunts, AI launches, frontier AI, AI in marketing, and companies building on AI.
-        Add a story to Instagram or LinkedIn in one of its lanes, and it is written there in his
-        voice, researched and fact-checked like any other story. Fetching is free; only{" "}
+        The latest news across everything Pritesh Sir talks about: marketing, ad platforms, brands,
+        campaigns, stunts, AI launches, frontier AI, AI in marketing, and companies building on AI,
+        most urgent first. Its own searches, not limited by any lane, refreshed when you open the
+        page if the list is over an hour old. Add a story to Instagram or LinkedIn in one of its
+        lanes, and it is written there in his voice, researched and fact-checked like any other
+        story. Fetching is free; only{" "}
         <span className="font-medium text-foreground">Add and write</span> uses AI.
       </p>
 
@@ -99,7 +159,7 @@ export function UniversalTrends() {
             ) : (
               <RefreshCw className="size-3.5" aria-hidden />
             )}
-            {fetchNow.isPending ? "Fetching… about a minute" : "Fetch trends"}
+            {fetchNow.isPending ? "Fetching the latest…" : "Fetch trends"}
           </Button>
         }
       />
@@ -123,6 +183,41 @@ export function UniversalTrends() {
       <Card>
         <CardContent className="space-y-4 p-5">
           <div className="space-y-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Input
+                type="search"
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setShown(PAGE);
+                }}
+                placeholder="Search headlines, e.g. Andromeda"
+                aria-label="Search trends"
+                className="h-9 sm:max-w-xs"
+              />
+              <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Published within">
+                {(Object.keys(WINDOW_LABEL).map(Number) as Within[]).map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={within === value}
+                    onClick={() => {
+                      setWithin(value);
+                      setShown(PAGE);
+                    }}
+                    className={cn(
+                      "rounded-md px-2 py-1 text-xs transition-colors",
+                      within === value
+                        ? "bg-muted font-semibold text-foreground"
+                        : "text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    {WINDOW_LABEL[value]}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filter by category">
               {[null, ...TREND_CATEGORIES.map((entry) => entry.id)].map((value) => (
                 <button
@@ -132,7 +227,7 @@ export function UniversalTrends() {
                   aria-selected={category === value}
                   onClick={() => {
                     setCategory(value);
-                    setExpanded(false);
+                    setShown(PAGE);
                   }}
                   className={cn(
                     "rounded-full border px-2.5 py-0.5 text-xs transition-colors",
@@ -148,15 +243,43 @@ export function UniversalTrends() {
                 </button>
               ))}
             </div>
-            <p className="text-xs text-muted-foreground">
-              {about ? `${about}. ` : ""}
-              {trending ? `${trending} trending (carried by two or more outlets).` : ""}
-            </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-muted-foreground">
+                {about ? `${about}. ` : ""}
+                {fresh ? `${fresh} from the last 24 hours. ` : ""}
+                {trending ? `${trending} trending (carried by two or more outlets).` : ""}
+              </p>
+              <div className="flex shrink-0 gap-1" role="radiogroup" aria-label="Sort">
+                {(Object.keys(SORT_LABEL) as Sort[]).map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={sort === value}
+                    onClick={() => setSort(value)}
+                    className={cn(
+                      "rounded-md px-2 py-0.5 text-xs transition-colors",
+                      sort === value
+                        ? "bg-muted font-semibold text-foreground"
+                        : "text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    {SORT_LABEL[value]}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           {isLoading ? (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" aria-hidden /> Loading trends…
+            </p>
+          ) : items.length && !filtered.length ? (
+            <p className="text-sm text-muted-foreground">
+              Nothing matches{search.trim() ? ` "${search.trim()}"` : ""} in the last{" "}
+              {WINDOW_LABEL[within]}
+              {category ? ` in ${TREND_CATEGORY_LABEL[category]}` : ""}.
             </p>
           ) : !items.length ? (
             <p className="text-sm text-muted-foreground">
@@ -176,9 +299,13 @@ export function UniversalTrends() {
             </ul>
           )}
 
-          {filtered.length > PAGE ? (
-            <Button variant="ghost" size="sm" onClick={() => setExpanded((value) => !value)}>
-              {expanded ? "Show fewer" : `Show all ${filtered.length}`}
+          {filtered.length > shown ? (
+            <Button variant="ghost" size="sm" onClick={() => setShown((value) => value + 30)}>
+              Show 30 more ({filtered.length - shown} left)
+            </Button>
+          ) : shown > PAGE ? (
+            <Button variant="ghost" size="sm" onClick={() => setShown(PAGE)}>
+              Show fewer
             </Button>
           ) : null}
         </CardContent>
@@ -222,8 +349,23 @@ function TrendRow({
           />
         </a>
         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          {hoursOld(item.publishedAt) <= BREAKING_HOURS && item.coverage >= TRENDING_COVERAGE ? (
+            <Badge className="gap-1 bg-red-600 font-semibold text-white hover:bg-red-600">
+              <Zap className="size-3" aria-hidden />
+              Breaking
+            </Badge>
+          ) : hoursOld(item.publishedAt) <= NEW_HOURS ? (
+            <Badge
+              variant="outline"
+              className="border-emerald-500/40 font-semibold text-emerald-700 dark:text-emerald-400"
+            >
+              New
+            </Badge>
+          ) : null}
           <span>{item.publisher ?? "News"}</span>
-          {item.publishedAt ? <span>{dateTime(item.publishedAt)}</span> : null}
+          {item.publishedAt ? (
+            <span title={dateTime(item.publishedAt)}>{ageLabel(item.publishedAt)}</span>
+          ) : null}
           <Badge variant="secondary" className="font-medium">
             {TREND_CATEGORY_LABEL[item.category] ?? item.category}
           </Badge>
