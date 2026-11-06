@@ -61,14 +61,6 @@ export interface ResearchSource {
   publisher: string | null;
   url: string;
   words: number;
-  /**
-   * An older explainer of the story's subject, not a report of the story
-   * (5 Nov 2026): Nest Commerce's "What Is Meta Andromeda?" beside the news
-   * of Andromeda's update. Its facts explain; they are never the news.
-   */
-  background?: boolean;
-  /** When a background article was published, so its figures read as past ones. */
-  publishedAt?: string | null;
 }
 
 /** One fact, in plain words, with the outlets (1-based, into `sources`) that state it. */
@@ -78,8 +70,6 @@ export interface ResearchFact {
   sources: number[];
   /** How the outlets disagree, when they do. Empty when they agree. */
   conflict: string;
-  /** True when only background articles state it: context about the subject, not the story's news. */
-  background?: boolean;
 }
 
 export interface StoryResearch {
@@ -93,24 +83,6 @@ export interface StoryResearch {
   stages: number;
   /** Outlets found for the story but not readable (blocked, paywalled, a stub). */
   unreadable: number;
-  /** The subject the background articles were searched for ("Meta Andromeda"), when any were. */
-  subject?: string;
-}
-
-/** "Feb 2026", for a background article's date. */
-export function monthOf(publishedAt: string | null | undefined): string | null {
-  if (!publishedAt) return null;
-  const date = new Date(publishedAt);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" });
-}
-
-/** "Nest Commerce", or "Nest Commerce (background, Feb 2026)" for a background article. */
-export function sourceLabel(source: ResearchSource | undefined, index: number): string {
-  const name = source?.publisher ?? `outlet ${index}`;
-  if (!source?.background) return name;
-  const month = monthOf(source.publishedAt);
-  return `${name} (background${month ? `, ${month}` : ""})`;
 }
 
 /** The required categories the facts do not cover yet. */
@@ -179,26 +151,17 @@ export function researchUsage(
 
 /** The fact sheet as the writer and the reviewer read it. */
 export function factSheetText(research: StoryResearch): string {
-  const outlet = (index: number) => sourceLabel(research.sources[index - 1], index);
+  const outlet = (index: number) => research.sources[index - 1]?.publisher ?? `outlet ${index}`;
   const facts = research.facts
     .map((fact) => {
       const from = [...new Set(fact.sources)].map(outlet).join(", ");
       const conflict = fact.conflict ? ` [CONFLICTING: ${fact.conflict}]` : "";
-      const background = fact.background ? "BACKGROUND " : "";
-      return `- ${background}(${FACT_CATEGORY_LABEL[fact.category]}) ${fact.text} [${from}]${conflict}`;
+      return `- (${FACT_CATEGORY_LABEL[fact.category]}) ${fact.text} [${from}]${conflict}`;
     })
     .join("\n");
   const missing = research.missing.length
     ? `\nNot found in any outlet: ${research.missing.map((category) => FACT_CATEGORY_LABEL[category]).join(", ")}.`
     : "";
-  const background = research.facts.some((fact) => fact.background)
-    ? `\nA fact marked BACKGROUND comes only from an older article explaining ${research.subject ?? "the subject"}, published before this story: use it to explain the subject, never as this story's news, and say any figure in it as a past one, with its date ("In early 2026, …").`
-    : "";
-  return `${research.sources.length} outlets read: ${research.sources.map((source, index) => `${index + 1}. ${sourceLabel(source, index + 1)}`).join("; ")}.
-${facts}${missing}${background}`;
-}
-
-/** The research's news reports, without the background articles. */
-export function newsSources(research: StoryResearch): ResearchSource[] {
-  return research.sources.filter((source) => !source.background);
+  return `${research.sources.length} outlets read: ${research.sources.map((source, index) => `${index + 1}. ${source.publisher ?? "unknown"}`).join("; ")}.
+${facts}${missing}`;
 }

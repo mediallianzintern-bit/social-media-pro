@@ -4,19 +4,10 @@
 import { AlertTriangle, CheckCircle2, ExternalLink } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import {
-  FACT_CATEGORIES,
-  FACT_CATEGORY_LABEL,
-  monthOf,
-  newsSources,
-  sourceLabel,
-  type StoryResearch,
-} from "@/lib/research";
+import { FACT_CATEGORIES, FACT_CATEGORY_LABEL, type StoryResearch } from "@/lib/research";
 
 export function ResearchBlock({ research }: { research: StoryResearch }) {
-  const outlet = (index: number) => sourceLabel(research.sources[index - 1], index);
-  const reports = newsSources(research).length;
-  const background = research.sources.length - reports;
+  const outlet = (index: number) => research.sources[index - 1]?.publisher ?? `Outlet ${index}`;
   const byCategory = FACT_CATEGORIES.map((category) => ({
     category,
     facts: research.facts.filter((fact) => fact.category === category),
@@ -50,12 +41,9 @@ export function ResearchBlock({ research }: { research: StoryResearch }) {
             </Badge>
           )}
           <span>
-            {reports} {reports === 1 ? "outlet" : "outlets"} read in {research.stages}{" "}
-            {research.stages === 1 ? "stage" : "stages"}
-            {background
-              ? `, plus ${background} background ${background === 1 ? "article" : "articles"} on ${research.subject ?? "the subject"}`
-              : ""}
-            , {research.facts.length} facts
+            {research.sources.length} {research.sources.length === 1 ? "outlet" : "outlets"} read in{" "}
+            {research.stages} {research.stages === 1 ? "stage" : "stages"}, {research.facts.length}{" "}
+            facts
             {research.unreadable ? `; ${research.unreadable} more could not be read` : ""}.
           </span>
         </p>
@@ -70,12 +58,6 @@ export function ResearchBlock({ research }: { research: StoryResearch }) {
                 className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 font-medium hover:bg-accent hover:text-accent-foreground"
               >
                 {index + 1}. {source.publisher ?? "Unknown outlet"}
-                {source.background ? (
-                  <span className="font-normal text-muted-foreground">
-                    · background
-                    {monthOf(source.publishedAt) ? `, ${monthOf(source.publishedAt)}` : ""}
-                  </span>
-                ) : null}
                 <ExternalLink className="size-3" aria-hidden />
               </a>
             </li>
@@ -91,14 +73,6 @@ export function ResearchBlock({ research }: { research: StoryResearch }) {
               <ul className="mt-1 space-y-1">
                 {group.facts.map((fact) => (
                   <li key={fact.text} className="leading-snug">
-                    {fact.background ? (
-                      <Badge
-                        variant="outline"
-                        className="mr-1.5 px-1.5 py-0 text-[10px] font-normal"
-                      >
-                        Background
-                      </Badge>
-                    ) : null}
                     {fact.text}{" "}
                     <span className="text-xs text-muted-foreground">
                       ({[...new Set(fact.sources)].map(outlet).join(", ")})
@@ -118,9 +92,6 @@ export function ResearchBlock({ research }: { research: StoryResearch }) {
         <p className="text-xs leading-relaxed text-muted-foreground">
           The script was written from these facts only. Check any fact one outlet alone reports, and
           anything marked as disagreeing, before it goes on camera.
-          {background
-            ? " Background facts come from older articles that explain the subject: they are context, not this story's news, and their figures may be out of date."
-            : ""}
         </p>
       </div>
     </section>
