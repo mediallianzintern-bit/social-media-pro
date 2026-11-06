@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   ArrowRight,
   Check,
   Clapperboard,
@@ -75,6 +76,11 @@ import { factSheetText } from "@/lib/research";
  * header of production constraints, then a numbered shot list where every shot
  * states its visual, audio, overlay and outgoing transition.
  */
+/** Written from the headline alone: no outlet could be read and nothing was researched. */
+function headlineOnly(source: NonNullable<ContentIdea["source"]>): boolean {
+  return !source.research && !source.readFrom;
+}
+
 function toPlainText(idea: ContentIdea): string {
   const p = idea.production;
   const lines: string[] = [
@@ -487,7 +493,13 @@ export function AiIdeaCards({
                         {idea.source.publisher ?? "News source"}
                         {idea.source.publishedAt ? ` · ${dateTime(idea.source.publishedAt)}` : ""}
                       </span>
-                    ) : (
+                    ) : null}
+                    {idea.source.verified && headlineOnly(idea.source) ? (
+                      <span className="shrink-0 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                        Headline only
+                      </span>
+                    ) : null}
+                    {idea.source.verified ? null : (
                       <span className="text-amber-700 dark:text-amber-400">Unverified source</span>
                     )}
                   </p>
@@ -556,6 +568,21 @@ export function AiIdeaCards({
               </SheetHeader>
 
               <div className="flex-1 space-y-7 overflow-y-auto p-6">
+                {open.source?.verified && headlineOnly(open.source) ? (
+                  <p
+                    role="alert"
+                    className="flex gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3.5 text-sm leading-relaxed text-amber-900 dark:text-amber-200"
+                  >
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+                    <span>
+                      <strong className="font-semibold">Written from the headline only.</strong>{" "}
+                      {open.source.publisher ?? "The story's outlet"} and every other outlet refused
+                      to be read, so this {open.post ? "post" : "script"} has no facts beyond the
+                      headline and may be thin. Read the article and add its facts, or pick another
+                      story.
+                    </span>
+                  </p>
+                ) : null}
                 {open.id ? <FilmedPanel idea={open} /> : null}
                 {open.reaction ? <ReactionPanel idea={open} /> : null}
                 <section>

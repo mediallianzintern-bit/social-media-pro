@@ -258,6 +258,16 @@ export function withFactNotes(data: unknown, sources: SourceItem[]): unknown {
     const text = draftText(body, sections);
     const source = sourceOf(raw, sources);
     const story = storyTextOf(raw, sources);
+    // Written from the headline alone (6 Nov 2026): the ChatGPT ads in India
+    // post knew only "low conversions, high costs", since NewsBytes and
+    // Moneycontrol both refuse automated reading, and came out at 105 words of
+    // general advice. A fact to tick, so nobody posts it without reading.
+    const headlineOnly =
+      source && !source.research && !source.article?.text
+        ? [
+            `Verify before posting: this post was written from the headline only, because ${source.publisher ?? "the story's outlet"} and every other outlet refused to be read. Read the article, check every claim, and add the facts it gives before posting.`,
+          ]
+        : [];
     const added = story
       ? unsupportedFigures(text, story).map(
           (figure) =>
@@ -280,6 +290,7 @@ export function withFactNotes(data: unknown, sources: SourceItem[]): unknown {
         );
       }
     }
+    added.unshift(...headlineOnly);
     if (!added.length) return raw;
     const notes = Array.isArray(raw.post?.notes) ? (raw.post.notes as string[]) : [];
     return { ...raw, post: { ...raw.post, notes: [...notes, ...added] } };

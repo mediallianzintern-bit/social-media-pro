@@ -18,6 +18,7 @@ import type { ContentIdea } from "@/lib/ai-types";
 import { unsupportedFigures } from "@/lib/fact-check";
 import { isOpeningPair } from "@/lib/hook-variants";
 import { linkedInShapesBlock } from "@/lib/linkedin-shapes";
+import { factSheetText } from "@/lib/research";
 import type { SourceItem } from "@/lib/sources";
 import { linkedInLength, voiceFlags } from "@/lib/voice-check";
 
@@ -80,19 +81,54 @@ function problemsOf(raw: RawPost, body: string, story: string): string[] {
   return problems;
 }
 
-/** The facts the post may use: the story it was written from, and nothing else. */
+/**
+ * The facts the post may use: the story it was written from, and nothing else.
+ *
+ * The fact sheet when the story was researched (6 Nov 2026). Until then this
+ * read only `source.article.text`, which research leaves empty (the article
+ * is kept for its link), so a researched post under 150 words was sent here
+ * with no facts at all, told to add substance and never to pad, and came back
+ * as short as it went in: the Meta Andromeda post stayed at 129 words.
+ */
 function storyFor(raw: RawPost, sources: SourceItem[]): string {
   const id = typeof raw.source?.sourceId === "string" ? raw.source.sourceId : null;
   const source = id ? sources.find((item) => item.id === id) : undefined;
   if (!source) {
     return "THE STORY: none beyond the post itself. Add no new fact, figure, company or result: lengthen with explanation, a clearly hypothetical example and what it means for the reader's work.";
   }
+  const body = source.research
+    ? `Researched across several outlets; each fact names the outlets that state it:\n${factSheetText(source.research)}\nUse the facts that serve the post's one idea; a fact marked CONFLICTING is said only as its outlet reported it.`
+    : source.article?.text
+      ? `Article text:\n${source.article.text}`
+      : "(Only the headline was read: the article could not be read.)";
   return `THE STORY, the only facts the post may state:
 Headline: ${source.title}
-Publisher: ${source.publisher ?? "unknown"}${
-    source.article ? `\nArticle text:\n${source.article.text}` : "\n(Only the headline was read.)"
-  }
+Publisher: ${source.publisher ?? "unknown"}
+${body}
 Anything beyond this is explanation, a clearly hypothetical example ("Suppose…", "Let us say you are…") or a bracketed "[verify: …]" note for the team. Never a new fact.`;
+}
+
+/**
+ * How bad a version's problems are, worst first: a figure the story never
+ * gives, then the length, then how many other problems. Compared in that
+ * order (6 Nov 2026): a rewrite that brings a 129-word post into range was
+ * thrown away when it gained one smaller flag (a reading-grade note), since
+ * only the COUNT of problems was compared, and 1 is not fewer than 1.
+ */
+function severity(problems: string[]): [number, number, number] {
+  const invented = problems.some((problem) => problem.startsWith("It states figures")) ? 1 : 0;
+  const length = problems.some((problem) => /^It is \d+ words;/.test(problem)) ? 1 : 0;
+  return [invented, length, problems.length];
+}
+
+/** Whether one version's problems are less serious than another's. Exported for the tests. */
+export function lessSerious(next: string[], current: string[]): boolean {
+  const a = severity(next);
+  const b = severity(current);
+  for (let index = 0; index < a.length; index += 1) {
+    if (a[index] !== b[index]) return a[index]! < b[index]!;
+  }
+  return false;
 }
 
 /**
@@ -149,8 +185,9 @@ ${best.problems.map((problem) => `- ${problem}`).join("\n")}
 HOW:
 - Keep the ${kept.length > 1 ? "first two lines" : "first line"} exactly as ${kept.length > 1 ? "they are" : "it is"}: ${kept.map((line) => `"${line}"`).join(" / ")}
 - Keep the idea, the order of the argument, the closing question and the closing line.
-- When it needs more words, add substance from THIS story: a detail from the facts below, or a
-  clearer explanation of the one idea. Never a stock example ("Suppose you're a marketer
+- When it needs more words, add substance from THIS story: a fact from the story below that
+  serves the one idea (what exactly happened, a figure, who it affects, how it works), or a
+  clearer explanation of that idea. Never a stock example ("Suppose you're a marketer
   planning a campaign…") and never a "one mistake brands make" line: those were added here
   before, and they are the lines that sounded least like him (4 Nov 2026). A post a little
   under the length is better than a padded one.
@@ -172,7 +209,7 @@ ${best.body}`,
           const body = typeof result.data.body === "string" ? result.data.body.trim() : "";
           if (!body) continue;
           const problems = problemsOf(raw, body, story);
-          if (problems.length < best.problems.length) best = { body, problems };
+          if (lessSerious(problems, best.problems)) best = { body, problems };
         }
       } catch (error) {
         console.warn("[ai:linkedin] post length fit failed; keeping the draft:", error);
