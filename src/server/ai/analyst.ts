@@ -29,6 +29,7 @@ import {
   type ToneReference,
 } from "@/lib/tone-references";
 import { reviewLinkedInDrafts, withFactNotes } from "./linkedin-review";
+import { filmedScriptsFor } from "../reel-learning/filmed-scripts";
 import { scriptFeedbackFor } from "../script-feedback";
 import { linkedInPostReferences } from "./linkedin-references";
 import { factSheetText } from "@/lib/research";
@@ -723,6 +724,8 @@ export interface IdeaReads {
   toneReferences?: ToneReference[] | null;
   /** The team's approvals and rejections of earlier scripts (lib/script-feedback.ts). */
   scriptFeedback?: string | null;
+  /** What the team actually filmed in this script's lane (lib/filmed-scripts.ts). */
+  filmedScripts?: string | null;
   /** His own best LinkedIn posts of the last 30 days (ai/linkedin-references.ts). */
   postReferences?: string | null;
 }
@@ -842,7 +845,7 @@ export function buildIdeaRequest(
 creator, based on their own measured performance.
 
 ${groundRules(owner.owned?.source)}
-${voice ? `\n${voice}\n` : ""}${tone ? `\n${tone}\n` : ""}${reads.postReferences ? `\n${reads.postReferences}\n` : ""}${reads.scriptFeedback ? `\n${reads.scriptFeedback}\n` : ""}${laneShapes ? `\n${laneShapes}\n` : ""}${covered ? `\n${covered}\n` : ""}${workflow ? `\n${workflow}\n` : ""}
+${voice ? `\n${voice}\n` : ""}${tone ? `\n${tone}\n` : ""}${reads.postReferences ? `\n${reads.postReferences}\n` : ""}${reads.scriptFeedback ? `\n${reads.scriptFeedback}\n` : ""}${reads.filmedScripts ? `\n${reads.filmedScripts}\n` : ""}${laneShapes ? `\n${laneShapes}\n` : ""}${covered ? `\n${covered}\n` : ""}${workflow ? `\n${workflow}\n` : ""}
 Additional requirements:
 - EVERY IDEA MUST HAVE A CONCRETE SUBJECT. Name the specific brand, campaign, product, tool,
   person or event the reel covers, in the title and again in the angle. A reader who sees only
@@ -1601,10 +1604,20 @@ export async function generateIdeas(
   // What the team approved and rejected before, on this platform: approved
   // scripts as examples of how he sounds, rejections as what to avoid. Free.
   const scriptFeedback = await scriptFeedbackFor(platform).catch(() => "");
+  // How the team actually filmed scripts in this lane, from the live reels'
+  // transcripts, automatically once a reel is analysed. Only when the scripts
+  // being written are all for one lane: another lane's shape would mislead.
+  // Free.
+  const scriptLane =
+    onlyLane ??
+    (sources.length && sources.every((source) => source.lane === sources[0]!.lane)
+      ? sources[0]!.lane
+      : null);
+  const filmedScripts = await filmedScriptsFor(platform, scriptLane).catch(() => "");
   // LinkedIn: his own best posts of the last 30 days, for tone and format. Free.
   const postReferences =
     platform === "linkedin" ? await linkedInPostReferences().catch(() => "") : "";
-  reads = { ...reads, toneReferences, scriptFeedback, postReferences };
+  reads = { ...reads, toneReferences, scriptFeedback, filmedScripts, postReferences };
   const request = buildIdeaRequest(
     platform,
     owner,
@@ -1649,7 +1662,7 @@ Write it again and make sure each of these is fixed. Everything else above still
     result.data,
     sources,
     // The team's approvals and rejections too, so the rewrite does not undo them.
-    [reads.filmed, reads.scriptFeedback].filter(Boolean).join("\n\n"),
+    [reads.filmed, reads.scriptFeedback, reads.filmedScripts].filter(Boolean).join("\n\n"),
     reads.filmedRules ?? NO_RULES,
     extra.deadline,
     toneReferences,
@@ -1670,7 +1683,9 @@ Write it again and make sure each of these is fixed. Everything else above still
         sources,
         extra.deadline,
         // What his published posts proved (Phase 3), so the rewrite keeps it.
-        [reads.postReferences, reads.scriptFeedback, reads.filmed].filter(Boolean).join("\n\n"),
+        [reads.postReferences, reads.scriptFeedback, reads.filmedScripts, reads.filmed]
+          .filter(Boolean)
+          .join("\n\n"),
       )
     : { data: review.data, cost: undefined, reviewed: 0, failed: 0 };
   if (reviewedPosts.reviewed || reviewedPosts.failed) {
