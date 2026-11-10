@@ -18,6 +18,9 @@ const searchSchema = z.object({
     .default("era"),
   from: z.string().optional(),
   to: z.string().optional(),
+  // A script to open in its drawer on the Instagram or LinkedIn page, from a
+  // link elsewhere (Trends: "Go to LinkedIn"). Dropped by any other link.
+  idea: z.string().uuid().optional().catch(undefined),
 });
 
 export const Route = createFileRoute("/_app")({

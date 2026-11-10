@@ -53,7 +53,6 @@ import {
 import {
   addTrend,
   fetchTrendsNow,
-  getTrendIdea,
   universalTrendsQueryOptions,
 } from "@/lib/universal-trends.functions";
 import { cn } from "@/lib/utils";
@@ -89,7 +88,7 @@ export function UniversalTrends() {
   const [shown, setShown] = useState(PAGE);
   const [within, setWithin] = useState<Within>(336);
   const [search, setSearch] = useState("");
-  const [viewing, setViewing] = useState<ContentIdea | null>(null);
+  const [viewing, setViewing] = useState<{ idea: ContentIdea; platform: PlatformId } | null>(null);
   const [sort, setSort] = useState<Sort>("urgent");
 
   const fetchNow = useMutation({
@@ -215,7 +214,7 @@ export function UniversalTrends() {
                   key={`pinned-${item.url}`}
                   item={item}
                   lanes={data!.lanes}
-                  onWritten={(idea) => setViewing(idea)}
+                  onWritten={(idea, platform) => setViewing({ idea, platform })}
                 />
               ))}
             </ul>
@@ -336,7 +335,7 @@ export function UniversalTrends() {
                   key={item.url}
                   item={item}
                   lanes={data!.lanes}
-                  onWritten={(idea) => setViewing(idea)}
+                  onWritten={(idea, platform) => setViewing({ idea, platform })}
                 />
               ))}
             </ul>
@@ -356,7 +355,8 @@ export function UniversalTrends() {
 
       {viewing ? (
         <IdeaScriptDialog
-          idea={viewing}
+          idea={viewing.idea}
+          goTo={viewing.platform}
           open
           onOpenChange={(next) => {
             if (!next) setViewing(null);
@@ -374,7 +374,7 @@ function TrendRow({
 }: {
   item: TrendItem;
   lanes: { instagram: string[]; linkedin: string[] };
-  onWritten: (idea: ContentIdea) => void;
+  onWritten: (idea: ContentIdea, platform: PlatformId) => void;
 }) {
   return (
     <li className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:gap-4">
@@ -427,9 +427,7 @@ function TrendRow({
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {PLATFORMS.map((platform) => {
               const on = item.added?.[platform];
-              return on ? (
-                <AddedBadge key={platform} platform={platform} on={on} onOpen={onWritten} />
-              ) : null;
+              return on ? <AddedBadge key={platform} platform={platform} on={on} /> : null;
             })}
           </div>
         ) : null}
@@ -458,7 +456,7 @@ function AddToPlatform({
   item: TrendItem;
   platform: PlatformId;
   lanes: string[];
-  onWritten: (idea: ContentIdea) => void;
+  onWritten: (idea: ContentIdea, platform: PlatformId) => void;
 }) {
   const meta = PLATFORM_META[platform];
   const queryClient = useQueryClient();
@@ -490,7 +488,7 @@ function AddToPlatform({
       if (result.idea) {
         void queryClient.invalidateQueries({ queryKey: analysisQueryOptions(platform).queryKey });
         setOpen(false);
-        onWritten(result.idea);
+        onWritten(result.idea, platform);
       }
     },
   });
@@ -585,21 +583,9 @@ function AddToPlatform({
   );
 }
 
-/** Where a story already went, and the post or script written there, to open again. */
-function AddedBadge({
-  platform,
-  on,
-  onOpen,
-}: {
-  platform: PlatformId;
-  on: AddedOn;
-  onOpen: (idea: ContentIdea) => void;
-}) {
+/** Where a story already went, with a link to what was written there, open in its drawer. */
+function AddedBadge({ platform, on }: { platform: PlatformId; on: AddedOn }) {
   const meta = PLATFORM_META[platform];
-  const open = useMutation({
-    mutationFn: (ideaId: string) => getTrendIdea({ data: { ideaId } }),
-    onSuccess: (idea) => onOpen(idea),
-  });
   const noun = platform === "instagram" ? "script" : "post";
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5 text-xs">
@@ -612,28 +598,18 @@ function AddedBadge({
         {on.lane ? ` · ${on.lane}` : ""}
       </Badge>
       {on.ideaId ? (
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-6 gap-1 px-1.5 text-xs"
-          disabled={open.isPending}
-          onClick={() => open.mutate(on.ideaId!)}
-        >
-          {open.isPending ? (
-            <Loader2 className="size-3 animate-spin" aria-hidden />
-          ) : (
+        <Button asChild size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-xs">
+          <Link
+            to={platform === "instagram" ? "/instagram" : "/linkedin"}
+            search={(prev) => ({ ...prev, idea: on.ideaId! })}
+          >
             <FileText className="size-3" aria-hidden />
-          )}
-          Open {meta.label} {noun}
+            Open the {meta.label} {noun}
+          </Link>
         </Button>
       ) : (
         <span className="text-muted-foreground">in topics, not written yet</span>
       )}
-      {open.error ? (
-        <span className="text-destructive">
-          {open.error instanceof Error ? open.error.message : "Could not open it."}
-        </span>
-      ) : null}
     </span>
   );
 }

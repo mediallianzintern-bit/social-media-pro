@@ -1,6 +1,8 @@
-import { ExternalLink } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { ArrowRight, ExternalLink } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +11,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FORMAT_LABEL, type ContentIdea } from "@/lib/ai-types";
+import type { PlatformId } from "@/lib/analytics-types";
+import { PLATFORM_META } from "@/lib/platform-meta";
 import { withChosenHook } from "@/lib/hook-variants";
 
 /**
@@ -28,10 +32,17 @@ export function IdeaScriptDialog({
   idea,
   open,
   onOpenChange,
+  goTo,
 }: {
   idea: ContentIdea;
   open: boolean;
   onOpenChange: (next: boolean) => void;
+  /**
+   * Offer to open the script on this platform's page, in its full drawer
+   * (Approve, I posted this…). Given where the script was written somewhere
+   * else, as on Trends.
+   */
+  goTo?: PlatformId;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -44,7 +55,9 @@ export function IdeaScriptDialog({
           </DialogDescription>
           <DialogTitle className="text-left text-base leading-snug">{idea.title}</DialogTitle>
         </DialogHeader>
+        {goTo ? <GoToScript idea={idea} platform={goTo} /> : null}
         <IdeaScriptBody idea={idea} />
+        {goTo ? <GoToScript idea={idea} platform={goTo} /> : null}
       </DialogContent>
     </Dialog>
   );
@@ -185,5 +198,28 @@ export function IdeaScriptBody({ idea: written }: { idea: ContentIdea }) {
         </p>
       ) : null}
     </>
+  );
+}
+
+/** "Go to LinkedIn": the platform page, with this script open in its drawer. */
+function GoToScript({ idea, platform }: { idea: ContentIdea; platform: PlatformId }) {
+  const meta = PLATFORM_META[platform];
+  const noun = platform === "linkedin" ? "post" : "script";
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-3 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-xs text-muted-foreground">
+        Written and saved on {meta.label}. Open it there to approve it, copy the handover doc, or
+        mark it {platform === "linkedin" ? "posted" : "filmed"}.
+      </p>
+      <Button asChild size="sm" className="shrink-0">
+        <Link
+          to={platform === "linkedin" ? "/linkedin" : "/instagram"}
+          search={(prev) => ({ ...prev, idea: idea.id })}
+        >
+          Go to {meta.label} {noun}
+          <ArrowRight className="size-3.5" aria-hidden />
+        </Link>
+      </Button>
+    </div>
   );
 }
