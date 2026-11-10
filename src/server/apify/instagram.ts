@@ -48,11 +48,21 @@ interface IgProfile {
   latestPosts?: IgPost[];
 }
 
-/** `productType: "clips"` is Instagram's internal name for a reel. */
-function formatOf(post: IgPost): ContentFormat {
+/**
+ * `productType: "clips"` is Instagram's internal name for a reel.
+ *
+ * Around 17 October 2026 the profile scraper stopped sending productType at
+ * all, and every reel came back as a plain "Video". Those were stored as
+ * "video", and the filmed-reel finder, which looks only at reels, missed every
+ * reel posted after that (the Google Ads and Meta AI reels of 3 and 7 Nov).
+ * Instagram has posted every new video as a reel since 2022, so a Video with
+ * no productType is a reel. Only one Instagram itself marks otherwise (an old
+ * feed or IGTV video) stays "video".
+ */
+export function formatOf(post: Pick<IgPost, "type" | "productType">): ContentFormat {
   if (post.productType === "clips") return "reel";
   if (post.type === "Sidecar") return "carousel";
-  if (post.type === "Video") return "video";
+  if (post.type === "Video") return post.productType ? "video" : "reel";
   return "image";
 }
 

@@ -15,6 +15,8 @@ import { readAllReelLearning } from "./store";
 export interface FilmedItem {
   learning: ReelLearning;
   idea: ContentIdea | null;
+  /** The lane the live reel or post is filed under, once it is found. */
+  postedLane: string | null;
 }
 
 export async function listFilmed(platform: PlatformId): Promise<FilmedItem[]> {
@@ -36,6 +38,7 @@ export async function listFilmed(platform: PlatformId): Promise<FilmedItem[]> {
           reviewableAt: post ? reviewableAt(post.publishedAt, row.platform) : null,
         },
         idea: await readIdeaById(row.ideaId).catch(() => null),
+        postedLane: post?.contentLane ?? null,
       };
     }),
   );

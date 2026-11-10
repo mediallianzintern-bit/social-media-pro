@@ -32,6 +32,7 @@ import {
 import type { ReelMatch } from "@/lib/reel-learning-types";
 import type { PlatformId, PostRecord } from "@/lib/analytics-types";
 
+import { fileUnderPostedLane } from "./lane";
 import {
   ideaCreatedAt,
   linkedShortcodes,
@@ -46,7 +47,11 @@ import {
 
 async function ownerReels(platform: PlatformId): Promise<PostRecord[]> {
   const posts = await readPosts(platform, OWNER_ACCOUNTS[platform].handle, 1000);
-  return platform === "instagram" ? posts.filter((post) => post.format === "reel") : posts;
+  // "video" too: reels synced from 17 Oct until the fix in apify/instagram.ts
+  // (formatOf) were stored as "video", and every Instagram video is a reel.
+  return platform === "instagram"
+    ? posts.filter((post) => post.format === "reel" || post.format === "video")
+    : posts;
 }
 
 /**
@@ -144,6 +149,13 @@ async function setLink(row: ReelLearningRow, found: ReelCandidate, by: ReelMatch
  *      no idea has claimed in any way.
  */
 export async function linkFilmedReels(platform: PlatformId): Promise<number> {
+  const linked = await linkWaiting(platform);
+  // A reel that went live in another lane than its script: its votes follow it.
+  await fileUnderPostedLane(platform);
+  return linked;
+}
+
+async function linkWaiting(platform: PlatformId): Promise<number> {
   try {
     const rows = await readAllReelLearning(platform);
     const waiting = rows.filter((row) => !row.shortcode || isGuess(row)).reverse(); // oldest first

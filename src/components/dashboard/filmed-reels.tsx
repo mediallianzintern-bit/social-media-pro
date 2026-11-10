@@ -7,6 +7,7 @@
 // gives any reel still waiting one more free look.
 import { useQueries, useQuery } from "@tanstack/react-query";
 import {
+  ArrowRightLeft,
   CheckCircle2,
   ExternalLink,
   Loader2,
@@ -29,6 +30,7 @@ import { dateTime, shortDate } from "@/lib/format";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import {
   isFinalReview,
+  laneChange,
   LEARNING_WORDS,
   POST_REVIEW_DAYS,
   REEL_REVIEW_DAYS,
@@ -226,9 +228,13 @@ export function FilmedReels() {
               a LinkedIn post once it is up.
             </p>
           ) : (
-            items.map(({ learning, idea }) => {
+            items.map(({ learning, idea, postedLane }) => {
               const stage = stageOf(learning);
               const w = LEARNING_WORDS[learning.platform];
+              // Only once the reel is confirmed: a timing guess may be the wrong one.
+              const moved = learning.match?.confirmed
+                ? laneChange(idea?.contentLane, postedLane)
+                : null;
               return (
                 <div key={learning.ideaId} className="flex flex-wrap items-start gap-3 p-4">
                   <div className="min-w-0 flex-1 space-y-1.5">
@@ -239,7 +245,13 @@ export function FilmedReels() {
                       <span style={{ color: PLATFORM_META[learning.platform].color }}>
                         {PLATFORM_META[learning.platform].label}
                       </span>
-                      {idea?.contentLane ? <span>· {idea.contentLane}</span> : null}
+                      {moved ? (
+                        <span>
+                          · {moved.from} → {moved.to}
+                        </span>
+                      ) : idea?.contentLane ? (
+                        <span>· {idea.contentLane}</span>
+                      ) : null}
                       <span>
                         · {w.did} {dateTime(learning.filmedAt)}
                         {learning.filmedBy ? ` by ${learning.filmedBy}` : ""}
@@ -260,6 +272,16 @@ export function FilmedReels() {
                       {learning.usage ? (
                         <Badge variant="secondary" className="font-normal">
                           {REEL_USAGE_LABEL[learning.usage]}
+                        </Badge>
+                      ) : null}
+                      {moved ? (
+                        <Badge
+                          variant="outline"
+                          className="border-violet-300 font-normal text-violet-800 dark:border-violet-800 dark:text-violet-300"
+                          title={`Written for ${moved.from}, went live as ${moved.to}. Its ✓ and ✗ and its results now teach ${moved.to}, so ${moved.from} does not drift toward this topic.`}
+                        >
+                          <ArrowRightLeft className="mr-1 size-3" aria-hidden />
+                          Lane changed · now teaches {moved.to}
                         </Badge>
                       ) : null}
                       <Result learning={learning} />

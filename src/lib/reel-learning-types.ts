@@ -233,6 +233,22 @@ export const LEARNING_WORDS = {
 export const isFinalReview = (learning: { review: ReelReview | null }): boolean =>
   Boolean(learning.review && !learning.review.early);
 
+/**
+ * The lane a filmed script went live in, when it is not the lane it was written
+ * for. The live reel or post is filed by what it is actually about (the same
+ * lane the lane report counts it in). "other" means it fitted no lane, which
+ * says nothing about a change, so it is not one.
+ */
+export function laneChange(
+  scriptLane: string | null | undefined,
+  postedLane: string | null | undefined,
+): { from: string; to: string } | null {
+  const from = scriptLane?.trim();
+  const to = postedLane?.trim();
+  if (!from || !to || to.toLowerCase() === "other") return null;
+  return from.toLowerCase() === to.toLowerCase() ? null : { from, to };
+}
+
 export interface ReelLearning {
   ideaId: string;
   platform: "instagram" | "linkedin";

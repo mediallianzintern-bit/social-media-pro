@@ -18,6 +18,7 @@
 import type { PlatformId } from "@/lib/analytics-types";
 import {
   isFinalReview,
+  laneChange,
   LEARNING_WORDS,
   NO_RULES,
   REEL_USAGE_LABEL,
@@ -30,6 +31,7 @@ import { deriveRules, reelPatterns, type ReviewedReel } from "@/lib/reel-pattern
 
 import { readIdeaById } from "../store";
 
+import { postedLanes } from "./lane";
 import { readAllReelLearning, type ReelLearningRow } from "./store";
 
 /** Reviewed reels quoted at most: the newest are the most relevant. */
@@ -38,13 +40,20 @@ const MAX_VIRAL = 3;
 const MAX_STYLE_NOTES = 6;
 
 async function reviewedReels(rows: ReelLearningRow[]): Promise<ReviewedReel[]> {
+  const reviewed = rows.filter(isFinalReview);
+  const platform = reviewed[0]?.platform;
+  const lanes = platform ? await postedLanes(platform) : new Map<string, string>();
   return Promise.all(
-    rows.filter(isFinalReview).map(async (row) => {
+    reviewed.map(async (row) => {
       const comparison = row.comparison;
       // A LinkedIn post is its own caption: its caption figures say nothing new.
       const post = row.platform === "linkedin" ? (comparison?.post ?? null) : null;
+      const scriptLane = (await readIdeaById(row.ideaId).catch(() => null))?.contentLane ?? null;
+      // A reel taught the lane it went live in, not the one its script was
+      // written for (lane.ts).
+      const moved = laneChange(scriptLane, row.shortcode ? lanes.get(row.shortcode) : null);
       return {
-        lane: (await readIdeaById(row.ideaId).catch(() => null))?.contentLane ?? null,
+        lane: moved?.to ?? scriptLane,
         hookStyle: comparison?.hook.style ?? null,
         hookVerdict: comparison?.hook.verdict ?? null,
         scriptVerdict: comparison?.script.verdict ?? null,
