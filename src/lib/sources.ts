@@ -240,12 +240,57 @@ export function outletCount(items: Array<{ publisher: string | null }>): number 
  */
 export function clusterStories<
   T extends { title: string; publisher: string | null; publishedAt: string | null },
->(items: T[], threshold = 0.5): Array<T & { coverage: number }> {
+>(
+  items: T[],
+  threshold = 0.5,
+  options: { lead?: "newest" | "central" } = {},
+): Array<T & { coverage: number }> {
   const time = (item: T) => (item.publishedAt ? new Date(item.publishedAt).getTime() : 0);
   return groupStories(items, threshold).map((members) => {
-    const lead = members.reduce((best, item) => (time(item) > time(best) ? item : best));
+    const lead =
+      options.lead === "central" && members.length > 2
+        ? centralReport(members, threshold, time)
+        : members.reduce((best, item) => (time(item) > time(best) ? item : best));
     return { ...lead, coverage: outletCount(members) };
   });
+}
+
+/**
+ * The report that matches the most others in its group, the newest on a tie:
+ * the headline most of the group is about.
+ *
+ * A group can be joined through a bridge headline: on 10 Nov 2026 "Meta
+ * unveils Muse Ember, a budget-friendly competitor to Claude Haiku" joined 56
+ * outlets' reports of Anthropic's Claude Fable 5.2 launch, and the newest
+ * report, Meta's, became the headline. The Fable story vanished from Trends.
+ * The report most of the group matches is Anthropic's.
+ */
+function centralReport<T extends { title: string; publishedAt: string | null }>(
+  members: T[],
+  threshold: number,
+  time: (item: T) => number,
+): T {
+  const matches = members.map(
+    (member, index) =>
+      members.filter(
+        (other, otherIndex) =>
+          otherIndex !== index &&
+          sameStory(member.title, other.title, threshold, {
+            a: member.publishedAt,
+            b: other.publishedAt,
+          }),
+      ).length,
+  );
+  let best = 0;
+  for (let index = 1; index < members.length; index += 1) {
+    if (
+      matches[index]! > matches[best]! ||
+      (matches[index] === matches[best] && time(members[index]!) > time(members[best]!))
+    ) {
+      best = index;
+    }
+  }
+  return members[best]!;
 }
 
 /** Age in whole days, or null when the outlet gave no date. */

@@ -65,10 +65,36 @@ export interface TrendItem {
   /** Outlets that carried the story in the fetch. Two or more is trending. */
   coverage: number;
   fetchedAt: string;
+  /** Where the team already added it from Trends, per platform. */
+  added?: Partial<Record<"instagram" | "linkedin", AddedOn>>;
+  /**
+   * Added earlier but not in the latest fetch (it aged out, or its reports
+   * were grouped under another headline): `id` is then the topic's id on a
+   * platform, not a trend's, and Add copies from that topic.
+   */
+  kept?: boolean;
+}
+
+/** One platform's copy of a story added from Trends. */
+export interface AddedOn {
+  lane: string | null;
+  /** The story in that platform's topics. */
+  sourceId: string;
+  /** The newest post or script written from it there, if any. */
+  ideaId: string | null;
 }
 
 export interface TrendsView {
+  /** The latest fetch, without the stories in `pinned`. */
   items: TrendItem[];
+  /**
+   * Stories the team added from Trends in the last two weeks, newest first,
+   * shown above the list so a story written for one platform stays in reach
+   * for the other, whatever the next fetch does with it (10 Nov 2026: the
+   * Claude Fable 5.2 story, written for LinkedIn, vanished from the list on
+   * the next fetch before it could be added to Instagram).
+   */
+  pinned: TrendItem[];
   lastFetched: string | null;
   /** Each platform's lanes, for "Add to Instagram / LinkedIn". */
   lanes: { instagram: string[]; linkedin: string[] };

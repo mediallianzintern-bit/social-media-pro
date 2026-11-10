@@ -4,7 +4,18 @@
 // Fetching is free (news searches); only "Add and write" makes a model call.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Check, ExternalLink, Flame, Loader2, Plus, RefreshCw, Sparkles, Zap } from "lucide-react";
+import {
+  Check,
+  ExternalLink,
+  FileText,
+  Flame,
+  Loader2,
+  Pin,
+  Plus,
+  RefreshCw,
+  Sparkles,
+  Zap,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { IdeaScriptDialog } from "@/components/dashboard/idea-script-dialog";
@@ -36,11 +47,13 @@ import {
   suggestLane,
   TREND_CATEGORIES,
   TREND_CATEGORY_LABEL,
+  type AddedOn,
   type TrendItem,
 } from "@/lib/universal-trends";
 import {
   addTrend,
   fetchTrendsNow,
+  getTrendIdea,
   universalTrendsQueryOptions,
 } from "@/lib/universal-trends.functions";
 import { cn } from "@/lib/utils";
@@ -98,6 +111,7 @@ export function UniversalTrends() {
   }, [data, fetchNow]);
 
   const items = useMemo(() => data?.items ?? [], [data]);
+  const pinned = data?.pinned ?? [];
   const counts = useMemo(() => {
     const map = new Map<string, number>();
     for (const item of items) map.set(item.category, (map.get(item.category) ?? 0) + 1);
@@ -178,6 +192,35 @@ export function UniversalTrends() {
             ? (fetchNow.error ?? error)!.message
             : "Something went wrong."}
         </p>
+      ) : null}
+
+      {pinned.length ? (
+        <Card>
+          <CardContent className="space-y-2 p-5">
+            <div>
+              <p className="flex items-center gap-1.5 text-sm font-semibold">
+                <Pin className="size-3.5" aria-hidden />
+                Added from Trends
+                <span className="font-normal text-muted-foreground">· {pinned.length}</span>
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Stories already added to a platform in the last two weeks. They stay here whatever
+                the next fetch does, so one written for LinkedIn can still be added to Instagram,
+                and the other way round.
+              </p>
+            </div>
+            <ul className="divide-y">
+              {pinned.map((item) => (
+                <TrendRow
+                  key={`pinned-${item.url}`}
+                  item={item}
+                  lanes={data!.lanes}
+                  onWritten={(idea) => setViewing(idea)}
+                />
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
       ) : null}
 
       <Card>
@@ -290,7 +333,7 @@ export function UniversalTrends() {
             <ul className="divide-y">
               {visible.map((item) => (
                 <TrendRow
-                  key={item.id}
+                  key={item.url}
                   item={item}
                   lanes={data!.lanes}
                   onWritten={(idea) => setViewing(idea)}
@@ -378,7 +421,18 @@ function TrendRow({
               Trending · {item.coverage} outlets
             </Badge>
           ) : null}
+          {item.kept ? <span>· no longer in the latest fetch</span> : null}
         </p>
+        {item.added && Object.keys(item.added).length ? (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {PLATFORMS.map((platform) => {
+              const on = item.added?.[platform];
+              return on ? (
+                <AddedBadge key={platform} platform={platform} on={on} onOpen={onWritten} />
+              ) : null;
+            })}
+          </div>
+        ) : null}
       </div>
       <div className="flex shrink-0 gap-2">
         {PLATFORMS.map((platform) => (
@@ -410,14 +464,29 @@ function AddToPlatform({
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [lane, setLane] = useState<string | null>(null);
-  const chosen = lane ?? suggestLane(item.category, lanes) ?? lanes[0] ?? null;
+  const already = item.added?.[platform]?.lane;
+  const chosen =
+    lane ??
+    (already && lanes.includes(already) ? already : null) ??
+    suggestLane(item.category, lanes) ??
+    lanes[0] ??
+    null;
   const noun = platform === "instagram" ? "reel script" : "post";
 
   const add = useMutation({
     mutationFn: (write: boolean) =>
-      addTrend({ data: { trendId: item.id, platform, lane: chosen!, write } }),
+      addTrend({
+        data: {
+          ...(item.kept ? { sourceId: item.id } : { trendId: item.id }),
+          platform,
+          lane: chosen!,
+          write,
+        },
+      }),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: topicInboxQueryOptions(platform).queryKey });
+      // The story moves to Added from Trends, with what was written.
+      void queryClient.invalidateQueries({ queryKey: universalTrendsQueryOptions.queryKey });
       if (result.idea) {
         void queryClient.invalidateQueries({ queryKey: analysisQueryOptions(platform).queryKey });
         setOpen(false);
@@ -425,7 +494,7 @@ function AddToPlatform({
       }
     },
   });
-  const added = add.isSuccess && !add.data.reason;
+  const added = (add.isSuccess && !add.data.reason) || Boolean(item.added?.[platform]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -486,7 +555,7 @@ function AddToPlatform({
             <p className="text-xs text-muted-foreground">
               Writing uses AI (a few cents) and follows Pritesh Sir&apos;s {meta.label} voice.
             </p>
-            {added && !add.data.idea ? (
+            {add.isSuccess && !add.data.reason && !add.data.idea ? (
               <p className="text-xs text-emerald-700 dark:text-emerald-400">
                 Added to {meta.label}&apos;s topics in {chosen}.{" "}
                 <Link
@@ -513,5 +582,58 @@ function AddToPlatform({
         )}
       </PopoverContent>
     </Popover>
+  );
+}
+
+/** Where a story already went, and the post or script written there, to open again. */
+function AddedBadge({
+  platform,
+  on,
+  onOpen,
+}: {
+  platform: PlatformId;
+  on: AddedOn;
+  onOpen: (idea: ContentIdea) => void;
+}) {
+  const meta = PLATFORM_META[platform];
+  const open = useMutation({
+    mutationFn: (ideaId: string) => getTrendIdea({ data: { ideaId } }),
+    onSuccess: (idea) => onOpen(idea),
+  });
+  const noun = platform === "instagram" ? "script" : "post";
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5 text-xs">
+      <Badge
+        variant="outline"
+        className="gap-1 border-emerald-500/40 font-medium text-emerald-700 dark:text-emerald-400"
+      >
+        <Check className="size-3" aria-hidden />
+        On {meta.label}
+        {on.lane ? ` · ${on.lane}` : ""}
+      </Badge>
+      {on.ideaId ? (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 gap-1 px-1.5 text-xs"
+          disabled={open.isPending}
+          onClick={() => open.mutate(on.ideaId!)}
+        >
+          {open.isPending ? (
+            <Loader2 className="size-3 animate-spin" aria-hidden />
+          ) : (
+            <FileText className="size-3" aria-hidden />
+          )}
+          Open {meta.label} {noun}
+        </Button>
+      ) : (
+        <span className="text-muted-foreground">in topics, not written yet</span>
+      )}
+      {open.error ? (
+        <span className="text-destructive">
+          {open.error instanceof Error ? open.error.message : "Could not open it."}
+        </span>
+      ) : null}
+    </span>
   );
 }

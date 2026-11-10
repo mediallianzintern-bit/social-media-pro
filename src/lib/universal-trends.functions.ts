@@ -15,6 +15,16 @@ export const getUniversalTrends = createServerFn({ method: "GET" }).handler(
   },
 );
 
+/** A post or script written from Trends, to open it again. Free. */
+export const getTrendIdea = createServerFn({ method: "GET" })
+  .validator((input: unknown) => z.object({ ideaId: z.string().uuid() }).parse(input))
+  .handler(async ({ data }) => {
+    const { readIdeaById } = await import("@/server/store");
+    const idea = await readIdeaById(data.ideaId);
+    if (!idea) throw new Error("That post is no longer stored.");
+    return idea;
+  });
+
 export const universalTrendsQueryOptions = {
   queryKey: ["universal-trends"] as const,
   queryFn: () => getUniversalTrends(),
@@ -36,16 +46,26 @@ export const addTrend = createServerFn({ method: "POST" })
   .validator((input: unknown) =>
     z
       .object({
-        trendId: z.string().uuid(),
+        /** A trend in the latest fetch. */
+        trendId: z.string().uuid().optional(),
+        /** Or a story added earlier and kept (TrendItem.kept): its topic id. */
+        sourceId: z.string().uuid().optional(),
         platform: platformSchema,
         lane: z.string().min(1).max(120),
         write: z.boolean().optional(),
+      })
+      .refine((value) => Boolean(value.trendId) !== Boolean(value.sourceId), {
+        message: "Give a trend or a kept story, not both.",
       })
       .parse(input),
   )
   .handler(async ({ data }) => {
     const { addTrendToPlatform } = await import("@/server/trends/universal");
-    const { sourceId } = await addTrendToPlatform(data.trendId, data.platform, data.lane);
+    const { sourceId } = await addTrendToPlatform(
+      data.trendId ? { trendId: data.trendId } : { sourceId: data.sourceId! },
+      data.platform,
+      data.lane,
+    );
     if (!data.write) return { sourceId, idea: null, reason: null };
     const { generateMore } = await import("@/server/ai/index");
     const result = await generateMore(data.platform, { sourceId });

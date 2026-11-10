@@ -17,7 +17,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { PlatformId } from "@/lib/analytics-types";
 import { clusterStories, type SourceDraft } from "@/lib/sources";
-import { byUrgency, type TrendItem, type TrendsView } from "@/lib/universal-trends";
+import { byUrgency, type AddedOn, type TrendItem, type TrendsView } from "@/lib/universal-trends";
 
 import { OWNER_ACCOUNTS } from "../apify/accounts";
 import { searchNews } from "../sources/news";
@@ -218,11 +218,125 @@ export async function readUniversalTrends(): Promise<TrendsView> {
     items.push(item);
   }
   const latest = items[0]?.fetchedAt ?? null;
+  const { pinned, rest } = await pinAdded(items);
   return {
-    items: byUrgency(items),
+    items: byUrgency(rest),
+    pinned,
     lastFetched: latest,
     lanes: { instagram, linkedin },
   };
+}
+
+/** Stories added from Trends shown above the list at most. */
+const PINNED_MAX = 20;
+
+type AddedRow = {
+  id: string;
+  platform: PlatformId;
+  url: string;
+  title: string;
+  publisher: string | null;
+  publisher_url: string | null;
+  published_at: string | null;
+  query: string | null;
+  lane: string | null;
+  coverage: number | null;
+  fetched_at: string;
+};
+
+/** One story, however its headline was cased or punctuated. */
+const storyKey = (title: string) =>
+  title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+/** The category a story was added from, kept in its topic's query ("trends: ai | …"). */
+const categoryOf = (query: string | null) =>
+  /^trends:\s*([^|]+?)\s*(\||$)/.exec(query ?? "")?.[1] ?? "ai";
+
+/**
+ * Splits the latest fetch into the stories already added from Trends (pinned,
+ * with where they went and what was written) and the rest. An added story the
+ * latest fetch no longer carries is pinned from its stored topic. Never fatal:
+ * without it the page is the plain list.
+ */
+async function pinAdded(items: TrendItem[]): Promise<{ pinned: TrendItem[]; rest: TrendItem[] }> {
+  try {
+    const since = new Date(Date.now() - KEEP_DAYS * 86_400_000).toISOString();
+    const { data, error } = (await from("source_items")
+      .select(
+        "id,platform,url,title,publisher,publisher_url,published_at,query,lane,coverage,fetched_at",
+      )
+      .like("query", "trends:%")
+      .gte("fetched_at", since)
+      .order("fetched_at", { ascending: false })
+      .limit(200)) as { data: AddedRow[] | null; error: { message: string } | null };
+    if (error || !data?.length) return { pinned: [], rest: items };
+
+    // The newest post or script written from each added story.
+    const ideas = (await from("suggested_ideas")
+      .select("id,payload->source->>sourceId")
+      .in(
+        "payload->source->>sourceId",
+        data.map((row) => row.id),
+      )
+      .order("created_at", { ascending: false })) as {
+      data: Array<{ id: string; sourceId: string }> | null;
+    };
+    const ideaOf = new Map<string, string>();
+    for (const idea of ideas.data ?? []) {
+      if (!ideaOf.has(idea.sourceId)) ideaOf.set(idea.sourceId, idea.id);
+    }
+
+    // One entry per story, across both platforms, newest added first.
+    const stories = new Map<string, AddedRow[]>();
+    for (const row of data) {
+      const key = storyKey(row.title);
+      stories.set(key, [...(stories.get(key) ?? []), row]);
+    }
+
+    const claimed = new Set<string>();
+    const pinned: TrendItem[] = [];
+    for (const rows of [...stories.values()].slice(0, PINNED_MAX)) {
+      const first = rows[0]!;
+      const urls = new Set(rows.map((row) => row.url));
+      const key = storyKey(first.title);
+      const current = items.find(
+        (item) => !claimed.has(item.id) && (urls.has(item.url) || storyKey(item.title) === key),
+      );
+      const added: Partial<Record<PlatformId, AddedOn>> = {};
+      for (const row of rows) {
+        added[row.platform] ??= {
+          lane: row.lane,
+          sourceId: row.id,
+          ideaId: ideaOf.get(row.id) ?? null,
+        };
+      }
+      if (current) {
+        claimed.add(current.id);
+        pinned.push({ ...current, added });
+      } else {
+        pinned.push({
+          id: first.id,
+          category: categoryOf(first.query),
+          title: first.title,
+          url: first.url,
+          publisher: first.publisher,
+          publisherUrl: first.publisher_url,
+          publishedAt: first.published_at,
+          coverage: Number(first.coverage ?? 1),
+          fetchedAt: first.fetched_at,
+          added,
+          kept: true,
+        });
+      }
+    }
+    return { pinned, rest: items.filter((item) => !claimed.has(item.id)) };
+  } catch (error) {
+    console.error("[trends] stories added from Trends not pinned:", error);
+    return { pinned: [], rest: items };
+  }
 }
 
 /**
@@ -275,6 +389,9 @@ export async function fetchUniversalTrends(): Promise<{
         found.filter(
           (story) => isStory(story.title, story.publisher) && (!must || must.test(story.title)),
         ),
+        0.5,
+        // The headline most of the group is about, not the newest report.
+        { lead: "central" },
       ),
     ).slice(0, PER_CATEGORY);
     for (const story of stories) {
@@ -316,18 +433,13 @@ export async function fetchUniversalTrends(): Promise<{
  * again moves it to the lane chosen last.
  */
 export async function addTrendToPlatform(
-  trendId: string,
+  ref: { trendId: string } | { sourceId: string },
   platform: PlatformId,
   laneName: string,
 ): Promise<{ sourceId: string }> {
-  const { data, error } = (await table()
-    .select("id,observed_at,label,strength,from_query,evidence")
-    .eq("niche", NICHE)
-    .eq("id", trendId)
-    .maybeSingle()) as { data: Row | null; error: { message: string } | null };
-  if (error) throw new Error(`Could not read that trend: ${error.message}`);
-  const item = data ? itemOf(data) : null;
-  if (!item) throw new Error("That trend is no longer stored. Fetch trends again.");
+  const found = "trendId" in ref ? await trendById(ref.trendId) : await keptById(ref.sourceId);
+  if (!found) throw new Error("That trend is no longer stored. Fetch trends again.");
+  const { item, query } = found;
   const lanes = await lanesOf(platform);
   if (!lanes.includes(laneName))
     throw new Error(`"${laneName}" is not one of this platform's lanes.`);
@@ -339,7 +451,7 @@ export async function addTrendToPlatform(
       publisher: item.publisher,
       publisherUrl: item.publisherUrl,
       publishedAt: item.publishedAt,
-      query: `trends: ${data!.from_query ?? item.category}`,
+      query,
       lane: laneName,
       kind: "article",
       coverage: item.coverage,
@@ -352,4 +464,43 @@ export async function addTrendToPlatform(
     .maybeSingle()) as { data: { id: string } | null };
   if (!saved.data?.id) throw new Error("The story could not be added. Try again.");
   return { sourceId: saved.data.id };
+}
+
+/** A trend in the stored fetches, and the query its topic is filed under. */
+async function trendById(trendId: string): Promise<{ item: TrendItem; query: string } | null> {
+  const { data, error } = (await table()
+    .select("id,observed_at,label,strength,from_query,evidence")
+    .eq("niche", NICHE)
+    .eq("id", trendId)
+    .maybeSingle()) as { data: Row | null; error: { message: string } | null };
+  if (error) throw new Error(`Could not read that trend: ${error.message}`);
+  const item = data ? itemOf(data) : null;
+  return item ? { item, query: `trends: ${data!.from_query ?? item.category}` } : null;
+}
+
+/** A story added from Trends earlier, read back from the topic it was copied to. */
+async function keptById(sourceId: string): Promise<{ item: TrendItem; query: string } | null> {
+  const { data, error } = (await from("source_items")
+    .select(
+      "id,platform,url,title,publisher,publisher_url,published_at,query,lane,coverage,fetched_at",
+    )
+    .eq("id", sourceId)
+    .like("query", "trends:%")
+    .maybeSingle()) as { data: AddedRow | null; error: { message: string } | null };
+  if (error) throw new Error(`Could not read that story: ${error.message}`);
+  if (!data) return null;
+  return {
+    item: {
+      id: data.id,
+      category: categoryOf(data.query),
+      title: data.title,
+      url: data.url,
+      publisher: data.publisher,
+      publisherUrl: data.publisher_url,
+      publishedAt: data.published_at,
+      coverage: Number(data.coverage ?? 1),
+      fetchedAt: data.fetched_at,
+    },
+    query: data.query ?? "trends: ai",
+  };
 }
