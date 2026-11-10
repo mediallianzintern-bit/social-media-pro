@@ -1,4 +1,6 @@
-import { ExternalLink, Pin } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ExternalLink, FileText, Pin } from "lucide-react";
+import { useMemo } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -12,6 +14,7 @@ import {
 import { compactNumber, fullNumber, shortDate } from "@/lib/format";
 import { PostInsightButton } from "@/components/dashboard/post-insight-dialog";
 import { engagementsOf, type PlatformId, type PostRecord } from "@/lib/analytics-types";
+import { linkedInAnalyticsQueryOptions } from "@/lib/linkedin-api.functions";
 
 /**
  * The total of the columns THIS TABLE shows.
@@ -56,6 +59,19 @@ export function PostsTable({
   showViews: boolean;
   platform: PlatformId;
 }) {
+  // His LinkedIn articles, by the post that shares each one (10 Nov 2026): the
+  // table showed only the sharing post's text and an "Article" tag, so the
+  // article itself (its title and link) could not be seen here. Already
+  // loaded on the LinkedIn page for Top posts, so this costs nothing.
+  const { data: linkedin } = useQuery({
+    ...linkedInAnalyticsQueryOptions,
+    enabled: platform === "linkedin",
+  });
+  const articles = useMemo(
+    () => new Map((linkedin?.articles ?? []).map((article) => [article.postId, article])),
+    [linkedin],
+  );
+
   if (!posts.length) {
     return (
       <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
@@ -106,6 +122,28 @@ export function PostsTable({
                     </a>
                   ) : null}
                 </div>
+                {articles.get(post.postId) ? (
+                  <a
+                    href={articles.get(post.postId)!.url ?? post.url ?? undefined}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="mt-1.5 flex items-start gap-1.5 rounded-md border bg-muted/40 px-2 py-1.5 text-xs hover:bg-muted"
+                  >
+                    <FileText
+                      className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
+                      aria-hidden
+                    />
+                    <span>
+                      <span className="font-semibold">{articles.get(post.postId)!.title}</span>
+                      {articles.get(post.postId)!.readMinutes ? (
+                        <span className="text-muted-foreground">
+                          {" "}
+                          · {articles.get(post.postId)!.readMinutes} min read
+                        </span>
+                      ) : null}
+                    </span>
+                  </a>
+                ) : null}
                 <span className="mt-1.5 flex flex-wrap gap-1.5">
                   <Badge variant="outline" className="text-[10px] font-normal capitalize">
                     {post.format}
