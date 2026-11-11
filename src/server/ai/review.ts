@@ -39,9 +39,16 @@ import {
   DASHBOARD_HANDOVER,
   INSTAGRAM_MASTER_PROMPT,
   INSTAGRAM_REVIEW_PROMPT,
-  POSTED_REEL_PATTERNS,
+  REEL_EXAMPLES,
 } from "./voice";
-import { REEL_AIM_WORDS, REEL_MAX_SECONDS, REEL_MIN_SECONDS, REEL_WORDS } from "@/lib/reel-length";
+import { FIXED_INTRO, isFixedIntro, scriptWords } from "@/lib/reel-intro";
+import {
+  REEL_AIM_WORDS,
+  REEL_MAX_SECONDS,
+  REEL_MIN_SECONDS,
+  REEL_WORDS,
+  REEL_WORDS_LIMIT,
+} from "@/lib/reel-length";
 
 const REVIEW_MODEL_DEFAULT = "gpt-4o";
 
@@ -100,24 +107,28 @@ const reviewSchema = {
     script: {
       type: "string",
       description:
-        "OUTPUT item 1: the one ready-to-record script, complete, as 5-8 short paragraphs " +
-        "separated by blank lines, following SCRIPT FLOW without labels: the Opening, the " +
-        "Explanation in simple words, ONE familiar business Example, and a Closing with one " +
-        `practical next step or a clear takeaway. ${REEL_WORDS.min}-${REEL_WORDS.max} spoken words (${REEL_MIN_SECONDS}-${REEL_MAX_SECONDS} seconds), never more than ${REEL_WORDS.max}.`,
+        "The one ready-to-record script, complete, as short paragraphs separated by blank lines, " +
+        "one short sentence per line, following the brief's flow without labels: the hook, the " +
+        `fixed intro ("${FIXED_INTRO}") right after it, the context, the story in order, an ` +
+        'optional pause, the turn ("And there\'s a lesson here for businesses."), one balanced ' +
+        `closing insight, then the lane's closing line. ${REEL_WORDS.min}-${REEL_WORDS.max} spoken words ` +
+        `from the hook to the insight, never more than ${REEL_WORDS.max}; the fixed intro and the closing line are not counted.`,
     },
     spokenWordCount: {
       type: "integer",
-      description: "OUTPUT item 2: the words in `script`, counted one by one.",
+      description:
+        "The words in `script` from the hook to the closing insight, counted one by one, without the fixed intro and the closing line.",
     },
     hook: {
       type: "string",
       description:
-        'The script\'s first line, word for word. It names what the reel is about (the tool, brand, campaign or development), never a hypothetical like "Imagine…" or the everyday example.',
+        'The script\'s first line, word for word: one of the brief\'s hook types (a curiosity question about what the brand did, a familiar brand fact, a plain question about the problem the tech solves, or a bold concrete line). Never "Did you hear", "Why does [brand]", "What\'s unique about" or a hypothetical business.',
     },
     altHooks: {
       type: "array",
       items: { type: "string" },
-      description: "OUTPUT item 3: exactly two alternative opening lines for the same script.",
+      description:
+        "Exactly two alternative hooks, each one of the brief's hook types, each leading into the same script (the fixed intro, then the same context line).",
     },
     shots: {
       type: "array",
@@ -125,9 +136,10 @@ const reviewSchema = {
       description:
         "The script above cut into shots for the editor, in order. Each shot's voiceover is " +
         "one paragraph of `script`, WORD FOR WORD: every spoken word of the script appears in " +
-        "exactly one shot, and no shot adds spoken words the script does not have.",
+        "exactly one shot, and no shot adds spoken words the script does not have. Shot 1 is the " +
+        "whole hook; shot 2 is exactly the fixed intro.",
     },
-    durationSeconds: { type: "integer", minimum: 50, maximum: 60 },
+    durationSeconds: { type: "integer", minimum: REEL_MIN_SECONDS, maximum: REEL_MAX_SECONDS },
     caption: { type: "string" },
     hashtags: { type: "array", items: { type: "string" }, description: "Exactly 5." },
     changeNotes: {
@@ -219,7 +231,7 @@ Anything the draft states beyond this headline, such as how the tool works, whic
 function reviewSystem(lane: string | null): string {
   const workflow =
     lane && isAiToolWorkflowLane(lane) ? toolWorkflowPrompt("instagram", [lane]) : "";
-  return [INSTAGRAM_MASTER_PROMPT, DASHBOARD_HANDOVER, POSTED_REEL_PATTERNS, workflow]
+  return [INSTAGRAM_MASTER_PROMPT, DASHBOARD_HANDOVER, REEL_EXAMPLES, workflow]
     .filter(Boolean)
     .join("\n\n");
 }
@@ -259,25 +271,27 @@ const GENERAL_BENEFIT =
 /** A hypothetical example opening, counted across the voiceover. */
 const HYPOTHETICAL_LINE = /\b(imagine|let['’]?s say|suppose|picture this)\b/gi;
 /**
- * A turn line before the insight, the way his posted reels pivot: "But here's
- * the clever part.", "But Auto Browse is the really interesting part.",
- * "Now, think about the bigger picture.", "Here’s what matters…". Curly
- * apostrophes included: his scripts use them.
+ * The turn before the closing insight, as the team's brief asks for it in every
+ * reel: "And there's a lesson here for businesses." / "And there's a marketing
+ * lesson here." (11 Nov 2026). It replaced "Here's the smart part" and "Why
+ * does this matter?", which the brief now rules out.
  */
-const TURN_LINE =
-  /\b(here['’]?s (the|what|where|why|how)|but here['’]?s|the (really |most )?(clever|smart|interesting|real|important|bigger) (part|picture)|why does (this|it) matter|what (this|that) means|here is (the|what))\b/i;
+const TURN_LINE = /\bthere['’]?s (a|one) (\w+ )?lesson (here|in this)\b/i;
+/**
+ * Numbers in the script that are not a year: the brief allows at most one
+ * ("a year, or one striking reaction figure").
+ */
+const NUMBER = /\b\d[\d,.]*\b/g;
+const isYear = (token: string) => /^(19|20)\d\d$/.test(token);
 /** A last line that is the reel's sign-off rather than its point. */
 const SIGN_OFF = /follow for daily|see you tomorrow|\bcomment \W*[A-Z]{2,}/i;
 
-const LENGTH_GUIDANCE = `THE TEAM'S LENGTH REPLACES HIS: the 90–110 words (maximum 115) in his brief and in his review
-prompt above are replaced by the team's ${REEL_WORDS.min}–${REEL_WORDS.max} words, matching the reels he actually posted. Aim for about
-${REEL_AIM_WORDS} spoken words: your own counts have run 10 to 20 words high, so count word by word. A script
-under ${REEL_WORDS.min} words is too short, whatever his brief says.
-LENGTH WITHOUT INVENTING: reach ${REEL_WORDS.min}–${REEL_WORDS.max} spoken words (a ${REEL_MIN_SECONDS}–${REEL_MAX_SECONDS} second reel) through the Explanation and the Example,
-never through invented facts or filler. The story's own specifics are the Example; only when the
-source is a headline with nothing concrete to show is the Example a clearly hypothetical business
-situation ("Let's say you run a small bakery…"), and then only once. Count the words across every
-shot's voiceover before returning.`;
+const LENGTH_GUIDANCE = `LENGTH: ${REEL_WORDS.min}–${REEL_WORDS.max} spoken words from the hook to the closing insight, as the team's brief says;
+the fixed intro and the lane's closing line are said on top and not counted. Aim for about ${REEL_AIM_WORDS}: your own
+counts have run 10 to 20 words high, so count word by word. Reach the length through the story told in
+order (what they wanted, what they did, the surprising detail), never through specs, extra numbers,
+filler questions or a hypothetical business. A headline-only source gives a shorter honest script,
+with what is unknown written as "[verify: …]" notes for the team.`;
 
 const WORKFLOW_GUIDANCE = `AI TOOL WORKFLOW: in this lane the EXAMPLE IS THE WORKFLOW, SHOWN. Set up the example in one
 line ("Let's say you run a small bakery."), then show 2–4 steps the viewer does, each its OWN short
@@ -345,6 +359,14 @@ const words = (text: string) =>
 const spokenWords = (review: ReviewResult) =>
   words(review.shots.map((shot) => shot.voiceover).join(" "));
 
+/** The script's own words, as the brief counts them: no fixed intro, no closing line. */
+const bodyWords = (review: ReviewResult, lane: string | null, title = "") =>
+  scriptWords(
+    review.shots.map((shot) => shot.voiceover),
+    lane,
+    title,
+  );
+
 /** How much a problem counts when choosing between review rounds. */
 function weightOf(problem: string): number {
   if (isLengthProblem(problem) || /the script uses “|formula|opener/.test(problem)) return 3;
@@ -362,17 +384,22 @@ function weightOf(problem: string): number {
 function betterRound(
   a: { review: ReviewResult; problems: string[] },
   b: { review: ReviewResult; problems: string[] },
+  lane: string | null = null,
 ): boolean {
   const score = (round: typeof a) => round.problems.reduce((sum, p) => sum + weightOf(p), 0);
   if (score(a) !== score(b)) return score(a) < score(b);
-  const off = (round: typeof a) => Math.abs(spokenWords(round.review) - REEL_AIM_WORDS);
+  const off = (round: typeof a) => Math.abs(bodyWords(round.review, lane) - REEL_AIM_WORDS);
   return off(a) <= off(b);
 }
 
 /** Specific facts a script should carry from its research, not general ones. */
 const SPECIFIC_FACTS = new Set<FactCategory>(["who", "where", "figure", "how", "result"]);
-/** Specific researched facts a reel must use, when the research has that many. */
-const MIN_FACTS_USED = 4;
+/**
+ * Specific researched facts a reel must use, when the research has that many.
+ * Two since the team's brief (11 Nov 2026): one idea, only the facts that serve
+ * its lesson, so a script is no longer asked to carry four.
+ */
+const MIN_FACTS_USED = 2;
 
 /** The multi-outlet research behind a draft, when its story was researched. */
 function researchFor(idea: RawIdea, sources: SourceItem[]): StoryResearch | undefined {
@@ -392,13 +419,15 @@ function problemsOf(
   research?: StoryResearch,
 ): string[] {
   const problems: string[] = [];
-  const count = spokenWords(review);
+  const count = bodyWords(review, lane, subject);
   const spoken = review.shots.map((shot) => shot.voiceover).join("\n");
 
-  // Every reel closes on its point before the sign-off, as his posted reels
-  // do ("Here's what matters for your business…", "The lesson? …"): an
-  // example followed straight by the CTA leaves the viewer without one.
-  const lines = review.shots.map((shot) => shot.voiceover.trim()).filter(Boolean);
+  // Every reel closes on its insight before the sign-off, as the team's brief
+  // asks ("Sometimes, … It's about …"): an example followed straight by the
+  // CTA leaves the viewer without one.
+  const lines = review.shots
+    .map((shot) => shot.voiceover.trim())
+    .filter((line) => line && !isFixedIntro(line));
   const point = SIGN_OFF.test(lines.at(-1) ?? "") ? lines.at(-2) : lines.at(-1);
   if (
     point &&
@@ -407,33 +436,41 @@ function problemsOf(
     GENERAL_BENEFIT.test(point)
   ) {
     problems.push(
-      `the takeaway names a general benefit ("${point.slice(0, 80)}"); make it practical: one thing ` +
-        `the viewer can do or check this week, or a specific lesson, as his posted reels end ` +
-        `("So add one question to every client check-in. Is the website updated?")`,
+      `the closing insight names a general benefit ("${point.slice(0, 80)}"); end on one balanced, ` +
+        `specific insight from this story, as the brief's examples do ("Sometimes, a rebrand isn't ` +
+        `about showing how different you are. It's about reminding people why they loved you.")`,
     );
   }
   if (point && (STILL_THE_EXAMPLE.test(point) || HYPOTHETICAL_OPENER.test(point))) {
     problems.push(
-      `the line before the sign-off is not a takeaway ("${point.slice(0, 80)}"); end on what this ` +
-        `means for the viewer's business or work, or the lesson, as his posted reels do ` +
-        `("Here's what matters for your business…", "The lesson? …"). An example is not a takeaway`,
+      `the line before the sign-off is not the closing insight ("${point.slice(0, 80)}"); after ` +
+        `"And there's a lesson here for businesses.", end on one balanced insight ("Sometimes, … ` +
+        `It's about …"). An example is not an insight`,
     );
   }
 
-  // How his posted reels are written (voice.ts POSTED_REEL_PATTERNS), held in
-  // code where it can be counted: the real story is the example, so at most
-  // one "Imagine… / Let's say…", and a turn line before the insight. A
+  // The team's brief (reel-brief.ts), held in code where it can be counted:
+  // the real story is the example, so at most one "Imagine…", the turn line
+  // before the insight, and at most one number that is not a year. A
   // workflow reel sets up one scene and shows steps, so the turn line is not
   // asked of it.
   const hypotheticals = spoken.match(HYPOTHETICAL_LINE) ?? [];
   if (hypotheticals.length > 1) {
     problems.push(
-      `the script uses ${hypotheticals.length} hypothetical examples ("Imagine…", "Let's say…"); his posted reels use the story's own specifics as the example, so keep at most one`,
+      `the script uses ${hypotheticals.length} hypothetical examples ("Imagine…", "Let's say…"); the brief uses the story's own example, so keep at most one`,
     );
   }
   if (!(lane && isAiToolWorkflowLane(lane)) && !TURN_LINE.test(spoken)) {
     problems.push(
-      `the script has no turn line before the insight; add one short line as his posted reels do ("But here's the clever part.", "Here's what I find smart.", "But here's where I'd be careful.")`,
+      `the script has no turn before the closing insight; add "And there's a lesson here for businesses." (or "And there's a marketing lesson here.") on its own line, as the brief's flow asks`,
+    );
+  }
+  const numbers = (spoken.replace(/\[[^\]]*\]/g, " ").match(NUMBER) ?? []).filter(
+    (token) => !isYear(token.replace(/[,.]$/, "")),
+  );
+  if (numbers.length > 1) {
+    problems.push(
+      `the script uses ${numbers.length} numbers (${numbers.slice(0, 5).join(", ")}); the brief allows at most one besides a year, the one that makes the story clearer. Say the rest in words, or leave them out`,
     );
   }
 
@@ -466,8 +503,8 @@ function problemsOf(
         .sort((a, b) => Number(b.category === "figure") - Number(a.category === "figure"))
         .slice(0, 6);
       problems.push(
-        `the script uses only ${used.length} of the specific researched facts; it needs at least ${needed}. ` +
-          `Work in the strongest of these, in Pritesh's words, in place of general statements: ` +
+        `the script uses only ${used.length} of the specific researched facts; it needs at least ${needed} that serve its one lesson. ` +
+          `Work in the strongest of these, in plain words, in place of general statements (never more than one number): ` +
           unused.map((fact) => `"${fact.text}"`).join("; "),
       );
     }
@@ -475,26 +512,32 @@ function problemsOf(
   // The shots are what the editor cuts from, so they are what is counted. A
   // script whose words did not all make it into the shots is a lost paragraph.
   const scripted = words(review.script);
-  if (scripted - count > 8) {
+  if (scripted - spokenWords(review) > 8) {
     problems.push(
-      `the script has ${scripted} words but the shots' voiceover only ${count}; ` +
+      `the script has ${scripted} words but the shots' voiceover only ${spokenWords(review)}; ` +
         `every paragraph of the script must be one shot's voiceover, word for word`,
     );
   }
-  // The team's 110-140 (lib/reel-length.ts), not his brief's 90-115: the reels
-  // he posted run that long, and shorter scripts came out too thin.
+  // The team's 80-115 (lib/reel-length.ts), from the hook to the insight: the
+  // fixed intro and the closing line are on top.
   if (count < REEL_WORDS.min) {
     problems.push(
-      `${count} spoken words by exact count${review.spokenWordCount && review.spokenWordCount !== count ? `, not ${review.spokenWordCount} as you counted` : ""}; ` +
-        `it needs ${REEL_WORDS.min}–${REEL_WORDS.max} for a ${REEL_MIN_SECONDS}–${REEL_MAX_SECONDS} second reel, never more than ${REEL_WORDS.max}. ` +
-        `The team's ${REEL_WORDS.min}–${REEL_WORDS.max} replaces the 90–115 in his brief: add about ${REEL_AIM_WORDS - count} words of substance from the source`,
+      `${count} spoken words by exact count, without the fixed intro and the closing line${review.spokenWordCount && review.spokenWordCount !== count ? `, not ${review.spokenWordCount} as you counted` : ""}; ` +
+        `it needs ${REEL_WORDS.min}–${REEL_WORDS.max}, never more than ${REEL_WORDS.max}: ` +
+        `add about ${REEL_AIM_WORDS - count} words of the story itself, told in order`,
     );
   }
-  if (count > REEL_WORDS.max)
-    problems.push(`${count} spoken words; the maximum is ${REEL_WORDS.max}`);
+  if (count > REEL_WORDS_LIMIT)
+    problems.push(
+      `${count} spoken words, without the fixed intro and the closing line; the maximum is ${REEL_WORDS.max}`,
+    );
+  // The line the hook leads into, past the fixed intro: it may name the
+  // subject when the hook is a curiosity question (lib/hook-check.ts).
+  const nextLine = lines[1]?.split(/(?<=[.?!])\s+/)[0] ?? "";
   for (const hook of [review.hook, ...review.altHooks]) {
     const issue = hookIssue(hook, subject, {
       allowHypothetical: Boolean(rules.allowHypotheticalHooks),
+      nextLine,
     });
     if (issue) problems.push(issue);
     // A kind of hook that has kept losing on filmed reels is not written again.
@@ -635,7 +678,7 @@ export async function reviewDrafts(
           );
           console.info(
             `[ai:review] "${String(idea["title"])}" round ${round + 1}: ` +
-              `${spokenWords(parsed.data)} spoken words (reply said ${parsed.data.spokenWordCount})` +
+              `${bodyWords(parsed.data, lane)} script words (reply said ${parsed.data.spokenWordCount})` +
               (problems.length ? `; ${problems.join("; ")}` : "; meets the hard rules"),
           );
           // The best round by what matters, not by a plain count: a round
@@ -644,7 +687,7 @@ export async function reviewDrafts(
           // 93-word round kept over a 105-word one). Ties go to the round
           // closer to the aim.
           const candidate = { review: parsed.data, problems };
-          if (!best || betterRound(candidate, best)) best = candidate;
+          if (!best || betterRound(candidate, best, lane)) best = candidate;
           if (!problems.length) break;
           feedback = { previous: parsed.data, problems };
         }
@@ -672,7 +715,16 @@ export async function reviewDrafts(
             // never past the team's limit (lib/reel-length.ts).
             durationSeconds: Math.min(
               REEL_MAX_SECONDS,
-              Math.max(review.durationSeconds, Math.round(spokenWords(review) / WORDS_PER_SECOND)),
+              Math.max(
+                review.durationSeconds,
+                Math.round(
+                  (spokenWords(review) +
+                    (review.shots.some((shot) => isFixedIntro(shot.voiceover))
+                      ? 0
+                      : words(FIXED_INTRO))) /
+                    WORDS_PER_SECOND,
+                ),
+              ),
             ),
             editorNotes: [
               ...(Array.isArray(idea.production?.["editorNotes"])

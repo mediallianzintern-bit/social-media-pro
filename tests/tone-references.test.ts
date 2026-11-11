@@ -21,14 +21,14 @@ describe("tone references", () => {
   it("flags where a reference breaks his brief", () => {
     const conflicts = conflictsWithBrief({
       lane: "Marketing stunts",
-      script: `What if a brand made an ad using just hands! ${words(140)}\nFollow me for more tips.`,
+      script: `Imagine a brand made an ad using just hands! ${words(140)}\nFollow me for more tips.`,
     });
     expect(conflicts.join(" ")).toMatch(/words/);
     expect(conflicts.join(" ")).toMatch(/hypothetical/);
     expect(conflicts.join(" ")).toMatch(/exclamation/);
     expect(conflicts.join(" ")).toMatch(/agreed line/);
     expect(
-      conflictsWithBrief({ lane: "Marketing stunts", script: `Brand did this. ${words(118)}` }),
+      conflictsWithBrief({ lane: "Marketing stunts", script: `Brand did this. ${words(95)}` }),
     ).toEqual([]);
   });
 

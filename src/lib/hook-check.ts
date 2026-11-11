@@ -42,10 +42,14 @@ export const subjectWords = (text: string): Set<string> =>
 /**
  * An opening that starts on a hypothetical or the viewer's everyday life
  * rather than the subject: "Imagine…", "Picture…", "Let's say you run…",
- * "What if…", "Suppose…", "Ever…".
+ * "Suppose…", "Ever…".
+ *
+ * "What if…" is no longer one (11 Nov 2026): the team's reel brief holds up
+ * "What if a brand sold you holidays you haven't even planned yet?" as a
+ * model hook, a curiosity question about what the brand did.
  */
 export const HYPOTHETICAL_OPENER =
-  /^\s*["“']?(imagine|picture|let'?s say|say you|what if|suppose|pretend|ever (wish|wonder|feel|notice|struggle|spend)|you know (when|that feeling))\b/i;
+  /^\s*["“']?(imagine|picture|let'?s say|say you|suppose|pretend|ever (wish|wonder|feel|notice|struggle|spend)|you know (when|that feeling))\b/i;
 
 /**
  * Why a hook is not about its reel, or null when it is.
@@ -53,12 +57,17 @@ export const HYPOTHETICAL_OPENER =
  * `subject` is the reel's title and angle. The hook must open on the subject
  * itself, and share at least one word with it, so it names the thing the reel
  * is about rather than a situation the viewer might be in.
+ *
+ * With `nextLine`, the subject may be named in the line after the hook
+ * instead. The team's reel brief (11 Nov 2026) asks for a hook "understandable
+ * without knowing the news" and answered at once: "What happens when a car
+ * brand launches an ad with no cars in it? / That's what Jaguar did in 2024."
  */
 export function hookIssue(
   hook: string,
   subject: string,
   /** Lifted when filmed reels prove hypothetical openers work (reel-patterns deriveRules). */
-  options: { allowHypothetical?: boolean } = {},
+  options: { allowHypothetical?: boolean; nextLine?: string } = {},
 ): string | null {
   const line = hook.replace(/[‘’]/g, "'").trim();
   if (!line) return null;
@@ -66,8 +75,11 @@ export function hookIssue(
     return `the hook "${line}" opens on a hypothetical; open on what the reel is about, the example comes later`;
   }
   const about = subjectWords(subject);
-  if (about.size && ![...subjectWords(line)].some((word) => about.has(word))) {
-    return `the hook "${line}" never names what the reel is about`;
+  const named = (text: string) => [...subjectWords(text)].some((word) => about.has(word));
+  if (about.size && !named(line) && !(options.nextLine && named(options.nextLine))) {
+    return options.nextLine !== undefined
+      ? `neither the hook "${line}" nor the line after it names what the reel is about`
+      : `the hook "${line}" never names what the reel is about`;
   }
   return null;
 }

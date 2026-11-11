@@ -15,6 +15,7 @@ import { z } from "zod";
 
 import type { ContentIdea, HookStyle } from "@/lib/ai-types";
 import { hookIssue, newsOpenerIssue } from "@/lib/hook-check";
+import { isFixedIntro } from "@/lib/reel-intro";
 import { isOpeningPair } from "@/lib/hook-variants";
 import { CLICHES, writtenHookIssue } from "@/lib/written-hook-check";
 import { voiceFlags } from "@/lib/voice-check";
@@ -164,6 +165,13 @@ export async function moreHooks(
   // On LinkedIn a question or possibility that names the subject is the
   // opening the team's brief asks for (2 Nov 2026).
   const allowHypothetical = written || Boolean(rules.allowHypotheticalHooks);
+  // The line a reel's hook leads into, past the fixed intro: a curiosity hook
+  // may leave the subject for it to name (lib/hook-check.ts).
+  const nextLine =
+    (idea.shots ?? [])
+      .map((shot) => (shot.voiceover ?? "").trim())
+      .filter((line) => line && !isFixedIntro(line))[1]
+      ?.split(/(?<=[.?!])\s+/)[0] ?? "";
   if (existing.length >= MAX_HOOKS) {
     return {
       idea: null,
@@ -215,7 +223,7 @@ ${
     : `Rules for every line:
 - One spoken sentence, at most 14 words. Short enough to say in the first three seconds.
 - It must fit THIS script: the line after it, as written, still follows naturally.
-- It is ABOUT the script's subject and names it: the tool, brand, campaign or development. Never open on the everyday example or a hypothetical ("Imagine…", "Let's say…", "What if…", "Picture…").
+- One of the team's reel brief hook types: a curiosity question about what the brand did ("What happens when a car brand launches an ad with no cars in it?"), a familiar brand fact with a line that promises more, a plain question about the problem the tech solves ("Can you build an AI that won't help hackers?"), or a bold, concrete line people can feel. It is about THIS script's subject, and it or the line after it (past the fixed intro) names it. Never "Did you hear", "Why does [brand]…", "What's unique about…", "What makes…", "Meet…", a statistic, or a hypothetical business ("Imagine you run…", "Let's say…").
 - Different from every opening already offered below, and from each other.
 - No emoji, no dashes, no exclamation marks, no hype words, no promise of a guide or link.
 - No stock phrases: "next level", "raised the bar", "masterclass", "genius", "wild", "insane".`;
@@ -264,7 +272,9 @@ ${scriptText(idea)}`;
       }
       if (hook.split(/\s+/).length > 18) return false;
       if (CLICHES.test(hook)) return false;
-      if (hookIssue(hook, `${idea.title} ${idea.angle}`, { allowHypothetical })) return false;
+      if (hookIssue(hook, `${idea.title} ${idea.angle}`, { allowHypothetical, nextLine })) {
+        return false;
+      }
       // A kind of hook filmed reels proved losing is not offered again.
       if (rules.blockedHookTypes.some((rule) => rule.type === hookTypeOf(hook))) return false;
       // The same checks the script itself is held to, applied to the line alone.
@@ -280,7 +290,7 @@ ${scriptText(idea)}`;
       } as unknown as ContentIdea;
       if (
         voiceFlags(probe, { allowHypotheticalHooks: allowHypothetical }).some(
-          (flag) => !/words of voice over/.test(flag),
+          (flag) => !/words of (voice over|script)|fixed intro/.test(flag),
         )
       )
         return false;

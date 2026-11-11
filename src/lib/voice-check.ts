@@ -20,7 +20,16 @@ import type { ContentIdea } from "@/lib/ai-types";
 import { hookIssue, newsOpenerIssue } from "@/lib/hook-check";
 import { openingOf, readabilityProblems, writingProblems } from "@/lib/linkedin-readability";
 import { isAiToolWorkflowLane, isWorkflowCta, workflowCtaIssue } from "@/lib/tool-workflow";
-import { REEL_MAX_SECONDS, REEL_MIN_SECONDS, REEL_WORDS } from "@/lib/reel-length";
+import { REEL_MAX_SECONDS, REEL_WORDS, REEL_WORDS_LIMIT } from "@/lib/reel-length";
+import { introIssue, isFixedIntro, scriptWords } from "@/lib/reel-intro";
+
+/** The line a reel's hook leads into: the first spoken line after the hook shot and the fixed intro. */
+function contextLineOf(idea: ContentIdea): string {
+  const lines = (idea.shots ?? [])
+    .map((shot) => (shot.voiceover ?? "").trim())
+    .filter((line) => line && !isFixedIntro(line));
+  return lines[1]?.split(/(?<=[.?!])\s+/)[0] ?? "";
+}
 
 /** Phrases banned outright by the voice document. Matched case-insensitively. */
 const BANNED_PHRASES = [
@@ -41,7 +50,8 @@ const BANNED_PHRASES = [
   "you can't afford to ignore this",
   "let that sink in",
   "read that again",
-  "think about that",
+  // "Think about that." is the team's own pause line in a reel (11 Nov 2026)
+  // and his on LinkedIn, so it is no longer banned.
   "who's with me",
   "drop your thoughts below",
   "i'm all ears",
@@ -97,7 +107,31 @@ const BANNED_WORDS: Array<{ word: string; pattern: RegExp }> = [
 ];
 
 /** Phrases banned on Instagram that are his own on LinkedIn. */
-const LINKEDIN_ALLOWED = new Set(["think about that"]);
+const LINKEDIN_ALLOWED = new Set<string>([]);
+
+/**
+ * Lines the team's reel brief rules out of a reel (11 Nov 2026, the Script
+ * Comparison sheet): the filler questions, turn lines and report language its
+ * wrong-tone examples are made of. Reels only: LinkedIn has its own brief.
+ */
+const REEL_BANNED = [
+  "did you hear",
+  "what's unique about",
+  "the result?",
+  "why does this matter?",
+  "why does it matter?",
+  "the lesson?",
+  "here's the smart part",
+  "here's the clever part",
+  "here's what i find smart",
+  "imagine this",
+  "valued at",
+  "holds a share",
+  "amassing",
+  "base model",
+  "streamline",
+  "perfect for",
+];
 
 /** "Isn't just …" / "not only …": the contrast LinkedIn allows, in moderation. */
 const NOT_JUST = /\b(isn'?t|is not|not|no longer) (just|only)\b/gi;
@@ -143,7 +177,7 @@ const BANNED_SHAPES: Array<{ label: string; pattern: RegExp }> = [
  */
 // The team's 110-140 since 29 Oct 2026, matching his posted reels (lib/reel-length.ts).
 const MIN_WORDS = REEL_WORDS.min;
-const MAX_WORDS = REEL_WORDS.max;
+const MAX_WORDS = REEL_WORDS_LIMIT;
 
 /** "Agree?" and "Thoughts?" only count as engagement bait standing alone as a question. */
 const AGREE = /(^|[\s.!])agree\?/i;
@@ -262,9 +296,14 @@ export function voiceFlags(
   const flags: string[] = [];
 
   for (const phrase of BANNED_PHRASES) {
-    // "Think about that for a moment." is his own turn line on LinkedIn.
     if (idea.post && LINKEDIN_ALLOWED.has(phrase)) continue;
     if (lower.includes(phrase)) flags.push(`uses “${phrase}”`);
+  }
+  if (!idea.post && !idea.reaction) {
+    const reel = lower.replace(/[‘’]/g, "'");
+    for (const phrase of REEL_BANNED) {
+      if (reel.includes(phrase)) flags.push(`uses “${phrase}”`);
+    }
   }
   if (AGREE.test(text)) flags.push("uses “Agree?”");
   if (THOUGHTS.test(text)) flags.push("uses “Thoughts?”");
@@ -339,10 +378,18 @@ export function voiceFlags(
   } else {
     const hooks = [...new Set([idea.hook, ...(idea.altHooks ?? [])].filter(Boolean))];
     const allowHypothetical = Boolean(options.allowHypotheticalHooks);
-    if (hooks.some((hook) => hookIssue(hook, subject, { allowHypothetical }))) {
+    // The line the hook leads into (past the fixed intro), which may name
+    // the subject instead (lib/hook-check.ts).
+    const nextLine = contextLineOf(idea);
+    if (hooks.some((hook) => hookIssue(hook, subject, { allowHypothetical, nextLine }))) {
       flags.push(
-        "a hook opens on a hypothetical or never names the subject; open on what the reel is about",
+        "a hook opens on a hypothetical, or neither it nor the line after it names the subject",
       );
+    }
+    // The fixed intro, right after the hook (lib/reel-intro.ts).
+    if (!idea.reaction && idea.format === "reel" && (idea.shots ?? []).length) {
+      const issue = introIssue((idea.shots ?? []).map((shot) => shot.voiceover ?? ""));
+      if (issue) flags.push(issue);
     }
   }
   // A LinkedIn post that opens like a news report ("Xsolla has acquired…").
@@ -385,17 +432,24 @@ export function voiceFlags(
     flags.push("promises a guide, link or resource — keep it only if it exists");
   }
 
-  // 90-115 words is a relaxed 45-55 seconds spoken. Only once a shot list
+  // The team's 80-115 words, from the hook to the insight: the fixed intro and
+  // the closing line are on top (lib/reel-intro.ts). Only once a shot list
   // exists, and only for a filmed format: a LinkedIn post has no spoken length.
   if (voiceover && !idea.post) {
-    const count = words(voiceover);
+    const count = idea.reaction
+      ? words(voiceover)
+      : scriptWords(
+          (idea.shots ?? []).map((shot) => shot.voiceover ?? ""),
+          idea.contentLane,
+          idea.title ?? "",
+        );
     if (count < MIN_WORDS)
       flags.push(
-        `only ${count} words of voice over — under ${MIN_WORDS}, about ${REEL_MIN_SECONDS} seconds`,
+        `only ${count} words of script, without the intro and the sign-off: under ${MIN_WORDS}`,
       );
     else if (count > MAX_WORDS)
       flags.push(
-        `${count} words of voice over — over ${MAX_WORDS}, likely to run past ${REEL_MAX_SECONDS} seconds`,
+        `${count} words of script, without the intro and the sign-off: over ${MAX_WORDS}, likely to run past ${REEL_MAX_SECONDS} seconds`,
       );
   }
 

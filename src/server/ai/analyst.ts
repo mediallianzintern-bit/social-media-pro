@@ -19,6 +19,7 @@ import {
 } from "./tool-workflow";
 import { costOf, type GenerationCost } from "@/lib/ai-cost";
 import { laneShapesBlock, withLaneCta } from "@/lib/script-families";
+import { isFixedIntro, withFixedIntro } from "@/lib/reel-intro";
 import { linkedInShapesBlock } from "@/lib/linkedin-shapes";
 import { fitLinkedInPosts } from "./linkedin-length";
 import { readToneReferences } from "./tone";
@@ -1090,7 +1091,11 @@ never name or credit the creator in the script.`
           : ""
       } ${
         sources.some((source) => source.research)
-          ? `A source with a \`factSheet\` was researched across several outlets: every fact there names the outlets that state it. Use ALL of it, so the script carries the specifics no single report had (the who, the where, the figures, how it was done, the result), not a summary of one article. State a fact marked CONFLICTING only as reported by its outlet, never as confirmed. Anything the fact sheet does not contain is a bracketed "[verify: …]" note, never stated as fact. ${
+          ? `A source with a \`factSheet\` was researched across several outlets: every fact there names the outlets that state it. ${
+              platform === "instagram"
+                ? "For a reel, use the facts that serve its ONE lesson (the team's reel brief): what the brand or company wanted, what it did, the surprising detail, at most one number. Leave the rest out, however true."
+                : "Use ALL of it, so the script carries the specifics no single report had (the who, the where, the figures, how it was done, the result), not a summary of one article."
+            } State a fact marked CONFLICTING only as reported by its outlet, never as confirmed. Anything the fact sheet does not contain is a bracketed "[verify: …]" note, never stated as fact. ${
               sources.some((source) => source.article?.text)
                 ? "A source with an `article` field comes with one article's text, read from the outlet in `articleFrom`. "
                 : ""
@@ -1100,8 +1105,11 @@ never name or credit the creator in the script.`
             : "You have the headline only; you have not read the article:"
       }
 HEADLINE ONLY means no outlet could be read for it, so accuracy comes first: state only what the
-headline itself says, explain what it means in simple words, use one clearly hypothetical example
-("Let's say you run…"), and write every other specific (how it works, dates, figures, who built it)
+headline itself says, explain what it means in simple words, ${
+        platform === "instagram"
+          ? "keep the reel short and honest (no hypothetical business in place of the story)"
+          : 'use one clearly hypothetical example ("Let\'s say you run…")'
+      }, and write every other specific (how it works, dates, figures, who built it)
 as a bracketed "[verify: …]" note for the team. Never fill the length with general benefits
 ("improve your customer service", "boost satisfaction"): a shorter honest script beats a padded one.
 ${JSON.stringify(
@@ -1370,11 +1378,25 @@ export function closingCta(
     `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, "0")}`;
 
   let added = 0;
+  // The fixed intro, word for word, as its own shot right after the hook
+  // (the team's reel brief, 11 Nov 2026; lib/reel-intro.ts).
+  const hadIntro = raw.shots.some((shot) => isFixedIntro(shot.voiceover ?? ""));
+  const introduced = withFixedIntro(raw.shots, (line) => {
+    if (!hadIntro) added += Math.ceil(line.split(/\s+/).length / 2);
+    return {
+      mark: "",
+      shotType: "Talking head — medium",
+      visual: "Pritesh to camera, introducing himself.",
+      voiceover: line,
+      onScreenText: "",
+      transition: "Cut",
+    };
+  });
   const shots = withLaneCta(
-    raw.shots,
+    introduced,
     raw.contentLane,
     (cta) => {
-      added = Math.ceil(cta.split(/\s+/).length / 2);
+      added += Math.ceil(cta.split(/\s+/).length / 2);
       return {
         // Timed below, with every other shot.
         mark: "",
@@ -1407,7 +1429,7 @@ export function closingCta(
   );
   const total = counts.reduce((sum, count) => sum + count, 0);
   const durationSeconds = Math.min(
-    60,
+    REEL_MAX_SECONDS,
     Math.max(raw.production.durationSeconds + added, Math.ceil(total / 2), shots.length),
   );
   let at = 0;

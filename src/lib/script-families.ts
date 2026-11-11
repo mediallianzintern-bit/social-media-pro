@@ -52,33 +52,39 @@ export interface FamilyShape {
 }
 
 export const FAMILY: Record<ScriptFamily, FamilyShape> = {
+  // The team's Script Comparison sheet (11 Nov 2026): AI NEWS and BRAND STORY.
   ai: {
     family: "ai",
-    payoff: "“Okay, now I understand it” and “I can actually use this.”",
+    payoff:
+      "“Okay, now I understand what it does” and “I know how to choose or use AI more wisely.”",
     structure: [
-      "opening: a problem the viewer recognises, or an honest question, with the tool or development named naturally",
-      "explanation: what it actually does, in simple words, its one most useful capability only, never a feature list",
-      "example: the story's own specifics first (who uses it, what it did, the figure); only when the source gives nothing concrete, one familiar business situation, clearly marked (“Let's say…”)",
-      "closing: one practical next step the viewer could take, or a clear takeaway",
+      "hook: a plain question about the real-world problem the tech is trying to solve, or a bold, concrete line people can feel",
+      "the fixed intro, right after the hook",
+      "context: the tool and the company in one line, an unfamiliar company placed through something people know",
+      "story: what it does, in words a shop owner would understand, every claim attributed (“The company says…”); one example only if the story gives it",
+      "pause (optional): “Here's why that matters.” and one honest insight",
+      "turn: “And there's a lesson here for businesses.”",
+      "ending: one practical, balanced takeaway on choosing or using AI wisely",
     ],
     ending:
-      "END ON ONE PRACTICAL NEXT STEP OR A CLEAR TAKEAWAY, such as a way to try it, a limitation worth knowing, or who it suits. " +
-      "NEVER end an AI reel with “the lesson is…”: that belongs to a campaign case study and reads as borrowed there.",
+      "END ON ONE PRACTICAL TAKEAWAY THAT HELPS SOMEONE CHOOSE OR USE AI WISELY, after the turn line, as a contrast or “Sometimes, …”. " +
+      "Never recommend or sell the tool, and never a generic line that fits any tool (“this could be the tool to boost your productivity”).",
   },
   marketing: {
     family: "marketing",
-    payoff:
-      "“I did not know this brand did that” and “now I understand why that marketing worked.”",
+    payoff: "“I did not know this brand did that” and “now I understand the lesson behind it.”",
     structure: [
-      "opening: a specific line that gives a reason to listen without giving the whole story away",
-      "explanation: the brand and specifically what it did, the concrete action, with the result ONLY where verified",
-      "example: why it worked, made clear through one familiar business situation the viewer could apply it to",
-      "closing: the transferable lesson",
+      "hook: a curiosity question about what the brand did, or a familiar brand fact and a line that promises more",
+      "the fixed intro, right after the hook",
+      "context: answer the hook right away (“That's what Jaguar did in 2024.”) or name the campaign in one line",
+      "story: what the brand wanted, what it did and the surprising detail, in order, in lines people can picture",
+      "pause (optional): “Think about that.” and at most one real question that names the business problem",
+      "turn: “And there's a lesson here for businesses.” or “And there's a marketing lesson here.”",
+      "ending: one balanced human insight that connects back to the hook",
     ],
     ending:
-      "END ON A TRANSFERABLE MARKETING LESSON — one another marketer could apply to a different brand. " +
-      "Restating the campaign is not a lesson: “a brand can turn a weakness into proof of a product benefit” is; " +
-      "“the lesson is that Burger King showed a moldy burger” is not.",
+      "END ON ONE BALANCED HUMAN INSIGHT, after the turn line, in the shape “Sometimes, … But/It's about …”, said once. " +
+      "Fair to the brand: what made sense before what went wrong. Never a generic ending that fits any brand (“emphasize your brand's emotional connection”).",
   },
 };
 
@@ -147,21 +153,16 @@ export function closingLineFor(lane: string | null | undefined, title: string): 
 }
 
 /**
- * The brand rule for one lane, or "" where the lane has none.
+ * The extra rule for one lane, or "" where the lane has none.
  *
- * Frontier AI developments is AI news told to marketers, and the team found its
- * scripts explained the development without ever saying which brand it touches
- * or what it changes for a brand's marketing. So the reel always names a brand:
- * the real one from the story, or — when the story names none — one clearly
- * hypothetical example described by its type. A real company is never named
- * as doing something the source does not say.
+ * Frontier AI developments once had to name a brand using the development,
+ * real or a hypothetical "mid-size travel agency". The team's sheet (11 Nov
+ * 2026) marks exactly that as wrong: the story's own example, or none.
  */
 const LANE_BRAND_RULE: Record<string, string> = {
   "frontier ai developments":
-    "BRAND AND MARKETING ANGLE: name the brand or company in the voiceover: the AI company behind the development, and any brand the story says is using it. " +
-    'If the story names no brand using it, add ONE clearly hypothetical example, described by its type and never by a real company\'s name: "Imagine a D2C skincare brand using this to…" or "Say you run a mid-size travel agency…". ' +
-    "Never say a real brand did something the source does not say. " +
-    "Always give the marketing angle: one line on what this development changes for a brand's marketing, such as its ads, content, customer service, targeting or costs.",
+    'AI NEWS: explain what it does in words a shop owner would understand; attribute every claim ("The company says…", "in its own tests"); place an unfamiliar company through something people know. ' +
+    'Use only an example the story itself gives; never a hypothetical business ("Imagine you run a mid-size travel agency").',
 };
 
 export function brandRule(lane: string | null | undefined): string {
@@ -172,12 +173,12 @@ export function brandRule(lane: string | null | undefined): string {
 export function ctaRule(lane: string | null | undefined): string {
   const fixed = ctaFor(lane);
   if (fixed) {
-    return `CTA: the reel ENDS on exactly this line, word for word, as its own final shot: "${fixed}" It counts toward the word budget.`;
+    return `CTA: the reel ENDS on exactly this line, word for word, as its own final shot, after the closing insight: "${fixed}" It is the one CTA, and it is not counted in the script's words.`;
   }
   if (isAiToolWorkflowLane(lane)) {
-    return `CTA: the reel ENDS on the comment CTA, as its own final shot, in exactly this shape: "${workflowCta("KEYWORD")}" Replace KEYWORD with ONE short word in capitals taken from this reel's tool or task (ADS for an ad builder, GEMINI for a Gemini workflow), so each reel's comments can be told apart. The team sends the guide to everyone who comments, so this promise is confirmed. Never a stock sign-off such as "Follow for more" or "See you next time". It counts toward the word budget.`;
+    return `CTA: the reel ENDS on the comment CTA, as its own final shot, in exactly this shape: "${workflowCta("KEYWORD")}" Replace KEYWORD with ONE short word in capitals taken from this reel's tool or task (ADS for an ad builder, GEMINI for a Gemini workflow), so each reel's comments can be told apart. The team sends the guide to everyone who comments, so this promise is confirmed. Never a stock sign-off such as "Follow for more" or "See you next time". It is not counted in the script's words.`;
   }
-  return 'CTA: end on ONE call to action written for THIS reel: it names the tool or the task the reel just showed, so it could not close any other reel. Shapes, not wording: "Try it on your next promotion and see what it gives you." / "Save this for the next time an ad is due tomorrow." / "Follow if you want more ways to get ads out faster." Never a stock sign-off such as "Follow for more AI and marketing tips", "See you next time" or "See you tomorrow", and never the daily line the other lanes use. It counts toward the word budget. Never promise a guide, template, link or resource, and never "comment X and I\'ll send you".';
+  return 'CTA: end on ONE call to action written for THIS reel: it names the tool or the task the reel just showed, so it could not close any other reel. Shapes, not wording: "Try it on your next promotion and see what it gives you." / "Save this for the next time an ad is due tomorrow." / "Follow if you want more ways to get ads out faster." Never a stock sign-off such as "Follow for more AI and marketing tips", "See you next time" or "See you tomorrow", and never the daily line the other lanes use. It is not counted in the script\'s words. Never promise a guide, template, link or resource, and never "comment X and I\'ll send you".';
 }
 
 const normalise = (text: string) =>
@@ -247,10 +248,11 @@ export function laneShapesBlock(lanes: ContentLane[]): string {
   const lines = lanes.map((lane) => {
     const shape = shapeFor({ name: lane.name, definition: lane.definition });
     if (!shape) {
-      return `- "${lane.name}": neither a tool/capability lane nor a campaign lane. Choose the ending from the SUBJECT — a useful implication for a tool or development, a transferable lesson for a brand's action.`;
+      return `- ${reelLaneNote(lane.name)} The ending follows the brief: one balanced takeaway after the turn line.`;
     }
     return [
-      `- "${lane.name}" is a ${shape.family === "ai" ? "TOOL / CAPABILITY" : "CAMPAIGN CASE STUDY"} reel.`,
+      `- "${lane.name}" is ${shape.family === "ai" ? "an AI NEWS" : "a BRAND STORY"} reel.`,
+      `  ${reelLaneNote(lane.name)}`,
       `  Viewer finishes thinking: ${shape.payoff}`,
       `  Beats, as planning logic only — never spoken, never labelled on screen:`,
       ...shape.structure.map((beat, index) => `    ${index + 1}. ${beat}`),
@@ -260,5 +262,24 @@ export function laneShapesBlock(lanes: ContentLane[]): string {
     ].join("\n");
   });
 
-  return `SCRIPT SHAPE BY LANE — the ending differs by lane and is the part most often got wrong:\n${lines.join("\n")}`;
+  return `SCRIPT SHAPE BY LANE, from the team's reel brief (the fixed intro goes right after the hook in every lane):\n${lines.join("\n")}`;
+}
+
+/**
+ * The reel type and flow each lane asked for in the team's Script Comparison
+ * sheet (11 Nov 2026), from its per-lane and per-story prompts.
+ */
+const LANE_NOTES: Record<string, string> = {
+  "brand strategy lessons": `"Brand strategy lessons": reel type BRAND STORY. Hook a) or b). Tell what the brand wanted, what it did and the surprising detail, in order. Optional pause: "Think about that." and at most one real question that names the business problem ("How do you stand out when your biggest competitor shares your story?"). Then what the brand did, in plain words people can picture, not numbers. Turn: "And there's a lesson here for businesses." End on a balanced human insight: "Sometimes, ... But/It's about ...". Fair to the brand: what made sense before what went wrong.`,
+  "marketing stunts": `"Marketing stunts": reel type BRAND STORY. Hook from what people know the brand for, or a "What if..." / "What happens when..." question about what it did. Name the campaign in one line. Describe the ad scene by scene in short lines, so the viewer can picture it. "But here's the surprising part." for the one surprising detail, attributed ("Levi's says..."). Turn: "And there's a marketing lesson here." End on ONE line starting "Sometimes, ..." that connects back to the hook.`,
+  "frontier ai developments": `"Frontier AI developments": reel type AI NEWS. Hook c) or d). Name the tool and the company in one line, placing an unfamiliar company through something people know. Explain it in one short contrast ("Most AI tools are built to talk. This one is built to decide."), then how it works in plain words, every claim attributed ("The company says...", "in its own tests"). "Here's why that matters." or one example the story itself gives, started with "Imagine..." only when it pictures that example (a customer message being routed), never a hypothetical business. Turn: "And there's a lesson here for businesses." End on how to choose or use AI wisely ("When you pick an AI tool, don't just ask what it can do. Ask what it was built not to do."). Never sell the tool.`,
+  "ai tool workflows": `"AI tool workflows": reel type AI NEWS, with the workflow shown as steps (the AI TOOL WORKFLOW block below). The voice rules, NUMBERS, NEVER and the fixed intro apply as to every reel.`,
+};
+
+/** The sheet's flow for one lane, or a pointer to pick by subject for a lane it does not cover. */
+export function reelLaneNote(lane: string): string {
+  return (
+    LANE_NOTES[lane.trim().toLowerCase()] ??
+    `"${lane}": pick the reel type from the subject: BRAND STORY for a brand, campaign or stunt; AI NEWS for a tool, model or AI development.`
+  );
 }

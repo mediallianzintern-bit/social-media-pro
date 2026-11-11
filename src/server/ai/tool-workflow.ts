@@ -108,7 +108,7 @@ The viewer should finish thinking "Okay, now I understand it, and I can try this
    GEMINI, CANVA). The team sends the guide to every commenter, so this promise is confirmed. Never a
    stock sign-off ("Follow for more AI and marketing tips", "See you next time", "See you tomorrow").
 Promise nothing else: no link, template or other resource.
-Stay within ${REEL_WORDS.min}-${REEL_WORDS.max} spoken words, never more than ${REEL_WORDS.max}: a ${REEL_MIN_SECONDS} to ${REEL_MAX_SECONDS} second reel. Count before returning.
+Stay within ${REEL_WORDS.min}-${REEL_WORDS.max} spoken words from the hook to the takeaway, never more than ${REEL_WORDS.max}; the fixed intro and the comment CTA are on top. The whole reel runs ${REEL_MIN_SECONDS} to ${REEL_MAX_SECONDS} seconds. Count before returning.
 Map each shown action to its own shotType="Screen recording" shot whose voiceover starts with the
 action (optionally First/Next/Then/Now). On-screen text stays within the reel's three-line limit,
 so label only the steps that need it.

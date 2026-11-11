@@ -365,12 +365,13 @@ export function ideasSchemaFor(options: {
             "than just a trend?\\nDuolingo's approach offers a lesson.\"). The second opens another " +
             "way: a clear position a marketer could disagree with, or a different surprising fact. " +
             "Same subject, same claim; never three rewordings of one opening."
-          : "Exactly 2 OTHER first lines for this same idea, for an A/B test. Each must open " +
-            "in a genuinely different way from `hook` and from each other — one may ask a " +
-            "question, another lead with a number, another contradict an assumption, name the " +
-            "brand first, or open mid-story. Three rewordings of the same opening are not a " +
-            "test and are the one thing this field must not contain. Same subject, same claim, " +
-            "same length as `hook`.",
+          : "Exactly 2 OTHER hooks for this same reel, for an A/B test, each one of the team's " +
+            "reel brief hook types and different from `hook` and from each other: a curiosity " +
+            "question about what the brand did, a familiar brand fact with a line that promises " +
+            "more, a plain question about the problem the tech solves, or a bold, concrete line. " +
+            "Never a number or statistic first. Each leads into the same script: the fixed " +
+            "intro, then the same context line. Three rewordings of the same opening are not a " +
+            "test and are the one thing this field must not contain. Same subject, same claim.",
         items: { type: "string" },
       },
       ...(written
@@ -379,7 +380,7 @@ export function ideasSchemaFor(options: {
             shots: {
               type: "array",
               description:
-                "A shot list an editor can cut from without asking questions. 6-10 shots covering the whole piece.",
+                "A shot list an editor can cut from without asking questions. 6-10 shots covering the whole piece. For a reel: shot 1 is the whole hook, shot 2 is exactly the fixed intro, the lane's closing line is the last shot.",
               items: {
                 type: "object",
                 additionalProperties: false,

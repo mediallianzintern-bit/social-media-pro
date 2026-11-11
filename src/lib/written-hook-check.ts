@@ -62,7 +62,7 @@ export function writtenHookIssue(
   // A LinkedIn opening may hold the subject back: the post names it within
   // its first few lines, which voiceFlags checks on the post itself.
   const flag = voiceFlags(probe, { allowHypotheticalHooks: true }).find(
-    (entry) => !/words of voice over|hook opens on a hypothetical/.test(entry),
+    (entry) => !/words of (voice over|script)|fixed intro|hook opens on a hypothetical/.test(entry),
   );
   return flag ?? null;
 }

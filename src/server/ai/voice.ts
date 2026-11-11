@@ -1,28 +1,28 @@
 // Pritesh Sir's voice — what every Instagram script prompt is written in.
 //
-// The master prompt below is Pritesh's own October 2026 reel brief, sent to
-// the model WORD FOR WORD. It is deliberately not condensed or paraphrased:
-// it is the wording he approved, and a paraphrase is a second author's reading
-// of it. See docs/pritesh-reel-voice-2026-10.md for the full brief, including
-// the review-and-rewrite prompt the dashboard does not use.
+// Since 11 Nov 2026 an Instagram reel is written to the team's reel brief
+// (reel-brief.ts, from the Script Comparison sheet): its flow, length, hooks,
+// endings, the fixed intro, and the scripts it marks as right and wrong. His
+// own October 2026 words on his voice and on accuracy are sent beside it,
+// verbatim; his October flow, length and delivery sections are kept here for
+// the record (OCTOBER_MASTER_PROMPT) and in the reaction format's voice, but
+// no longer shape a reel. See docs/pritesh-reel-voice-2026-10.md.
 //
-// Only two things are added around it, each as its own clearly labelled block
-// after the verbatim text, never edited into it:
+// Added around them, each as its own clearly labelled block:
 //   - MY BRIEF, filled from the dashboard's data rather than left blank.
-//   - DASHBOARD HANDOVER, mapping his OUTPUT section onto the fields the editor
-//     handover needs. His prompt allows a caption, hashtags and shot list "when
-//     requested"; the team requests them.
-//
-// Cost: the verbatim prompt is about a thousand tokens on a request of roughly
-// sixty thousand, so sending it whole costs little.
+//   - DASHBOARD HANDOVER, mapping the brief's OUTPUT onto the fields the
+//     editor handover needs, with the team's CTA per lane.
 //
 // The hard rules that can be checked in code (length, banned phrases, emoji,
-// dashes, promised resources) are checked again after generation in
-// src/lib/voice-check.ts, and flagged on the idea for the team.
+// dashes, the fixed intro, promised resources) are checked again after
+// generation in src/lib/voice-check.ts, and flagged on the idea for the team.
 //
 // LinkedIn has its own: the voice sections of his LinkedIn voice prompt, below.
 import type { PlatformId } from "@/lib/analytics-types";
-import { REEL_AIM_WORDS, REEL_MAX_SECONDS, REEL_MIN_SECONDS, REEL_WORDS } from "@/lib/reel-length";
+import { FIXED_INTRO } from "@/lib/reel-intro";
+import { REEL_AIM_WORDS, REEL_MAX_SECONDS, REEL_WORDS } from "@/lib/reel-length";
+
+import { REEL_BRIEF, REEL_EXAMPLES } from "./reel-brief";
 
 // ---------------------------------------------------------------------------
 // Pritesh's master prompt, verbatim, section by section. Split only so the
@@ -106,8 +106,13 @@ Is the example clear and truthful?
 Can I say this comfortably in under one minute?
 Would someone who reads my LinkedIn posts recognise the same voice?`;
 
-/** Pritesh's master prompt for Instagram Reels, exactly as he wrote it. */
-export const INSTAGRAM_MASTER_PROMPT = [
+/**
+ * Pritesh's October 2026 master prompt for Instagram Reels, exactly as he
+ * wrote it. Kept for the record and for anything that still quotes it whole;
+ * since 11 Nov 2026 reels are written to the team's brief (reel-brief.ts),
+ * with his own words on his voice and on accuracy sent beside it.
+ */
+export const OCTOBER_MASTER_PROMPT = [
   INTRO,
   MY_VOICE,
   DELIVERY,
@@ -121,6 +126,19 @@ export const INSTAGRAM_MASTER_PROMPT = [
 ].join("\n");
 
 /**
+ * What every Instagram reel prompt is written in (11 Nov 2026): the team's
+ * reel brief from the Script Comparison sheet, which decides the structure,
+ * length, hooks, endings and the fixed intro, then Pritesh's own description
+ * of his voice and his accuracy rules, verbatim, which agree with it. His
+ * October flow, length and delivery sections are left out: the sheet replaced
+ * them, and sending both would have the writer split the difference.
+ */
+export const INSTAGRAM_MASTER_PROMPT = [
+  REEL_BRIEF,
+  `HIS VOICE, IN PRITESH SIR'S OWN WORDS (his October 2026 brief; the team's brief above decides structure, length and wording where they differ):\n${MY_VOICE}\n${ACCURACY}`,
+].join("\n\n");
+
+/**
  * His brief's fill-in fields. Left blank in the prompt he wrote, because a
  * person fills them; here the dashboard does, from the data it sends below.
  */
@@ -129,19 +147,20 @@ Topic: the story or subject chosen for each idea, from the stories, lanes and da
 Audience: the people who follow this account: business owners, marketers and professionals, the same audience as my LinkedIn.
 Main takeaway: the one strongest takeaway the source material supports.
 Source material or notes: the fetched story each idea is built on, and the account data below.
-Real example, if available: only one the source material provides; otherwise a clearly hypothetical one.
-Desired viewer action, if any: none requested.`;
+Real example, if available: only one the source material provides. Never a hypothetical business in its place.
+Desired viewer action: the lane's closing line, given below.`;
 
 /**
- * His second prompt, "Review and rewrite a team draft", verbatim. The review
- * pass (review.ts) sends it after the master prompt with the strategist's draft
- * in place of "[Paste the script here]".
+ * The review pass's own instruction (review.ts), sent after the brief with the
+ * strategist's draft. His October "Review and rewrite a team draft" prompt,
+ * brought into line with the team's brief of 11 Nov 2026: the same job, the
+ * brief's flow, length and fixed intro.
  */
-export const INSTAGRAM_REVIEW_PROMPT = `Review this Instagram Reel draft against Pritesh Patel’s voice and the master instructions above.
-Rewrite it so it sounds like me speaking naturally to one person.
-Keep the useful idea. Remove anything generic, overly polished, repetitive, technical or unnecessarily promotional. Replace vague statements with a clear explanation or example, without inventing facts.
-Make the opening interesting without exaggerating. Keep one main takeaway and a natural closing.
-Aim for 90–110 spoken words, maximum 115. Leave room for pauses. Do not turn it into rushed speech to fit under one minute.
+export const INSTAGRAM_REVIEW_PROMPT = `Review this Instagram Reel draft against Pritesh Patel’s voice and the team's reel brief above, and rewrite it to that brief.
+Rewrite it so it sounds like him telling one person across the table an interesting story and the lesson behind it.
+Keep the story and its ONE lesson. Remove anything generic, overly polished, repetitive, technical, promotional or off the lesson: specs, benchmarks, market numbers, gossip, extra campaigns, filler questions ("The result?", "Why does this matter?", "The lesson?") and report language. Replace vague statements with what the brand or company actually did, in plain words, without inventing facts.
+Follow the brief's flow: the hook, the fixed intro right after it, the context, the story in order, an optional pause, the turn ("And there's a lesson here for businesses."), and one balanced closing insight.
+${REEL_WORDS.min}–${REEL_WORDS.max} spoken words, not counting the fixed intro and the lane's closing line. Leave room for pauses. Do not turn it into rushed speech.
 Return:
 
 1. The final ready-to-record script.
@@ -149,19 +168,17 @@ Return:
 3. A maximum of three brief notes explaining the most important changes.
 4. Any factual claim that needs verification, separately.`;
 
-/** How his OUTPUT section maps onto the editor handover the team requests. */
-export const DASHBOARD_HANDOVER = `DASHBOARD HANDOVER — the team requests these, which is the "unless requested" case in OUTPUT above:
-- The ready-to-record script is the voiceover across the shot list, in speaking order. Each short paragraph is a shot.
-- LENGTH FOR THIS DASHBOARD, as the team set it after comparing with the reels Pritesh actually posted (they run about 110 to 140 words): this OVERRIDES the word range in LENGTH above. The reel runs ${REEL_MIN_SECONDS} to ${REEL_MAX_SECONDS} seconds, so the whole voiceover is ${REEL_WORDS.min} to ${REEL_WORDS.max} spoken words, never more than ${REEL_WORDS.max}: aim for about ${REEL_AIM_WORDS}, because drafts have consistently come out 10 to 20 words shorter than the writer counted. Short scripts have been the problem, so count word by word before you return: under ${REEL_WORDS.min} means the Explanation or the Example is thin, and it is filled with substance from the source (its figures, names and specifics), never padding.
-- CTA FOR THIS DASHBOARD, as the team requested it (the "when a CTA is requested" case): Frontier AI developments, Brand strategy lessons and Marketing stunts end on exactly "Follow for daily AI and marketing updates. See you tomorrow." AI tool workflows end on "Comment KEYWORD and I'll send you the full step-by-step guide." with one keyword in capitals from that reel's tool or task. The team has confirmed it sends that guide to every commenter, so in that lane only, this promise is allowed.
-- EVERY REEL CLOSES ON ITS POINT, in every lane, as his posted reels do: the line before the sign-off is the takeaway, what this means for the viewer's business or work, or the lesson ("Here's what matters for your business…", "The lesson? …", "Remember, …"). An example is not a takeaway; never go from the example straight to the sign-off. The takeaway is PRACTICAL: one thing the viewer can do or check this week, or a specific lesson ("So add one question to every client check-in. Is the website updated?"), never a general benefit ("enhancing their experience", "in a more engaging way").
-- The script's first line is the hook. The two alternative opening lines are the two alternative hooks, and each must lead into the same script.
-- EVERY HOOK IS ABOUT THE SCRIPT'S SUBJECT, in every lane: it names the tool, brand, campaign or development the reel is about ("X just launched a tool that writes your ads for you."). A hook never opens on the everyday example or a hypothetical ("Imagine…", "Let's say you run a bakery…", "What if…", "Picture…"): that is the Example's job, after the subject is on the table. A hook that could open a reel about something else is wrong.
+/** How the brief's OUTPUT maps onto the editor handover the team requests. */
+export const DASHBOARD_HANDOVER = `DASHBOARD HANDOVER: how the brief's output is returned to the dashboard, and what the team requests on top:
+- The script is the voiceover across the shot list, in speaking order: one short paragraph (one thought) per shot. Shot 1 is the whole hook (one or two lines). Shot 2 is exactly the fixed intro: "${FIXED_INTRO}" The context line opens shot 3.
+- LENGTH: ${REEL_WORDS.min} to ${REEL_WORDS.max} spoken words from the hook to the closing insight, never more than ${REEL_WORDS.max}; aim for about ${REEL_AIM_WORDS}. The fixed intro and the lane's closing line are on top. Never pad to reach the length, and never cut the story to its headline: under ${REEL_WORDS.min} means the story or the example is thin.
+- CTA, as the team set it per lane (the brief's "a call to action given in the input"): Frontier AI developments, Brand strategy lessons and Marketing stunts end on exactly "Follow for daily AI and marketing updates. See you tomorrow." as their own final shot, after the closing insight; that line is the one CTA, never add another. AI tool workflows end on "Comment KEYWORD and I'll send you the full step-by-step guide." with one keyword in capitals from that reel's tool or task; the team sends that guide to every commenter, so in that lane only this promise is allowed.
+- The script's first line is the hook. The two alternative opening lines are two alternative hooks, each one of the brief's hook types, each leading into the same script (the fixed intro, then the same context line).
 - The on-screen text suggestions go in the shots' onScreenText: at most three across the whole reel, empty in every other shot.
-- The approximate duration is production.durationSeconds, never more than ${REEL_MAX_SECONDS}. The dashboard counts the spoken words itself.
+- The approximate duration is production.durationSeconds, the whole reel with the intro and the closing line, never more than ${REEL_MAX_SECONDS}. The dashboard counts the spoken words itself.
 - Also requested for the editor: the shot list, the production plan, a caption and exactly 5 hashtags.
 - No dashes of any kind in the voiceover: no em dash, no en dash, no spaced hyphen.
-- A claim that needs checking is written as a bracketed note for the team, e.g. "[verify: the release date]", never stated as confirmed.`;
+- The brief's "facts to verify before recording" are written as bracketed notes for the team, e.g. "[verify: the release date]", never stated as confirmed.`;
 
 /**
  * The voice alone, for the reaction format: his intro, voice, delivery, avoid
@@ -174,26 +191,13 @@ export const DASHBOARD_HANDOVER = `DASHBOARD HANDOVER — the team requests thes
 export const PRITESH_VOICE = [INTRO, MY_VOICE, DELIVERY, AVOID, ACCURACY].join("\n");
 
 /**
- * What the reels he actually posted do that his brief does not spell out
- * (added by the dashboard, 30 Oct 2026). Read from the nine scripts in the
- * Master Tracker (14-26 Oct) against 39 the dashboard wrote: his have a turn
- * line before the insight (6 of 9), his own view, one question answered at
- * once, the real story as the example (he uses "Imagine" in 2 of 9, the
- * dashboard in most), an everyday picture for a technical term, an honest
- * caveat, and the lesson said out loud. Labelled, and never edited into his
- * brief; where it could seem to differ, his brief still governs accuracy.
+ * The scripts the team holds up as right, per lane, and the dashboard's own
+ * versions of the same stories as the wrong tone (reel-brief.ts, 11 Nov 2026).
+ * They replace the patterns read from his posted reels on 30 Oct, which asked
+ * for "Here's the smart part", "Why does this matter?" and "The lesson?", the
+ * very lines the sheet marks as wrong.
  */
-export const POSTED_REEL_PATTERNS = `HOW HIS POSTED REELS ARE WRITTEN (added by the dashboard from the reels Pritesh actually posted; his brief above still governs everything it covers):
-- A TURN LINE before the insight, in its own short line: "But here's the clever part." / "Here's the smart part." / "But Auto Browse is the really interesting part." / "But here's where I'd be careful."
-- HIS OWN VIEW, once, in the first person: "Here's what I find smart." / "Here's where I'd be careful." He judges the story; he does not only report it.
-- ONE QUESTION, answered in the next line: "Why Oreo? The two brands already have a fun rivalry on social media." / "Why does this matter?" Never more than one, never left unanswered.
-- THE REAL STORY IS THE EXAMPLE. The specifics of the story itself (the agency, the city, the billboard, the campaign name, the figure) make it concrete. Use "Imagine…" or "Let's say…" only when the source gives nothing concrete to show, at most once, clearly marked as hypothetical.
-- A TECHNICAL TERM GETS AN EVERYDAY PICTURE right after it: "Think of these as the parts that help AI learn." / "Think of it like a restaurant kitchen. Not every chef needs to work on every order." / "Running AI is like running a large office."
-- ONE HONEST CAVEAT where the story has a limit: "Of course, sensitive actions like purchases still require your confirmation." / "That doesn't mean your entire customer support bill drops by 75%."
-- MARKETING REELS NAME THE CREDITS: the agency ("made by agency Courage"), the place ("billboards in Canada"), the campaign name in quotes.
-- A REVEAL IN TWO BEATS where there is one: "The result? 'Hu Dis?' It sounds like 'Who dis?'"
-- RHYTHM: one idea per line, and lines that start with "But", "And", "So" or "Now" carry the story forward ("Now, they're taking that fight to the streets.").
-- THE LESSON SAID OUT LOUD before the sign-off: "The lesson? …" / "That's a lesson for brands: …" / "That's how you turn a brand personality into advertising."`;
+export { REEL_EXAMPLES };
 
 /** A carousel is read, not spoken. The same voice, laid out slide by slide. */
 export const INSTAGRAM_CAROUSEL = `
@@ -664,8 +668,9 @@ export const LINKEDIN_VOICE = [
 /**
  * The voice block for a platform's script prompts, or "" where it is not wired.
  *
- * Instagram gets his master prompt verbatim, then the brief and handover, then
- * the carousel module, because the strategist chooses reel or carousel per idea
+ * Instagram gets the team's reel brief with his own voice words, the brief's
+ * fill-in fields, the handover, the target and wrong examples, then the
+ * carousel module, because the strategist chooses reel or carousel per idea
  * from the data.
  */
 export function voiceFor(platform: PlatformId): string {
@@ -675,7 +680,7 @@ export function voiceFor(platform: PlatformId): string {
     INSTAGRAM_MASTER_PROMPT,
     MY_BRIEF,
     DASHBOARD_HANDOVER,
-    POSTED_REEL_PATTERNS,
+    REEL_EXAMPLES,
     INSTAGRAM_CAROUSEL,
   ].join("\n\n");
 }

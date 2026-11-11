@@ -60,7 +60,7 @@ export function conflictsWithBrief(reference: Pick<ToneReference, "script" | "la
       ?.trim() ?? "";
   if (HYPOTHETICAL_OPENER.test(first)) {
     conflicts.push(
-      "opens on a hypothetical (“What if…”, “Imagine…”); the first line should name the subject",
+      "opens on a hypothetical (“Imagine…”, “Let's say…”); the first line should name the subject",
     );
   }
   if (/!/.test(script)) {
