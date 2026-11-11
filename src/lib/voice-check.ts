@@ -22,6 +22,13 @@ import { openingOf, readabilityProblems, writingProblems } from "@/lib/linkedin-
 import { isAiToolWorkflowLane, isWorkflowCta, workflowCtaIssue } from "@/lib/tool-workflow";
 import { REEL_MAX_SECONDS, REEL_WORDS, REEL_WORDS_LIMIT } from "@/lib/reel-length";
 import { introIssue, isFixedIntro, scriptWords } from "@/lib/reel-intro";
+import {
+  attributionIssue,
+  extraNumbers,
+  newsSummaryHook,
+  notJustFormula,
+  SET_APART,
+} from "@/lib/reel-rules";
 
 /** The line a reel's hook leads into: the first spoken line after the hook shot and the fixed intro. */
 function contextLineOf(idea: ContentIdea): string {
@@ -131,6 +138,13 @@ const REEL_BANNED = [
   "base model",
   "streamline",
   "perfect for",
+  // The generic endings the sheet marks as wrong (live test, 11 Nov 2026:
+  // "highlighting your human touch can set you apart").
+  "boost your productivity",
+  "emotional connection",
+  "lasting impression",
+  "taps into",
+  "speak as loudly",
 ];
 
 /** "Isn't just …" / "not only …": the contrast LinkedIn allows, in moderation. */
@@ -304,6 +318,33 @@ export function voiceFlags(
     for (const phrase of REEL_BANNED) {
       if (reel.includes(phrase)) flags.push(`uses “${phrase}”`);
     }
+    // The rest of the brief that code can check (lib/reel-rules.ts), on what
+    // is said and shown, not the caption.
+    const said = (idea.shots ?? [])
+      .flatMap((shot) => [shot.voiceover ?? "", shot.onScreenText ?? ""])
+      .join("\n");
+    const formula = notJustFormula(said);
+    if (formula) flags.push(`the “isn't just X. It's Y.” formula: “${formula.slice(0, 90)}”`);
+    const numbers = extraNumbers((idea.shots ?? []).map((shot) => shot.voiceover ?? "").join("\n"));
+    if (numbers.length > 1) {
+      flags.push(
+        `uses ${numbers.length} numbers (${numbers.slice(0, 4).join(", ")}); the brief allows one besides a year`,
+      );
+    }
+    const unattributed = attributionIssue(
+      (idea.shots ?? []).map((shot) => shot.voiceover ?? "").join("\n"),
+      idea.contentLane,
+    );
+    if (unattributed) flags.push(unattributed);
+    if (/^\s*meet\b/im.test(said))
+      flags.push("opens a line with “Meet…”, which the brief rules out");
+    if (SET_APART.test(said))
+      flags.push("uses “set … apart”, a generic ending the brief rules out");
+    const summary = [idea.hook, ...(idea.altHooks ?? [])]
+      .filter(Boolean)
+      .map((hook) => newsSummaryHook(hook))
+      .find(Boolean);
+    if (summary) flags.push(summary.replace(/^the hook/, "a hook"));
   }
   if (AGREE.test(text)) flags.push("uses “Agree?”");
   if (THOUGHTS.test(text)) flags.push("uses “Thoughts?”");

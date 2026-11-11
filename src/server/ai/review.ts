@@ -28,7 +28,15 @@ import { factSheetText, factUsed, type FactCategory, type StoryResearch } from "
 import { voiceFlags } from "@/lib/voice-check";
 import { toneReferencesBlock, type ToneReference } from "@/lib/tone-references";
 import type { ContentIdea } from "@/lib/ai-types";
-import { brandRule, ctaRule } from "@/lib/script-families";
+import { brandRule, ctaRule, reelLaneNote } from "@/lib/script-families";
+import {
+  attributionIssue,
+  extraNumbers,
+  leftInDespitePlan,
+  newsSummaryHook,
+  SET_APART,
+  TURN_LINE,
+} from "@/lib/reel-rules";
 
 import { isAiToolWorkflowLane, toolWorkflowIssues, toolWorkflowPrompt } from "./tool-workflow";
 import { workflowCtaIssue } from "@/lib/tool-workflow";
@@ -87,11 +95,16 @@ const shotJson = {
 const reviewSchema = {
   type: "object",
   additionalProperties: false,
-  // Order matters: the model writes fields in this order. The whole script is
-  // written FIRST, as prose, and only then cut into shots. Writing it shot by
-  // shot produced ~10 words a shot and ~60 in total, however often the target
-  // was repeated; as one piece, it is written the way he asks for it.
+  // Order matters: the model writes fields in this order. The PLAN comes
+  // first, as the team's per-story prompts were written (the one lesson, the
+  // facts that serve it, what to leave out): asked to plan "silently", the
+  // model followed the article's own framing instead (live test, 11 Nov 2026:
+  // Levi's yeti came back named "Gus", on the sheet's own leave-out list).
+  // Then the whole script, as prose, and only then cut into shots. Writing it
+  // shot by shot produced ~10 words a shot and ~60 in total, however often
+  // the target was repeated; as one piece, it is written the way he asks.
   required: [
+    "plan",
     "script",
     "spokenWordCount",
     "hook",
@@ -104,6 +117,37 @@ const reviewSchema = {
     "needsVerification",
   ],
   properties: {
+    plan: {
+      type: "object",
+      additionalProperties: false,
+      required: ["surprisingPart", "oneLesson", "keyFacts", "leaveOut"],
+      description:
+        "STEP 1 of the brief, written out before the script, the way the team writes a brief for one reel.",
+      properties: {
+        surprisingPart: {
+          type: "string",
+          description:
+            "The one surprising or interesting part of this story, in one sentence, from the source.",
+        },
+        oneLesson: {
+          type: "string",
+          description:
+            "The ONE lesson a business owner can use, in one sentence, specific to this story. The script's closing insight says this, and its hook leads to it.",
+        },
+        keyFacts: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            'Only the facts from the source that serve that lesson, each one the script will say, in order. At most one number besides a year. Company claims marked as claims ("The company says…").',
+        },
+        leaveOut: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            'What is true in the source but off the lesson, so the script never says it. Name each specific thing in brackets: "the character\'s name (Gus)", "benchmark score (71.8)", "staff names (Nick Scarcella, Jens Jebens)", "prices (INR 6,000, INR 20,000)". Usually: specs, benchmarks, market figures, extra campaigns, staff names, channel rollouts, press-release phrases.',
+        },
+      },
+    },
     script: {
       type: "string",
       description:
@@ -156,6 +200,12 @@ const reviewSchema = {
 } as const;
 
 const reviewResult = z.object({
+  plan: z.object({
+    surprisingPart: z.string(),
+    oneLesson: z.string(),
+    keyFacts: z.array(z.string()),
+    leaveOut: z.array(z.string()),
+  }),
   script: z.string().min(1),
   hook: z.string().min(1),
   altHooks: z.array(z.string()),
@@ -270,19 +320,6 @@ const GENERAL_BENEFIT =
   /\b(enhanc\w*|in a more \w+ way|better (customer |user )?experiences?|more (engaging|genuine|meaningful|personal)|seamless\w*|elevat\w*)\b/i;
 /** A hypothetical example opening, counted across the voiceover. */
 const HYPOTHETICAL_LINE = /\b(imagine|let['’]?s say|suppose|picture this)\b/gi;
-/**
- * The turn before the closing insight, as the team's brief asks for it in every
- * reel: "And there's a lesson here for businesses." / "And there's a marketing
- * lesson here." (11 Nov 2026). It replaced "Here's the smart part" and "Why
- * does this matter?", which the brief now rules out.
- */
-const TURN_LINE = /\bthere['’]?s (a|one) (\w+ )?lesson (here|in this)\b/i;
-/**
- * Numbers in the script that are not a year: the brief allows at most one
- * ("a year, or one striking reaction figure").
- */
-const NUMBER = /\b\d[\d,.]*\b/g;
-const isYear = (token: string) => /^(19|20)\d\d$/.test(token);
 /** A last line that is the reel's sign-off rather than its point. */
 const SIGN_OFF = /follow for daily|see you tomorrow|\bcomment \W*[A-Z]{2,}/i;
 
@@ -320,6 +357,9 @@ function reviewUser(
     lane && isAiToolWorkflowLane(lane) ? WORKFLOW_GUIDANCE : "",
     // The team's call to action for this lane — the "when a call to action is
     // requested" case in his ENDING section.
+    // The flow the team's sheet gives this lane (lib/script-families.ts), so
+    // the rewrite follows it, not only the writer.
+    lane ? `THIS LANE, from the team's reel brief: ${reelLaneNote(lane)}` : "",
     ctaRule(lane),
     // Frontier AI developments: a brand, real or clearly hypothetical, and the
     // marketing angle — kept through the rewrite, not only asked of the writer.
@@ -332,7 +372,11 @@ function reviewUser(
             "\n",
           )}\nFix every one, keep what was good, and return the full corrected script.\n` +
         `Previous rewrite:\n${JSON.stringify(
-          { script: feedback.previous.script, shots: feedback.previous.shots },
+          {
+            plan: feedback.previous.plan,
+            script: feedback.previous.script,
+            shots: feedback.previous.shots,
+          },
           null,
           2,
         )}`
@@ -396,10 +440,12 @@ function betterRound(
 const SPECIFIC_FACTS = new Set<FactCategory>(["who", "where", "figure", "how", "result"]);
 /**
  * Specific researched facts a reel must use, when the research has that many.
- * Two since the team's brief (11 Nov 2026): one idea, only the facts that serve
- * its lesson, so a script is no longer asked to carry four.
+ * One since the team's brief (11 Nov 2026): one idea, only the facts that serve
+ * its lesson. At two, this check pushed facts BACK in that the brief leaves
+ * out: in the live test it offered Levi's the yeti's name ("Gus") and its
+ * quarterly revenue, and Levi's took Gus.
  */
-const MIN_FACTS_USED = 2;
+const MIN_FACTS_USED = 1;
 
 /** The multi-outlet research behind a draft, when its story was researched. */
 function researchFor(idea: RawIdea, sources: SourceItem[]): StoryResearch | undefined {
@@ -441,6 +487,19 @@ function problemsOf(
         `about showing how different you are. It's about reminding people why they loved you.")`,
     );
   }
+  // The turn comes before the insight, never as the last thing said (live
+  // test, 11 Nov 2026: NVIDIA ended on "And there's a lesson here for
+  // businesses." with no lesson after it).
+  if (point && TURN_LINE.test(point)) {
+    problems.push(
+      `the reel ends on the turn line ("${point.slice(0, 80)}") with no insight after it; the turn comes first, then one closing insight`,
+    );
+  }
+  if (point && SET_APART.test(point)) {
+    problems.push(
+      `the closing insight is the generic "set … apart" ending ("${point.slice(0, 80)}"); say what THIS story teaches, as the brief's examples do`,
+    );
+  }
   if (point && (STILL_THE_EXAMPLE.test(point) || HYPOTHETICAL_OPENER.test(point))) {
     problems.push(
       `the line before the sign-off is not the closing insight ("${point.slice(0, 80)}"); after ` +
@@ -465,14 +524,22 @@ function problemsOf(
       `the script has no turn before the closing insight; add "And there's a lesson here for businesses." (or "And there's a marketing lesson here.") on its own line, as the brief's flow asks`,
     );
   }
-  const numbers = (spoken.replace(/\[[^\]]*\]/g, " ").match(NUMBER) ?? []).filter(
-    (token) => !isYear(token.replace(/[,.]$/, "")),
-  );
+  const numbers = extraNumbers(spoken);
   if (numbers.length > 1) {
     problems.push(
       `the script uses ${numbers.length} numbers (${numbers.slice(0, 5).join(", ")}); the brief allows at most one besides a year, the one that makes the story clearer. Say the rest in words, or leave them out`,
     );
   }
+  // The plan's own leave-out list, held against what is said and shown.
+  const shown = [spoken, ...review.shots.map((shot) => shot.onScreenText)].join("\n");
+  const leftIn = leftInDespitePlan(review.plan, shown);
+  if (leftIn.length) {
+    problems.push(
+      `the script still says what your plan leaves out: ${leftIn.map((item) => `"${item}"`).join("; ")}. Take it out of the voiceover and the on-screen text`,
+    );
+  }
+  const unattributed = attributionIssue(spoken, lane);
+  if (unattributed) problems.push(`the script has ${unattributed}`);
 
   // A word or formula his voice rules out (voice-check.ts), sent back to be
   // fixed instead of only flagged on the idea afterwards.
@@ -485,7 +552,7 @@ function problemsOf(
     angle: "",
   } as unknown as ContentIdea;
   for (const flag of voiceFlags(probe)) {
-    if (/^uses “|formula|opener/.test(flag) && !/emoji/.test(flag)) {
+    if (/^uses “|formula|opener|Meet…/.test(flag) && !/emoji/.test(flag)) {
       problems.push(`the script ${flag}; rewrite that line in plain words`);
     }
   }
@@ -498,9 +565,16 @@ function problemsOf(
     const used = specific.filter((fact) => factUsed(fact, spoken));
     const needed = Math.min(MIN_FACTS_USED, specific.length);
     if (used.length < needed) {
+      // Never offered: a figure (the brief allows one number), or anything
+      // the plan leaves out.
       const unused = specific
-        .filter((fact) => !used.includes(fact) && !fact.conflict)
-        .sort((a, b) => Number(b.category === "figure") - Number(a.category === "figure"))
+        .filter(
+          (fact) =>
+            !used.includes(fact) &&
+            !fact.conflict &&
+            fact.category !== "figure" &&
+            !leftInDespitePlan(review.plan, fact.text).length,
+        )
         .slice(0, 6);
       problems.push(
         `the script uses only ${used.length} of the specific researched facts; it needs at least ${needed} that serve its one lesson. ` +
@@ -538,6 +612,8 @@ function problemsOf(
   // The line the hook leads into, past the fixed intro: it may name the
   // subject when the hook is a curiosity question (lib/hook-check.ts).
   const nextLine = lines[1]?.split(/(?<=[.?!])\s+/)[0] ?? "";
+  const summary = newsSummaryHook(review.hook);
+  if (summary) problems.push(summary);
   for (const hook of [review.hook, ...review.altHooks]) {
     const issue = hookIssue(hook, subject, {
       allowHypothetical: Boolean(rules.allowHypotheticalHooks),
@@ -587,6 +663,24 @@ function problemsOf(
     if (cta) problems.push(cta);
   }
   return problems;
+}
+
+/** The alternative hooks that pass every check a hook is held to on its own. */
+function usableAltHooks(review: ReviewResult, title: string): string[] {
+  return review.altHooks.filter((hook) => {
+    if (newsSummaryHook(hook)) return false;
+    const probe = {
+      format: "reel",
+      title,
+      angle: "",
+      hook,
+      altHooks: [],
+      shots: [],
+      caption: "",
+      hashtags: [],
+    } as unknown as ContentIdea;
+    return !voiceFlags(probe).some((flag) => /^uses “|formula|opener/.test(flag));
+  });
 }
 
 /** Adds two costs together. usd stays null if either side has no published rate. */
@@ -702,13 +796,18 @@ export async function reviewDrafts(
         const review = best.review;
         reviewed += 1;
         const notes = [
+          // The plan behind the script, for the team: what it is meant to teach.
+          `The one lesson: ${review.plan.oneLesson}`,
           ...review.changeNotes.slice(0, 3).map((note) => `Review: ${note}`),
           ...review.needsVerification.map((claim) => `Verify before filming: ${claim}`),
         ];
         return {
           ...idea,
           hook: review.hook,
-          altHooks: review.altHooks.slice(0, 2),
+          // An alternative hook that breaks a rule is dropped rather than
+          // shown: the model rarely fixes one (live test: "Can AI redefine
+          // cybersecurity?" survived three rounds of being sent back).
+          altHooks: usableAltHooks(review, String(idea["title"] ?? "")).slice(0, 2),
           shots: review.shots,
           caption: review.caption,
           hashtags: review.hashtags,
