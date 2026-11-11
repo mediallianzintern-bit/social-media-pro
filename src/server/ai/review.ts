@@ -511,10 +511,14 @@ function problemsOf(
   }
   // The shots are what the editor cuts from, so they are what is counted. A
   // script whose words did not all make it into the shots is a lost paragraph.
-  const scripted = words(review.script);
-  if (scripted - spokenWords(review) > 8) {
+  // Compared without the fixed intro and the closing line: code adds either
+  // when the shots leave it out, so a script that has them and shots that do
+  // not are not a lost paragraph (11 Nov 2026, every test round flagged that
+  // 10-word gap, the closing line).
+  const scripted = scriptWords(review.script.split(/\n\s*\n/), lane, subject);
+  if (scripted - count > 8) {
     problems.push(
-      `the script has ${scripted} words but the shots' voiceover only ${spokenWords(review)}; ` +
+      `the script has ${scripted} words but the shots' voiceover only ${count}; ` +
         `every paragraph of the script must be one shot's voiceover, word for word`,
     );
   }
