@@ -282,7 +282,7 @@ function ExpectationNote({ prediction }: { prediction: Prediction }) {
         ) : (
           <Gauge className="size-3 shrink-0 text-muted-foreground" aria-hidden />
         )}
-        <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+        <span className="text-xs font-bold text-muted-foreground">
           {calibrated ? "Predicted" : "What the data says"}
         </span>
       </span>
@@ -293,17 +293,17 @@ function ExpectationNote({ prediction }: { prediction: Prediction }) {
             {prediction.range.low.toLocaleString()}–{prediction.range.high.toLocaleString()}{" "}
             {prediction.range.metric}
           </span>
-          <span className="mt-0.5 block text-[11px] text-muted-foreground">
+          <span className="mt-0.5 block text-xs text-muted-foreground">
             {Math.round(prediction.range.intervalPct * 100)}% interval, validated against measured
             results in this niche.
           </span>
         </>
       ) : (
         <>
-          <span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">
+          <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
             This idea {prediction.statement}
           </span>
-          <span className="mt-1 block text-[10px] italic text-muted-foreground/70">
+          <span className="mt-1 block text-xs italic text-muted-foreground/70">
             A measured comparison, not a forecast — accuracy improves as we track more posts.
           </span>
         </>
@@ -445,7 +445,7 @@ export function AiIdeaCards({
               className="group rounded-xl border bg-card text-left text-card-foreground shadow transition-all hover:-translate-y-0.5 hover:border-foreground/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <CardContent className="relative p-5">
-                <span className="absolute right-5 top-5 flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-bold">
+                <span className="absolute right-5 top-5 flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs font-bold">
                   <Sparkles className="size-2.5" style={{ color: accent }} aria-hidden />
                   {idea.reaction ? "Reaction hook" : (FORMAT_LABEL[idea.format] ?? idea.format)}
                 </span>
@@ -453,7 +453,7 @@ export function AiIdeaCards({
                   once the model was given reach, saves and the weak-post contrast
                   to cite. Uppercase and unclamped, it swamped the card and buried
                   the title; the whole text still reads properly in the drawer. */}
-                <p className="pr-24 text-[11px] leading-relaxed text-muted-foreground line-clamp-3">
+                <p className="pr-24 text-xs leading-relaxed text-muted-foreground line-clamp-3">
                   {idea.whyNow}
                 </p>
                 <span className="mt-2.5 flex items-center gap-2">
@@ -461,7 +461,7 @@ export function AiIdeaCards({
                   {idea.status && idea.status !== "suggested" ? (
                     <span
                       className={cn(
-                        "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
+                        "shrink-0 rounded-full px-1.5 py-0.5 text-xs font-semibold",
                         idea.status === "used"
                           ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
                           : "bg-muted text-muted-foreground",
@@ -473,7 +473,7 @@ export function AiIdeaCards({
                   {verdictOf.get(idea.id) ? (
                     <span
                       className={cn(
-                        "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
+                        "shrink-0 rounded-full px-1.5 py-0.5 text-xs font-semibold",
                         verdictOf.get(idea.id) === "approve"
                           ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
                           : "bg-destructive/10 text-destructive",
@@ -486,7 +486,7 @@ export function AiIdeaCards({
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{idea.angle}</p>
 
                 {idea.source ? (
-                  <p className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Newspaper className="size-3 shrink-0" aria-hidden />
                     {idea.source.verified ? (
                       <span className="truncate">
@@ -495,7 +495,7 @@ export function AiIdeaCards({
                       </span>
                     ) : null}
                     {idea.source.verified && headlineOnly(idea.source) ? (
-                      <span className="shrink-0 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                      <span className="shrink-0 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-xs font-bold text-amber-700 dark:text-amber-400">
                         Headline only
                       </span>
                     ) : null}
@@ -544,10 +544,7 @@ export function AiIdeaCards({
           {open ? (
             <>
               <SheetHeader className="border-b p-6 text-left">
-                <SheetDescription
-                  className="text-xs font-bold uppercase tracking-wider"
-                  style={{ color: accent }}
-                >
+                <SheetDescription className="text-xs font-bold" style={{ color: accent }}>
                   {FORMAT_LABEL[open.format] ?? open.format}
                   {open.post ? "" : " script"}
                 </SheetDescription>
@@ -654,10 +651,10 @@ export function AiIdeaCards({
                             >
                               {shot.mark}
                             </span>
-                            <Badge variant="outline" className="text-[10px] font-normal">
+                            <Badge variant="outline" className="text-xs font-normal">
                               {shot.shotType}
                             </Badge>
-                            <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground">
+                            <span className="ml-auto text-xs text-muted-foreground">
                               {shot.transition}
                             </span>
                           </div>
@@ -671,7 +668,7 @@ export function AiIdeaCards({
                             </p>
                           ) : null}
                           {shot.onScreenText ? (
-                            <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            <p className="mt-2 text-xs font-semibold text-muted-foreground">
                               On screen: {shot.onScreenText}
                             </p>
                           ) : null}
@@ -886,7 +883,7 @@ export function AiIdeaCards({
                       )}
                       {next.isPending ? "Writing the next one…" : "Suggest the next one"}
                     </Button>
-                    <p className="text-center text-[10px] text-muted-foreground">
+                    <p className="text-center text-xs text-muted-foreground">
                       Uses one AI call. Built on a fresh story you haven&rsquo;t used yet.
                     </p>
                     {next.data && !next.data.idea ? (
@@ -1075,7 +1072,7 @@ function SourceBlock({ source }: { source: NonNullable<ContentIdea["source"]> })
 function Spec({ label, value, wide }: { label: string; value: string; wide?: boolean }) {
   return (
     <div className={wide ? "col-span-2" : undefined}>
-      <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="mt-0.5 leading-snug">{value}</dd>
     </div>
   );
@@ -1083,7 +1080,7 @@ function Spec({ label, value, wide }: { label: string; value: string; wide?: boo
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="mb-3 flex items-center gap-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+    <h3 className="mb-3 flex items-center gap-3 text-xs font-bold text-muted-foreground">
       {children}
       <span aria-hidden className="h-px flex-1 bg-border" />
     </h3>
@@ -1285,29 +1282,29 @@ function HookChoice({
                   </span>
                 ) : null}
                 {idea.hookStyles?.[variant.hook] ? (
-                  <Badge variant="secondary" className="text-[10px] font-medium">
+                  <Badge variant="secondary" className="text-xs font-medium">
                     {styleLabel[idea.hookStyles[variant.hook]!]} hook
                   </Badge>
                 ) : null}
-                <Badge variant="outline" className="text-[10px] font-normal">
+                <Badge variant="outline" className="text-xs font-normal">
                   {variant.typeLabel}
                 </Badge>
                 {variant.multiple != null ? (
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     {variant.multiple}× your median across {variant.posts} post
                     {variant.posts === 1 ? "" : "s"}
                   </span>
                 ) : (
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     too few posts of this kind to say
                   </span>
                 )}
                 {variant.chosen ? (
-                  <Badge className="text-[10px] font-normal">
+                  <Badge className="text-xs font-normal">
                     {idea.post ? "Using this one" : "Filming this one"}
                   </Badge>
                 ) : variant.recommended && !picked ? (
-                  <Badge variant="secondary" className="text-[10px] font-normal">
+                  <Badge variant="secondary" className="text-xs font-normal">
                     Suggested
                   </Badge>
                 ) : null}
@@ -1340,7 +1337,7 @@ function HookChoice({
       {/* Reels, carousels, and LinkedIn posts and articles alike. */}
       <div className="mt-3 rounded-lg border border-dashed p-3">
         <p className="text-xs font-medium">Get more hooks</p>
-        <p className="mt-0.5 text-[11px] text-muted-foreground">
+        <p className="mt-0.5 text-xs text-muted-foreground">
           {idea.post
             ? isOpeningPair(idea.hook ?? "")
               ? "Three more openings for this same post, each a headline and the subheadline under it (all a phone shows before “see more”), in the style you pick. Story twist and Lesson are the two Pritesh Sir asked to test. One AI call each."
@@ -1365,12 +1362,12 @@ function HookChoice({
           ))}
         </div>
         {full ? (
-          <p className="mt-2 text-[11px] text-muted-foreground">
+          <p className="mt-2 text-xs text-muted-foreground">
             This {idea.post ? "post" : "script"} has {VARIANT_LABELS.length} hooks, the most the
             picker can label.
           </p>
         ) : null}
-        {more ? <p className="mt-2 text-[11px] text-muted-foreground">{more}</p> : null}
+        {more ? <p className="mt-2 text-xs text-muted-foreground">{more}</p> : null}
       </div>
     </section>
   );

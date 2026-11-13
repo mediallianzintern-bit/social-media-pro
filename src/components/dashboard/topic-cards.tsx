@@ -42,12 +42,12 @@ export function TopicCards({ recommendations }: { recommendations: Recommendatio
             >
               <CardContent className="relative p-5">
                 <span
-                  className="absolute right-5 top-5 rounded-full bg-muted px-2 py-0.5 text-[11px] font-bold"
+                  className="absolute right-5 top-5 rounded-full bg-muted px-2 py-0.5 text-xs font-bold"
                   style={{ color: accent }}
                 >
                   #{rec.rank}
                 </span>
-                <p className="pr-12 text-[11px] font-bold uppercase leading-relaxed tracking-wider text-muted-foreground">
+                <p className="pr-12 text-xs font-bold leading-relaxed text-muted-foreground">
                   {rec.evidence}
                 </p>
                 <h3 className="mt-2.5 text-base font-bold leading-snug tracking-tight">
@@ -80,7 +80,7 @@ export function TopicCards({ recommendations }: { recommendations: Recommendatio
                   />
                 </span>
                 {rec.confidence === "tentative" ? (
-                  <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                     Small sample — treat as a lead, not a finding.
                   </p>
                 ) : null}

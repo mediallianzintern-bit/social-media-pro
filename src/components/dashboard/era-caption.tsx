@@ -26,18 +26,16 @@ export function EraCaption({
 }) {
   if (!markers.length && !spansWhole) return null;
   return (
-    <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-muted-foreground">
-      <Flag className="size-3" aria-hidden />
+    <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-muted-foreground">
+      <Flag className="size-3.5" aria-hidden />
       {spansWhole ? (
-        <span>
-          All of this chart is within <span className="font-medium">{spansWhole.label}</span>, which
-          began {day(spansWhole.startsAt)}.
-        </span>
+        <span>All of this chart is after the strategy change on {day(spansWhole.startsAt)}.</span>
       ) : null}
       {markers.length ? (
         <span>
-          Dashed line{markers.length === 1 ? "" : "s"} mark where{" "}
-          {markers.map((marker) => `${marker.label} (${day(marker.startsAt)})`).join(", ")} began.
+          {markers.length === 1
+            ? `The dashed line marks the strategy change on ${day(markers[0]!.startsAt)}.`
+            : `Dashed lines mark the strategy changes on ${markers.map((marker) => day(marker.startsAt)).join(", ")}.`}
         </span>
       ) : null}
     </p>

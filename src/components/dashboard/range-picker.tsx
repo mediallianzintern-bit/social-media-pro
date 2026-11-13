@@ -1,124 +1,149 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { CalendarRange } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useDashboard } from "@/lib/use-dashboard";
 import {
+  dayMonth,
   QUICK_RANGES,
-  RANGE_LABELS,
   resolveRange,
+  sharedEra,
   toInputValue,
   type RangeKey,
 } from "@/lib/date-range";
 
+/** The dropdown's own words for each period: what a person is choosing. */
+const OPTION_LABEL: Record<RangeKey, string> = {
+  era: "Since strategy change",
+  today: "Today",
+  yesterday: "Yesterday",
+  "7d": "Last 7 days",
+  "30d": "Last 30 days",
+  "90d": "Last 90 days",
+  all: "All time",
+  custom: "Custom dates…",
+};
+
 /**
- * The reporting window lives in the URL, so a view is shareable and survives a
- * reload. One control row for the whole dashboard — never a per-chart picker.
+ * The reporting window, as ONE dropdown (13 Nov 2026, UI review): the row of
+ * eight buttons took the whole header and could disagree with the page. The
+ * window lives in the URL, so a view is shareable and survives a reload, and
+ * every header on the page reads from it.
  */
 export function RangePicker() {
   const navigate = useNavigate();
   const search = useSearch({ from: "/_app" });
   const raw = useDashboard();
-  // The strategy-change range exists only once someone has confirmed a
-  // strategy change. Without one it would be a second button showing exactly
-  // the last 30 days, so it is hidden — and the default, which asks for it,
-  // lights "Last 30 days", because that is what is on screen.
-  const hasEra = raw.platforms.some((platform) => platform.currentEra);
-  const active = search.range === "era" && !hasEra ? "30d" : search.range;
-  const ranges = hasEra ? QUICK_RANGES : QUICK_RANGES.filter((key) => key !== "era");
+  // "Since strategy change" exists only once one is confirmed. Without one it
+  // would be a second "Last 30 days", so it is hidden, and the default shows
+  // the 30 days it falls back to.
+  const era = sharedEra(raw.platforms);
+  const active = search.range === "era" && !era ? "30d" : search.range;
+  const ranges = era ? QUICK_RANGES : QUICK_RANGES.filter((key) => key !== "era");
   const resolved = resolveRange(active, search.from, search.to);
+  const eraLabel = era
+    ? `Since strategy change · ${dayMonth(new Date(`${era.startsAt}T00:00:00`))}`
+    : OPTION_LABEL.era;
 
   const [draftFrom, setDraftFrom] = useState(() => toInputValue(resolved.from));
   const [draftTo, setDraftTo] = useState(() => toInputValue(resolved.to));
   const [open, setOpen] = useState(false);
 
-  const select = (key: RangeKey) => {
-    navigate({ to: ".", search: { range: key } });
+  const select = (value: string) => {
+    if (value === "custom") {
+      setOpen(true);
+      return;
+    }
+    void navigate({ to: ".", search: (prev) => ({ ...prev, range: value as RangeKey }) });
   };
 
   const applyCustom = () => {
     if (!draftFrom) return;
-    navigate({
+    void navigate({
       to: ".",
-      search: {
+      search: (prev) => ({
+        ...prev,
         range: "custom" as const,
         from: draftFrom,
-        ...(draftTo ? { to: draftTo } : {}),
-      },
+        to: draftTo || undefined,
+      }),
     });
     setOpen(false);
   };
 
   return (
-    <div className="flex items-center gap-2">
-      <div
-        role="group"
-        aria-label="Reporting window"
-        className="hidden items-center gap-1 rounded-lg border bg-card p-1 md:inline-flex"
-      >
-        {ranges.map((key) => (
-          <Button
-            key={key}
-            size="sm"
-            variant={key === active ? "secondary" : "ghost"}
-            aria-pressed={key === active}
-            className="h-7 px-2.5 text-xs font-medium"
-            onClick={() => select(key)}
-          >
-            {RANGE_LABELS[key]}
-          </Button>
-        ))}
-      </div>
-
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            size="sm"
-            variant={active === "custom" ? "secondary" : "outline"}
-            className="h-8 gap-1.5 text-xs"
-          >
-            <CalendarRange className="size-3.5" aria-hidden />
-            {active === "custom" ? resolved.label : "Custom"}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="end" className="w-72 space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="range-from" className="text-xs">
-              From
-            </Label>
-            <Input
-              id="range-from"
-              type="date"
-              value={draftFrom}
-              max={draftTo || undefined}
-              onChange={(event) => setDraftFrom(event.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="range-to" className="text-xs">
-              To <span className="text-muted-foreground">(optional)</span>
-            </Label>
-            <Input
-              id="range-to"
-              type="date"
-              value={draftTo}
-              min={draftFrom || undefined}
-              onChange={(event) => setDraftTo(event.target.value)}
-            />
-          </div>
-          <Button size="sm" className="w-full" disabled={!draftFrom} onClick={applyCustom}>
-            Apply
-          </Button>
-          <p className="text-[11px] leading-relaxed text-muted-foreground">
-            Filters posts and growth points already stored. It does not scrape further back than the
-            sync window.
-          </p>
-        </PopoverContent>
-      </Popover>
-    </div>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverAnchor asChild>
+        <div>
+          <Select value={active} onValueChange={select}>
+            <SelectTrigger
+              className="h-11 min-w-[13rem] gap-2 text-sm"
+              aria-label="Reporting period"
+            >
+              <SelectValue>
+                {active === "era"
+                  ? eraLabel
+                  : active === "custom"
+                    ? resolved.label
+                    : OPTION_LABEL[active]}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent align="end">
+              {ranges.map((key) => (
+                <SelectItem key={key} value={key} className="py-2.5 text-sm">
+                  {key === "era" ? eraLabel : OPTION_LABEL[key]}
+                </SelectItem>
+              ))}
+              <SelectSeparator />
+              <SelectItem value="custom" className="py-2.5 text-sm">
+                {active === "custom" ? `Custom: ${resolved.label}` : OPTION_LABEL.custom}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </PopoverAnchor>
+      <PopoverContent align="end" className="w-72 space-y-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="range-from" className="text-sm">
+            From
+          </Label>
+          <Input
+            id="range-from"
+            type="date"
+            className="h-11"
+            value={draftFrom}
+            max={draftTo || undefined}
+            onChange={(event) => setDraftFrom(event.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="range-to" className="text-sm">
+            To <span className="text-muted-foreground">(optional)</span>
+          </Label>
+          <Input
+            id="range-to"
+            type="date"
+            className="h-11"
+            value={draftTo}
+            min={draftFrom || undefined}
+            onChange={(event) => setDraftTo(event.target.value)}
+          />
+        </div>
+        <Button className="h-11 w-full" disabled={!draftFrom} onClick={applyCustom}>
+          Apply
+        </Button>
+      </PopoverContent>
+    </Popover>
   );
 }

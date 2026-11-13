@@ -70,9 +70,7 @@ const VERDICT_TONE: Record<ElementVerdict, string> = {
 const percent = (value: number) => `${Math.round(value * 100)}%`;
 
 function Label({ children }: { children: React.ReactNode }) {
-  return (
-    <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{children}</h3>
-  );
+  return <h3 className="text-xs font-bold text-muted-foreground">{children}</h3>;
 }
 
 function Verdict({ verdict }: { verdict: ElementVerdict }) {
@@ -272,7 +270,7 @@ function Found({
             {analysing ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
             {analysing ? `Reading the ${w.thing}…` : "Analyse what was used"}
           </Button>
-          <p className="text-center text-[10px] text-muted-foreground">
+          <p className="text-center text-xs text-muted-foreground">
             {linkedin
               ? "About 1¢: one AI call, no transcript needed. Measures which opening was published, how much of the post survived, its length, grade, points and Repost line."
               : "About 3¢: one transcript of the reel and one AI call. Compares the hook, script, caption and hashtags with what was suggested."}
@@ -318,7 +316,7 @@ function Found({
               </Button>
             </div>
           )}
-          <p className="text-center text-[10px] text-muted-foreground">
+          <p className="text-center text-xs text-muted-foreground">
             {reviewReady
               ? `About 2¢, one AI call. Whether it worked is measured against your typical ${w.thing}${linkedin ? "'s LinkedIn impressions" : ""}; the AI explains why.${learning.review ? " Replaces the early check." : ""}`
               : `Get results now: about 2¢, an early check of the figures so far. It is shown here but not learned from; the full result${learning.reviewableAt ? ` on ${shortDate(learning.reviewableAt)}` : ""} replaces it and is what the system learns from.`}
@@ -505,11 +503,11 @@ function Parts({ learning }: { learning: ReelLearning }) {
                 </td>
                 <td className="whitespace-pre-line px-2 py-1.5 text-muted-foreground">
                   {part.ours || "–"}
-                  <span className="mt-1 block text-[10px]">{part.oursWords} words</span>
+                  <span className="mt-1 block text-xs">{part.oursWords} words</span>
                 </td>
                 <td className="whitespace-pre-line px-2 py-1.5">
                   {part.theirs || "–"}
-                  <span className="mt-1 block text-[10px] text-muted-foreground">
+                  <span className="mt-1 block text-xs text-muted-foreground">
                     {part.theirsWords} words{kind ? ` · ${kind}` : ""}
                   </span>
                 </td>
@@ -667,7 +665,7 @@ function Review({ learning }: { learning: ReelLearning }) {
           </tbody>
         </table>
       </div>
-      <p className="text-[10px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         Typical is the median {w.thing} in the 90 days before this one
         {learning.platform === "linkedin" ? ", from LinkedIn's own figures where it has them" : ""}.
       </p>
@@ -702,7 +700,7 @@ function Review({ learning }: { learning: ReelLearning }) {
               </li>
             ))}
           </ul>
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             New {learning.platform === "linkedin" ? "posts" : "scripts"} are written and reviewed
             with these lessons.
           </p>
@@ -765,7 +763,7 @@ export function Patterns({ platform }: { platform: "instagram" | "linkedin" }) {
           </tbody>
         </table>
       </div>
-      <p className="text-[10px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         Counted from the figures, not judged. A pattern is strong with 3 or more {w.things} behind
         it; the writer weighs strong patterns above any single {w.thing}.
       </p>

@@ -77,7 +77,7 @@ export function ReactionPanel({ idea }: { idea: ContentIdea }) {
           {SOURCE_PLATFORM_LABEL[source?.sourcePlatform ?? reaction.sourcePlatform]}
           <ExternalLink className="size-3.5" aria-hidden />
         </a>
-        <p className="break-all text-[11px] text-muted-foreground">{url}</p>
+        <p className="break-all text-xs text-muted-foreground">{url}</p>
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
           <span>
             <span className="text-muted-foreground">Type: </span>
@@ -111,7 +111,7 @@ export function ReactionPanel({ idea }: { idea: ContentIdea }) {
       <ol className="space-y-2">
         {reaction.beats.map((entry) => (
           <li key={entry.beat} className="text-sm">
-            <span className="block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            <span className="block text-xs font-medium text-muted-foreground">
               {BEAT_LABEL[entry.beat]}
             </span>
             {entry.line ? (

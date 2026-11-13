@@ -479,7 +479,7 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
               news feed. It can now also derive this account's lanes when it has
               none, which is model work — so the claim is qualified rather than
               quietly made false. */}
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Writing or regenerating a script uses a few AI calls (about 2.6¢). Regeneration
                 writes a new version using the current rules and keeps the previous version in
                 history. Refreshing is free — the news search costs nothing. The first refresh on an

@@ -11,6 +11,6 @@ export const StrongHeadings = createContext(false);
 /** The classes for a section title, for SectionHeading and the few sections that draw their own. */
 export function useSectionTitleClass(): string {
   return useContext(StrongHeadings)
-    ? "font-extrabold uppercase tracking-wider text-sm text-foreground"
-    : "font-bold uppercase tracking-wider text-xs text-muted-foreground";
+    ? "text-base font-semibold text-foreground"
+    : "text-base font-semibold text-foreground";
 }

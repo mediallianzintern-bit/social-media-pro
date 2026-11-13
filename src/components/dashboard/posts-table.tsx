@@ -145,7 +145,7 @@ export function PostsTable({
                   </a>
                 ) : null}
                 <span className="mt-1.5 flex flex-wrap gap-1.5">
-                  <Badge variant="outline" className="text-[10px] font-normal capitalize">
+                  <Badge variant="outline" className="text-xs font-normal capitalize">
                     {post.format}
                   </Badge>
                   {/* The lane this post was classified into, so the lane table
@@ -157,15 +157,12 @@ export function PostsTable({
                       the label is the model's own wording ("AI tools" must not
                       become "Ai Tools"). */}
                   {post.contentLane ? (
-                    <Badge
-                      variant="secondary"
-                      className="text-[10px] font-normal first-letter:uppercase"
-                    >
+                    <Badge variant="secondary" className="text-xs font-normal first-letter:">
                       {post.contentLane}
                     </Badge>
                   ) : null}
                   {post.pinned ? (
-                    <Badge variant="secondary" className="gap-1 text-[10px] font-normal">
+                    <Badge variant="secondary" className="gap-1 text-xs font-normal">
                       <Pin className="size-2.5" aria-hidden />
                       Pinned — excluded from rates
                     </Badge>

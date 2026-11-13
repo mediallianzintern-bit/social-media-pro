@@ -120,7 +120,7 @@ export function InstagramTrends({ platform }: { platform: PlatformId }) {
           ) : null}
 
           {!collapsed && data?.scanned.length ? (
-            <p className="text-[11px] leading-relaxed text-muted-foreground">
+            <p className="text-xs leading-relaxed text-muted-foreground">
               Watching {data.scanned.map((account) => `@${account.handle}`).join(", ")}.
             </p>
           ) : null}

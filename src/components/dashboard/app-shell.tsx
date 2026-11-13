@@ -1,17 +1,21 @@
+// The frame around every signed-in screen: the menu, the header with the one
+// period dropdown, and on a phone a bottom tab bar.
+//
+// 13 Nov 2026, UI review: the menu had ten items that overlapped (reaction
+// hooks and news topics sat both in the menu and inside each account page).
+// It is now five places to go, then the two accounts, then Settings, which
+// holds what used to crowd the footer (data sources, dark mode, sign out).
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
-  Bookmark,
-  Clapperboard,
   FileText,
   Film,
-  Instagram,
-  LayoutDashboard,
-  Linkedin,
+  House,
+  Lightbulb,
   ListChecks,
-  LogOut,
-  Radio,
-  TrendingUp,
+  Settings,
+  UsersRound,
+  type LucideIcon,
 } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 
@@ -27,6 +31,7 @@ import {
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
@@ -37,24 +42,53 @@ import { Separator } from "@/components/ui/separator";
 import { BrandMark } from "@/components/brand";
 import { RangePicker } from "@/components/dashboard/range-picker";
 import { SyncButton } from "@/components/dashboard/sync-button";
-import { ThemeToggle } from "@/components/dashboard/theme-toggle";
+import { PLATFORM_META } from "@/lib/platform-meta";
+import { useWaitingIdeas } from "@/lib/use-waiting-ideas";
+import { cn } from "@/lib/utils";
 
-const NAV = [
-  { to: "/", label: "Overview", icon: LayoutDashboard, group: "Analytics" },
-  { to: "/instagram", label: "Instagram", icon: Instagram, group: "Platforms" },
-  { to: "/linkedin", label: "LinkedIn", icon: Linkedin, group: "Platforms" },
-  { to: "/workspace", label: "Workspace", icon: ListChecks, group: "Analytics" },
-  { to: "/reactions", label: "Reaction hooks", icon: Clapperboard, group: "Analytics" },
-  { to: "/report", label: "Client report", icon: FileText, group: "Analytics" },
-  { to: "/saved", label: "Saved", icon: Bookmark, group: "Analytics" },
-  { to: "/filmed", label: "Filmed & posted", icon: Film, group: "Analytics" },
-  { to: "/sources", label: "Data sources", icon: Radio, group: "Setup" },
-  // Listed last but shown under Analytics, after Filmed: universal trends for
-  // both platforms (6 Nov 2026).
-  { to: "/trends", label: "Trends", icon: TrendingUp, group: "Analytics" },
-] as const;
+interface NavItem {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  /** Other paths that light this item: the Ideas pages, Settings' data sources. */
+  also?: string[];
+}
 
-const GROUPS = ["Analytics", "Platforms", "Setup"] as const;
+const MAIN: NavItem[] = [
+  { to: "/", label: "Home", icon: House },
+  { to: "/workspace", label: "To do", icon: ListChecks },
+  { to: "/ideas", label: "Ideas", icon: Lightbulb, also: ["/saved", "/trends", "/reactions"] },
+  { to: "/filmed", label: "Published", icon: Film },
+  { to: "/report", label: "Reports", icon: FileText },
+];
+
+const SETTINGS: NavItem = {
+  to: "/settings",
+  label: "Settings",
+  icon: Settings,
+  also: ["/sources"],
+};
+
+/** The page title in the header, for every route the shell frames. */
+const TITLES: Record<string, string> = {
+  "/": "Home",
+  "/workspace": "To do",
+  "/ideas": "Ideas",
+  "/saved": "Ideas · Saved",
+  "/trends": "Ideas · Trends",
+  "/reactions": "Ideas · Reaction hooks",
+  "/filmed": "Published",
+  "/settings": "Settings",
+  "/sources": "Settings · Data sources",
+  "/instagram": "Instagram",
+  "/linkedin": "LinkedIn",
+};
+
+/** Screens about the account's numbers, where the period dropdown applies. */
+const HAS_PERIOD = new Set(["/", "/instagram", "/linkedin", "/filmed"]);
+
+const isActive = (item: NavItem, pathname: string) =>
+  pathname === item.to || Boolean(item.also?.includes(pathname));
 
 export function AppShell({
   children,
@@ -62,7 +96,7 @@ export function AppShell({
   stale,
   autoSync,
   syncDisabled,
-  userEmail,
+  userEmail: _userEmail,
 }: {
   children: ReactNode;
   lastSyncedAt: string | null;
@@ -74,17 +108,10 @@ export function AppShell({
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { waiting } = useWaitingIdeas();
 
-  // Leaving drops every cached query, so the next person at this browser does
-  // not see the last one's data flash up before the login page.
-  async function signOut() {
-    await supabase.auth.signOut();
-    queryClient.clear();
-    await navigate({ to: "/login" });
-  }
-
-  // A session can also end elsewhere — another tab signing out, or a refresh
-  // token expiring. Follow it rather than leave a dashboard of failing requests.
+  // A session can end elsewhere: another tab signing out, or a refresh token
+  // expiring. Follow it rather than leave a dashboard of failing requests.
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_OUT") {
@@ -94,7 +121,9 @@ export function AppShell({
     });
     return () => data.subscription.unsubscribe();
   }, [navigate, queryClient]);
-  const active = NAV.find((item) => item.to === pathname) ?? NAV[0];
+
+  const title = TITLES[pathname] ?? "";
+  const todo = waiting.length;
 
   return (
     <SidebarProvider>
@@ -106,48 +135,80 @@ export function AppShell({
             <BrandMark />
             <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
               <span className="truncate text-sm font-semibold">Social Command Center</span>
-              <span className="truncate text-xs text-muted-foreground">Dr. Pritesh Patel</span>
+              <span className="truncate text-[13px] text-muted-foreground">Dr. Pritesh Patel</span>
             </div>
           </div>
         </SidebarHeader>
         <SidebarContent>
-          {GROUPS.map((group) => (
-            <SidebarGroup key={group}>
-              <SidebarGroupLabel>{group}</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {NAV.filter((item) => item.group === group).map((item) => (
-                    <SidebarMenuItem key={item.to}>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={pathname === item.to}
-                        tooltip={item.label}
-                      >
-                        <Link to={item.to}>
-                          <item.icon aria-hidden />
-                          <span>{item.label}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          ))}
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {MAIN.map((item) => (
+                  <SidebarMenuItem key={item.to}>
+                    <SidebarMenuButton
+                      asChild
+                      size="lg"
+                      isActive={isActive(item, pathname)}
+                      tooltip={item.label}
+                      className="h-11 text-sm"
+                    >
+                      <Link to={item.to}>
+                        <item.icon aria-hidden />
+                        <span>{item.label}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                    {item.to === "/workspace" && todo ? (
+                      <SidebarMenuBadge className="top-3 rounded-full bg-primary px-2 text-[13px] text-primary-foreground">
+                        {todo}
+                      </SidebarMenuBadge>
+                    ) : null}
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-[13px]">Accounts</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {Object.values(PLATFORM_META).map((meta) => (
+                  <SidebarMenuItem key={meta.id}>
+                    <SidebarMenuButton
+                      asChild
+                      size="lg"
+                      isActive={pathname === meta.route}
+                      tooltip={meta.label}
+                      className="h-11 text-sm"
+                    >
+                      <Link to={meta.route}>
+                        <span
+                          aria-hidden
+                          className="mx-1 size-2.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: meta.color }}
+                        />
+                        <span>{meta.label}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
         </SidebarContent>
         <SidebarFooter>
-          <p className="px-2 pb-1 text-[11px] leading-snug text-muted-foreground group-data-[collapsible=icon]:hidden">
-            Public metrics scraped via Apify, stored on every sync.
-          </p>
           <SidebarMenu>
             <SidebarMenuItem>
-              <div className="truncate px-2 pb-1 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-                Signed in as <span className="font-medium text-foreground">{userEmail}</span>
-              </div>
-              <ThemeToggle />
-              <SidebarMenuButton onClick={() => void signOut()} tooltip="Sign out">
-                <LogOut aria-hidden />
-                <span>Sign out</span>
+              <SidebarMenuButton
+                asChild
+                size="lg"
+                isActive={isActive(SETTINGS, pathname)}
+                tooltip={SETTINGS.label}
+                className="h-11 text-sm"
+              >
+                <Link to={SETTINGS.to}>
+                  <SETTINGS.icon aria-hidden />
+                  <span>{SETTINGS.label}</span>
+                </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
@@ -156,12 +217,12 @@ export function AppShell({
       </Sidebar>
 
       <SidebarInset>
-        <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <h1 className="text-base font-semibold">{active.label}</h1>
-          <div className="ml-auto flex items-center gap-3">
-            <RangePicker />
+        <header className="sticky top-0 z-10 flex min-h-16 shrink-0 flex-wrap items-center gap-2 border-b bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <SidebarTrigger className="-ml-1 hidden md:inline-flex" />
+          <Separator orientation="vertical" className="mr-2 hidden h-4 md:block" />
+          <h1 className="text-base font-semibold">{title}</h1>
+          <div className="ml-auto flex flex-wrap items-center gap-3">
+            {HAS_PERIOD.has(pathname) ? <RangePicker /> : null}
             <SyncButton
               lastSyncedAt={lastSyncedAt}
               stale={stale}
@@ -170,8 +231,50 @@ export function AppShell({
             />
           </div>
         </header>
-        <main className="flex flex-1 flex-col gap-6 p-4 md:p-6">{children}</main>
+        <main className="flex flex-1 flex-col gap-6 p-4 pb-24 md:p-6 md:pb-6">{children}</main>
       </SidebarInset>
+
+      <BottomBar pathname={pathname} todo={todo} />
     </SidebarProvider>
+  );
+}
+
+/**
+ * The phone's menu (the mockup's Phone, Home): four tabs at the bottom,
+ * within reach of a thumb. Hidden from tablet width up, where the sidebar is.
+ */
+function BottomBar({ pathname, todo }: { pathname: string; todo: number }) {
+  const tabs: Array<NavItem & { badge?: number }> = [
+    MAIN[0]!,
+    { ...MAIN[1]!, badge: todo },
+    MAIN[2]!,
+    { to: "/instagram", label: "Accounts", icon: UsersRound, also: ["/linkedin"] },
+  ];
+  return (
+    <nav
+      aria-label="Main"
+      className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+    >
+      {tabs.map((tab) => {
+        const active = isActive(tab, pathname);
+        return (
+          <Link
+            key={tab.to}
+            to={tab.to}
+            className={cn(
+              "flex min-h-14 flex-col items-center justify-center gap-0.5 text-[13px]",
+              active ? "font-semibold text-foreground" : "text-muted-foreground",
+            )}
+            aria-current={active ? "page" : undefined}
+          >
+            <tab.icon className="size-5" aria-hidden />
+            <span>
+              {tab.label}
+              {tab.badge ? ` · ${tab.badge}` : ""}
+            </span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 }

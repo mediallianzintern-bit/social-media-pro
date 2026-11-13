@@ -88,7 +88,7 @@ export function DeriveLanes({
           {mutation.isPending ? "Reading your posts…" : "Derive content lanes"}
         </Button>
         {failure ? <p className="text-xs text-destructive">{failure}</p> : null}
-        <p className="text-[11px] leading-relaxed text-muted-foreground">
+        <p className="text-xs leading-relaxed text-muted-foreground">
           One AI call to name the lanes, plus one per 25 posts to file them. It runs on the posts
           already stored — nothing is scraped, and no Apify credit is spent.
         </p>

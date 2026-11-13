@@ -116,9 +116,7 @@ function InsightBody({ post, platform }: { post: PostRecord; platform: PlatformI
 
       {insight.reads.length ? (
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            What this says
-          </p>
+          <p className="text-xs font-semibold text-muted-foreground">What this says</p>
           <ul className="space-y-2">
             {insight.reads.map((read) => (
               <li key={read} className="rounded-lg border bg-card p-3 text-sm leading-relaxed">
@@ -134,7 +132,7 @@ function InsightBody({ post, platform }: { post: PostRecord; platform: PlatformI
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
-        <Badge variant="outline" className="text-[10px] font-normal">
+        <Badge variant="outline" className="text-xs font-normal">
           Measured against {insight.sample} stored post{insight.sample === 1 ? "" : "s"}
         </Badge>
         {post.url ? (

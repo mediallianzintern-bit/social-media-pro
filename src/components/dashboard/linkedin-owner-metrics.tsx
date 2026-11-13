@@ -117,7 +117,7 @@ export function LinkedInPostCard({
       <div className="space-y-1.5 px-4 py-3">
         {article ? (
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <Badge variant="secondary" className="gap-1 text-[10px] font-medium">
+            <Badge variant="secondary" className="gap-1 text-xs font-medium">
               <FileText className="size-3" aria-hidden />
               Article
             </Badge>

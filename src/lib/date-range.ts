@@ -151,13 +151,40 @@ const ERA_FALLBACK_DAYS = 30;
 export function eraWindow(
   range: ResolvedRange,
   era: { startsAt: string; label: string } | null | undefined,
+  /**
+   * The strategy change of the other account, used when this one has none
+   * (13 Nov 2026, UI review): with "Since strategy change" chosen, LinkedIn's
+   * header read "Last 30 days" while the control said otherwise. The change
+   * is Pritesh Sir's, not one platform's, so both accounts read from it.
+   */
+  shared?: { startsAt: string; label: string } | null,
 ): ResolvedRange {
   if (range.key !== "era") return range;
+  era = era ?? shared;
   if (!era) {
     const today = startOfDay(new Date());
     const from = addDays(today, -(ERA_FALLBACK_DAYS - 1));
     return { key: "era", from, to: null, label: lastDays(ERA_FALLBACK_DAYS, today) };
   }
   const from = startOfDay(new Date(`${era.startsAt}T00:00:00`));
-  return { key: "era", from, to: null, label: `${era.label} · since ${formatDay(from)}` };
+  return { key: "era", from, to: null, label: `Since strategy change · ${dayMonth(from)}` };
+}
+
+/** "5 May": the day first, as the team writes dates. */
+export function dayMonth(date: Date): string {
+  return `${date.getDate()} ${MONTHS[date.getMonth()]}`;
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** The strategy change the whole dashboard reads from: the earliest one confirmed. */
+export function sharedEra<T extends { currentEra?: { startsAt: string; label: string } | null }>(
+  platforms: T[],
+): { startsAt: string; label: string } | null {
+  return (
+    platforms
+      .map((platform) => platform.currentEra)
+      .filter((era): era is { startsAt: string; label: string } => Boolean(era))
+      .sort((a, b) => a.startsAt.localeCompare(b.startsAt))[0] ?? null
+  );
 }

@@ -121,7 +121,7 @@ function TeamTakeaways({ items, color }: { items: TeamTakeaway[] | undefined; co
 
   return (
     <section className="rounded-lg border bg-muted/40 p-4">
-      <h3 className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+      <h3 className="mb-3 flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
         <ListChecks className="size-3.5" style={{ color }} aria-hidden />
         What this means for the team
       </h3>
@@ -131,7 +131,7 @@ function TeamTakeaways({ items, color }: { items: TeamTakeaway[] | undefined; co
         {items.map((entry, index) => (
           <li key={entry.takeaway} className="flex gap-3">
             <span
-              className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+              className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
               style={{ backgroundColor: color }}
             >
               {index + 1}
@@ -387,9 +387,7 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
 
               <div className="grid gap-5 md:grid-cols-2">
                 <section>
-                  <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Working
-                  </h3>
+                  <h3 className="mb-2 text-xs font-bold text-muted-foreground">Working</h3>
                   <ul className="space-y-1.5">
                     {analyst.strengths.map((item) => (
                       <li key={item} className="flex gap-2 text-sm leading-relaxed">
@@ -404,9 +402,7 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
                   </ul>
                 </section>
                 <section>
-                  <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Not working
-                  </h3>
+                  <h3 className="mb-2 text-xs font-bold text-muted-foreground">Not working</h3>
                   <ul className="space-y-1.5">
                     {analyst.weaknesses.map((item) => (
                       <li key={item} className="flex gap-2 text-sm leading-relaxed">
@@ -422,9 +418,7 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
               </div>
               {analyst.laneNotes.length ? (
                 <div>
-                  <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Lane by lane
-                  </h3>
+                  <h3 className="mb-2 text-xs font-bold text-muted-foreground">Lane by lane</h3>
                   <ul className="space-y-2">
                     {analyst.laneNotes.map((note) => (
                       <li key={note.lane} className="text-sm">
@@ -487,7 +481,7 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
                     analysis written before this field existed produces. */}
                     {competitors.contestedLanes.length ? (
                       <section>
-                        <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                        <h3 className="mb-2 text-xs font-bold text-muted-foreground">
                           Contested lanes
                         </h3>
                         <ul className="space-y-1.5">
@@ -506,9 +500,7 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
                     ) : null}
                     {competitors.openLanes.length ? (
                       <section>
-                        <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                          Open lanes
-                        </h3>
+                        <h3 className="mb-2 text-xs font-bold text-muted-foreground">Open lanes</h3>
                         <ul className="space-y-1.5">
                           {competitors.openLanes.map((item: string) => (
                             <li key={item} className="flex gap-2 text-sm leading-relaxed">
@@ -527,7 +519,7 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
 
                   {competitors.verdicts.length ? (
                     <section>
-                      <h3 className="mb-2.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      <h3 className="mb-2.5 text-xs font-bold text-muted-foreground">
                         Account by account
                       </h3>
                       <ul className="divide-y">
@@ -746,7 +738,7 @@ function LaneButtons({ platform }: { platform: PlatformId }) {
             key={lane}
             size="sm"
             variant="outline"
-            className="h-auto px-2 py-1 text-xs font-normal first-letter:uppercase"
+            className="h-auto px-2 py-1 text-xs font-normal first-letter:"
             disabled={one.isPending}
             onClick={() => {
               setMessage(null);

@@ -19,10 +19,12 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppFilmedRouteImport } from './routes/_app/filmed'
+import { Route as AppIdeasRouteImport } from './routes/_app/ideas'
 import { Route as AppInstagramRouteImport } from './routes/_app/instagram'
 import { Route as AppLinkedinRouteImport } from './routes/_app/linkedin'
 import { Route as AppReactionsRouteImport } from './routes/_app/reactions'
 import { Route as AppSavedRouteImport } from './routes/_app/saved'
+import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppSourcesRouteImport } from './routes/_app/sources'
 import { Route as AppTrendsRouteImport } from './routes/_app/trends'
 import { Route as AppWorkspaceRouteImport } from './routes/_app/workspace'
@@ -77,6 +79,11 @@ const AppFilmedRoute = AppFilmedRouteImport.update({
   path: '/filmed',
   getParentRoute: () => AppRoute,
 } as any)
+const AppIdeasRoute = AppIdeasRouteImport.update({
+  id: '/ideas',
+  path: '/ideas',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppInstagramRoute = AppInstagramRouteImport.update({
   id: '/instagram',
   path: '/instagram',
@@ -95,6 +102,11 @@ const AppReactionsRoute = AppReactionsRouteImport.update({
 const AppSavedRoute = AppSavedRouteImport.update({
   id: '/saved',
   path: '/saved',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSourcesRoute = AppSourcesRouteImport.update({
@@ -128,10 +140,12 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/filmed': typeof AppFilmedRoute
+  '/ideas': typeof AppIdeasRoute
   '/instagram': typeof AppInstagramRoute
   '/linkedin': typeof AppLinkedinRoute
   '/reactions': typeof AppReactionsRoute
   '/saved': typeof AppSavedRoute
+  '/settings': typeof AppSettingsRoute
   '/sources': typeof AppSourcesRoute
   '/trends': typeof AppTrendsRoute
   '/workspace': typeof AppWorkspaceRoute
@@ -146,10 +160,12 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/filmed': typeof AppFilmedRoute
+  '/ideas': typeof AppIdeasRoute
   '/instagram': typeof AppInstagramRoute
   '/linkedin': typeof AppLinkedinRoute
   '/reactions': typeof AppReactionsRoute
   '/saved': typeof AppSavedRoute
+  '/settings': typeof AppSettingsRoute
   '/sources': typeof AppSourcesRoute
   '/trends': typeof AppTrendsRoute
   '/workspace': typeof AppWorkspaceRoute
@@ -167,10 +183,12 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/_app/filmed': typeof AppFilmedRoute
+  '/_app/ideas': typeof AppIdeasRoute
   '/_app/instagram': typeof AppInstagramRoute
   '/_app/linkedin': typeof AppLinkedinRoute
   '/_app/reactions': typeof AppReactionsRoute
   '/_app/saved': typeof AppSavedRoute
+  '/_app/settings': typeof AppSettingsRoute
   '/_app/sources': typeof AppSourcesRoute
   '/_app/trends': typeof AppTrendsRoute
   '/_app/workspace': typeof AppWorkspaceRoute
@@ -189,10 +207,12 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/filmed'
+    | '/ideas'
     | '/instagram'
     | '/linkedin'
     | '/reactions'
     | '/saved'
+    | '/settings'
     | '/sources'
     | '/trends'
     | '/workspace'
@@ -207,10 +227,12 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/filmed'
+    | '/ideas'
     | '/instagram'
     | '/linkedin'
     | '/reactions'
     | '/saved'
+    | '/settings'
     | '/sources'
     | '/trends'
     | '/workspace'
@@ -227,10 +249,12 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/_app/filmed'
+    | '/_app/ideas'
     | '/_app/instagram'
     | '/_app/linkedin'
     | '/_app/reactions'
     | '/_app/saved'
+    | '/_app/settings'
     | '/_app/sources'
     | '/_app/trends'
     | '/_app/workspace'
@@ -321,6 +345,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppFilmedRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/ideas': {
+      id: '/_app/ideas'
+      path: '/ideas'
+      fullPath: '/ideas'
+      preLoaderRoute: typeof AppIdeasRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/instagram': {
       id: '/_app/instagram'
       path: '/instagram'
@@ -347,6 +378,13 @@ declare module '@tanstack/react-router' {
       path: '/saved'
       fullPath: '/saved'
       preLoaderRoute: typeof AppSavedRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/sources': {
@@ -382,10 +420,12 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppFilmedRoute: typeof AppFilmedRoute
+  AppIdeasRoute: typeof AppIdeasRoute
   AppInstagramRoute: typeof AppInstagramRoute
   AppLinkedinRoute: typeof AppLinkedinRoute
   AppReactionsRoute: typeof AppReactionsRoute
   AppSavedRoute: typeof AppSavedRoute
+  AppSettingsRoute: typeof AppSettingsRoute
   AppSourcesRoute: typeof AppSourcesRoute
   AppTrendsRoute: typeof AppTrendsRoute
   AppWorkspaceRoute: typeof AppWorkspaceRoute
@@ -395,10 +435,12 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppFilmedRoute: AppFilmedRoute,
+  AppIdeasRoute: AppIdeasRoute,
   AppInstagramRoute: AppInstagramRoute,
   AppLinkedinRoute: AppLinkedinRoute,
   AppReactionsRoute: AppReactionsRoute,
   AppSavedRoute: AppSavedRoute,
+  AppSettingsRoute: AppSettingsRoute,
   AppSourcesRoute: AppSourcesRoute,
   AppTrendsRoute: AppTrendsRoute,
   AppWorkspaceRoute: AppWorkspaceRoute,

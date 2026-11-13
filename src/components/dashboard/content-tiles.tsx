@@ -115,12 +115,10 @@ export function ContentTiles({
               ) : null}
             </div>
             <div className="flex items-center justify-between gap-2">
-              <Badge variant="outline" className="text-[10px] font-normal capitalize">
+              <Badge variant="outline" className="text-xs font-normal capitalize">
                 {post.format}
               </Badge>
-              <span className="text-[11px] text-muted-foreground">
-                {shortDate(post.publishedAt)}
-              </span>
+              <span className="text-xs text-muted-foreground">{shortDate(post.publishedAt)}</span>
             </div>
             {/* Above the stretched link's overlay, or the card-wide anchor
                 would swallow the click and open Instagram instead. */}

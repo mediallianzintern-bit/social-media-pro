@@ -1,143 +1,134 @@
+// Home (13 Nov 2026, UI review; replaces Overview): "how am I doing, and what
+// do I do next". One sentence on both accounts, one card each, at most three
+// things to do with one button each, and the period's best post. The detail
+// is a click away on each account's page.
+//
+// Every number comes from lib/account-summary.ts, for the period chosen in
+// the header, so Home, the account Summary and the posts table agree.
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, Info, Users } from "lucide-react";
+import { Info } from "lucide-react";
 
-import { CadenceNudge } from "@/components/dashboard/cadence-nudge";
-import { GrowthChart } from "@/components/dashboard/growth-chart";
-import { KpiTile } from "@/components/dashboard/kpi-tile";
+import { PostCover, Sparkline } from "@/components/dashboard/post-cover";
+import { PostInsightButton } from "@/components/dashboard/post-insight-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { labelInSentence } from "@/lib/date-range";
-import { compactNumber, fullNumber, percent } from "@/lib/format";
-import { PLATFORM_META } from "@/lib/platform-meta";
-import { useFilteredDashboard } from "@/lib/use-dashboard";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
-  cadence,
-  engagementRate,
-  engagementsOf,
-  median,
-  organicPosts,
-  type PlatformData,
-  viewsOf,
-} from "@/lib/analytics-types";
-import { followersForPeriod } from "@/lib/followers";
+  accountSummary,
+  bestPost,
+  bestSlot,
+  changeSentence,
+  compact,
+  doMoreAndLess,
+  postTitle,
+  primaryOf,
+  verdict,
+  type AccountSummary,
+} from "@/lib/account-summary";
+import { viewsOf, type PlatformData, type PostRecord } from "@/lib/analytics-types";
+import { dayMonth } from "@/lib/date-range";
+import { fullNumber, percent } from "@/lib/format";
+import { PLATFORM_META } from "@/lib/platform-meta";
+import { usePlatform, useFilteredDashboard } from "@/lib/use-dashboard";
+import { useWaitingIdeas } from "@/lib/use-waiting-ideas";
+import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/_app/")({ component: Overview });
+export const Route = createFileRoute("/_app/")({ component: Home });
 
-function summarize(data: PlatformData) {
-  // As of the selected period's end, not today's (lib/followers.ts).
-  const followers = followersForPeriod(data) ?? 0;
-  // Pinned posts are excluded from every rate — see organicPosts.
-  const organic = organicPosts(data.posts);
-  // Instagram's own count where we hold it — the number the owner sees in the
-  // app, and the one the Instagram page reports. The scraped count runs roughly
-  // half of it, so using it here made the two screens disagree.
-  const views = organic.map(viewsOf).filter((value) => value > 0);
-  return {
-    followers,
-    hasViews: views.length > 0,
-    medianViews: median(views),
-    medianEngagements: median(organic.map((post) => engagementsOf(post))),
-    rate: engagementRate(data.posts, followers),
-    perWeek: cadence(data.posts),
-    posts: organic.length,
-  };
+interface Action {
+  title: string;
+  detail: string;
+  button: string;
+  to: string;
+  search?: Record<string, string>;
+  primary?: boolean;
 }
 
-function Overview() {
-  const { data, range } = useFilteredDashboard();
-  const reporting = data.platforms.filter((p) => p.status === "ok");
-  const totalFollowers = reporting.reduce((sum, p) => sum + (followersForPeriod(p) ?? 0), 0);
-  // A period that ends before follower history began has no total to add up.
-  const unrecorded = reporting.some((p) => followersForPeriod(p) == null);
+function Home() {
+  const { data } = useFilteredDashboard();
+  const instagram = usePlatform("instagram");
+  const linkedin = usePlatform("linkedin");
+  const { waiting, byPlatform } = useWaitingIdeas();
+
+  const accounts = [instagram, linkedin]
+    .filter((entry): entry is typeof entry & { data: PlatformData } => Boolean(entry.data))
+    .filter((entry) => entry.data.status === "ok")
+    .map((entry) => ({
+      data: entry.data,
+      summary: {
+        ...accountSummary(entry.data, entry.range),
+        label: PLATFORM_META[entry.data.platform].label,
+      },
+    }));
+
+  const actions: Action[] = [];
+  if (waiting.length) {
+    actions.push({
+      title: `Review ${waiting.length} idea${waiting.length === 1 ? "" : "s"} waiting for you`,
+      detail: [
+        byPlatform.instagram ? `${byPlatform.instagram} for Instagram` : "",
+        byPlatform.linkedin ? `${byPlatform.linkedin} for LinkedIn` : "",
+      ]
+        .filter(Boolean)
+        .join(", ")
+        .concat("."),
+      button: "Review ideas",
+      to: "/ideas",
+      primary: true,
+    });
+  }
+  // The account that needs attention first, then the other.
+  const ordered = [...accounts].sort(
+    (a, b) => Number(b.summary.needsAttention) - Number(a.summary.needsAttention),
+  );
+  for (const { data: account, summary } of ordered) {
+    const top = doMoreAndLess(account).more.find((finding) => finding.kind === "topic");
+    if (top && actions.length < 3) {
+      actions.push({
+        title: `Make one more “${top.label}” post for ${summary.label}`,
+        detail: `${top.label} gets ${top.value}, measured over ${top.posts} posts.`,
+        button: "See ideas",
+        to: PLATFORM_META[account.platform].route,
+        search: { tab: "ideas" },
+      });
+    }
+  }
+  for (const { data: account, summary } of ordered) {
+    const slot = bestSlot(account);
+    if (slot && actions.length < 3) {
+      actions.push({
+        title: `Post on ${summary.label} around ${slot.ist}`,
+        detail: `That hour gets ${slot.ratio.toFixed(1)}× your typical ${summary.usesViews ? "views" : "interactions"}, measured over ${slot.posts} posts.`,
+        button: "See when to post",
+        to: PLATFORM_META[account.platform].route,
+        search: { tab: "audience" },
+      });
+    }
+  }
+
+  // The period's best post: the one furthest above its own account's typical post.
+  const best = accounts
+    .map(({ data: account, summary }) => {
+      const post = bestPost(account);
+      return post
+        ? {
+            post,
+            account,
+            summary,
+            ratio: primaryOf(post, summary.usesViews) / (summary.typical || 1),
+          }
+        : null;
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+    .sort((a, b) => b.ratio - a.ratio)[0];
 
   return (
-    <>
-      {/* Addendum A.6 — the goal and its trajectory, front and centre. The
-          agency console proper needs multi-client; this is the single-client
-          stand-in, showing the same thing a console row would. */}
-      {data.goal ? (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription className="text-xs font-bold uppercase tracking-wider">
-              Goal &mdash; {data.goal.label}
-            </CardDescription>
-            <CardTitle className="text-lg">
-              Judged on {data.goal.primaryMetric.replace(/_/g, " ")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            {reporting.map((platform) => {
-              const meta = PLATFORM_META[platform.platform];
-              const t = platform.trajectory;
-              return (
-                <div key={platform.platform} className="rounded-lg border p-3">
-                  <span className="flex items-baseline gap-2">
-                    <span className="text-sm font-semibold" style={{ color: meta.color }}>
-                      {meta.label}
-                    </span>
-                    {t ? (
-                      <span
-                        className={
-                          t.trend === "declining"
-                            ? "text-xs font-medium text-destructive"
-                            : t.trend === "accelerating"
-                              ? "text-xs font-medium text-emerald-600"
-                              : "text-xs font-medium text-muted-foreground"
-                        }
-                      >
-                        {t.trend}
-                      </span>
-                    ) : null}
-                  </span>
-                  {t ? (
-                    <>
-                      <span className="mt-1 block text-2xl font-bold tabular-nums">
-                        {t.ratePerWeek >= 0 ? "+" : ""}
-                        {t.ratePerWeek}
-                        <span className="ml-1 text-xs font-normal text-muted-foreground">
-                          / week
-                        </span>
-                      </span>
-                      <span className="block text-xs text-muted-foreground">
-                        {t.sinceEngagementStart >= 0 ? "+" : ""}
-                        {t.sinceEngagementStart} since we started
-                        {t.directional ? " \u00b7 directional, not a result" : ""}
-                      </span>
-                    </>
-                  ) : (
-                    <span className="mt-1 block text-sm text-muted-foreground">
-                      No growth history stored yet.
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {data.ephemeral && !data.setupError ? (
-        <Alert>
-          <Info className="size-4" aria-hidden />
-          <AlertTitle>History is not being saved yet</AlertTitle>
-          <AlertDescription>
-            Syncs are working and every number below is live, but snapshots are held in memory and
-            are lost when the server restarts &mdash; so the follower growth curve cannot build up.
-            Add <code className="rounded bg-muted px-1 py-0.5">SUPABASE_SERVICE_ROLE_KEY</code> to{" "}
-            <code className="rounded bg-muted px-1 py-0.5">.env</code> and run the migration to keep
-            history.{" "}
-            <Link to="/sources" className="font-medium underline underline-offset-4">
-              Setup steps
-            </Link>
-            .
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
+    <div className="mx-auto w-full max-w-5xl space-y-6">
       {data.setupError ? (
         <Alert>
           <Info className="size-4" aria-hidden />
-          <AlertTitle>Setup needed before the first sync</AlertTitle>
+          <AlertTitle>Setup needed before the first refresh</AlertTitle>
           <AlertDescription>
             {data.setupError}.{" "}
             <Link to="/sources" className="font-medium underline underline-offset-4">
@@ -148,113 +139,172 @@ function Overview() {
         </Alert>
       ) : null}
 
-      <section aria-label="Combined audience" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <KpiTile
-          label="Total audience"
-          value={unrecorded ? "—" : fullNumber(totalFollowers)}
-          icon={Users}
-          hint={`across ${reporting.length} platform${reporting.length === 1 ? "" : "s"} · ${labelInSentence(range)}`}
-        />
-        {reporting.map((platform) => {
-          const meta = PLATFORM_META[platform.platform];
-          const stats = summarize(platform);
-          return (
-            <KpiTile
-              key={platform.platform}
-              label={`${meta.label} followers`}
-              value={fullNumber(stats.followers)}
-              icon={meta.icon}
-              accent={meta.color}
-              hint={`${stats.perWeek.toFixed(1)} posts/wk`}
-            />
-          );
-        })}
-      </section>
-
-      <p className="-mt-2 max-w-3xl text-xs leading-relaxed text-muted-foreground">
-        Followers is the only figure that means the same thing on both platforms, so it is the only
-        one added up. Instagram publishes view counts and LinkedIn does not, so their engagement
-        rates use different denominators and are shown separately, never combined.
-      </p>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        {data.platforms.map((platform) => {
-          const meta = PLATFORM_META[platform.platform];
-          const stats = summarize(platform);
-          return (
-            <Card key={platform.platform}>
-              <CardHeader>
-                <div className="flex items-center gap-2.5">
-                  <span
-                    className="flex size-9 items-center justify-center rounded-lg text-white"
-                    style={{ backgroundColor: meta.color }}
-                  >
-                    <meta.icon className="size-4" aria-hidden />
-                  </span>
-                  <div>
-                    <CardTitle className="text-base">{meta.label}</CardTitle>
-                    <CardDescription>
-                      {platform.latest?.handle ?? platform.profileUrl.replace("https://www.", "")}
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {platform.status === "ok" && platform.latest ? (
-                  <>
-                    <CadenceNudge platform={platform.platform} compact />
-                    <dl className="grid grid-cols-3 gap-3">
-                      <div>
-                        <dt className="text-xs text-muted-foreground">Followers</dt>
-                        <dd className="mt-0.5 text-sm font-semibold tabular-nums">
-                          {fullNumber(stats.followers)}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs text-muted-foreground">
-                          {stats.hasViews ? "Med. views" : "Med. interactions"}
-                        </dt>
-                        <dd className="mt-0.5 text-sm font-semibold tabular-nums">
-                          {compactNumber(
-                            stats.hasViews ? stats.medianViews : stats.medianEngagements,
-                          )}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs text-muted-foreground">Eng. rate</dt>
-                        <dd className="mt-0.5 text-sm font-semibold tabular-nums">
-                          {percent(stats.rate, 2)}
-                        </dd>
-                      </div>
-                    </dl>
-                    <GrowthChart
-                      points={platform.growth}
-                      color={meta.color}
-                      eras={platform.eras ?? []}
-                    />
-                  </>
-                ) : (
-                  <p className="rounded-md border border-dashed p-4 text-xs leading-relaxed text-muted-foreground">
-                    {platform.status === "error"
-                      ? platform.error
-                      : platform.status === "unconfigured"
-                        ? `Waiting on ${platform.missingEnv?.join(", ")}.`
-                        : "No snapshot stored yet — press Sync."}
-                  </p>
-                )}
-
-                <Link
-                  to={meta.route}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold underline underline-offset-4"
-                >
-                  Open {meta.label}
-                  <ArrowRight className="size-3.5" aria-hidden />
-                </Link>
-              </CardContent>
-            </Card>
-          );
-        })}
+      <div>
+        {data.goal ? (
+          <p className="text-[13px] text-muted-foreground">Goal: {data.goal.label}</p>
+        ) : null}
+        <h2 className="mt-1 text-2xl leading-tight font-bold md:text-3xl">
+          {verdict(accounts.map((entry) => entry.summary))}
+        </h2>
       </div>
-    </>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {accounts.map(({ data: account, summary }) => (
+          <AccountCard key={account.platform} data={account} summary={summary} />
+        ))}
+      </div>
+
+      {actions.length ? (
+        <Card>
+          <CardContent className="p-0">
+            <h3 className="border-b px-5 py-4 text-base font-semibold">Do next</h3>
+            <ol>
+              {actions.map((action, index) => (
+                <li
+                  key={action.title}
+                  className="flex flex-col gap-3 border-b px-5 py-4 last:border-b-0 sm:flex-row sm:items-center"
+                >
+                  <span
+                    className={cn(
+                      "flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
+                      action.primary ? "bg-primary text-primary-foreground" : "bg-muted",
+                    )}
+                    aria-hidden
+                  >
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold">{action.title}</p>
+                    <p className="text-[13px] text-muted-foreground">{action.detail}</p>
+                  </div>
+                  <Button
+                    asChild
+                    variant={action.primary ? "default" : "outline"}
+                    className="h-11 shrink-0"
+                  >
+                    <Link to={action.to} search={action.search as never}>
+                      {action.button}
+                    </Link>
+                  </Button>
+                </li>
+              ))}
+            </ol>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {best ? <BestPost {...best} /> : null}
+    </div>
+  );
+}
+
+function AccountCard({
+  data,
+  summary,
+}: {
+  data: PlatformData;
+  summary: AccountSummary & { label: string };
+}) {
+  const meta = PLATFORM_META[data.platform];
+  const change = changeSentence(summary);
+  return (
+    <Card>
+      <CardContent className="space-y-3 p-5">
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex items-center gap-2 text-sm font-semibold">
+            <span
+              aria-hidden
+              className="size-2.5 rounded-full"
+              style={{ backgroundColor: meta.color }}
+            />
+            {meta.label}
+          </span>
+          {summary.change != null ? (
+            <Badge
+              variant="outline"
+              className={cn(
+                "rounded-full px-3 py-1 text-[13px] font-semibold",
+                summary.needsAttention
+                  ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+                  : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300",
+              )}
+            >
+              {summary.needsAttention ? "Needs attention" : "On track"}
+            </Badge>
+          ) : null}
+        </div>
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-4xl font-bold tabular-nums">
+              {summary.followers == null ? "—" : fullNumber(summary.followers)}
+            </p>
+            <p className="text-[13px] text-muted-foreground">followers</p>
+          </div>
+          <Sparkline values={data.growth.map((point) => point.followers)} color={meta.color} />
+        </div>
+        {change ? (
+          <p
+            className={cn(
+              "text-sm font-semibold",
+              summary.needsAttention
+                ? "text-red-700 dark:text-red-400"
+                : "text-emerald-700 dark:text-emerald-400",
+            )}
+          >
+            {change}
+          </p>
+        ) : null}
+        <p className="text-[13px] text-muted-foreground">
+          Engagement rate {percent(summary.rate, 2)} · {summary.postsPerWeek.toFixed(1)} posts a
+          week
+        </p>
+        <Link
+          to={meta.route}
+          className="inline-flex min-h-11 items-center text-sm font-semibold underline underline-offset-4"
+        >
+          {summary.needsAttention ? "See what to change" : "See what is working"}
+        </Link>
+      </CardContent>
+    </Card>
+  );
+}
+
+function BestPost({
+  post,
+  account,
+  summary,
+}: {
+  post: PostRecord;
+  account: PlatformData;
+  summary: AccountSummary & { label: string };
+}) {
+  const parts = [
+    summary.usesViews
+      ? `${compact(viewsOf(post))} views`
+      : `${compact(primaryOf(post, false))} interactions`,
+    post.insight?.saved ? `${compact(post.insight.saved)} saves` : "",
+    post.shares || post.insight?.shares
+      ? `${compact(post.insight?.shares ?? post.shares)} shares`
+      : "",
+  ].filter(Boolean);
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
+        <PostCover post={post} className="size-16" />
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] text-muted-foreground">
+            Best post {summary.since} · {summary.label} · {dayMonth(new Date(post.publishedAt))}
+          </p>
+          <p className="mt-0.5 text-sm font-semibold">{postTitle(post.caption, 110)}</p>
+          <p className="text-[13px] text-muted-foreground">{parts.join(" · ")}</p>
+        </div>
+        <PostInsightButton
+          post={post}
+          platform={account.platform}
+          label="Why it worked"
+          className="h-11 text-sm font-semibold underline underline-offset-4"
+        />
+      </CardContent>
+    </Card>
   );
 }

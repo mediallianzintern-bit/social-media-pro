@@ -295,7 +295,7 @@ export function DiscoveredReels({ platform }: { platform: PlatformId }) {
               </div>
             ) : null}
 
-            <p className="text-[11px] leading-relaxed text-muted-foreground">
+            <p className="text-xs leading-relaxed text-muted-foreground">
               Each search is one Apify run. Everything else here is free: the lane match is computed
               from your own posts, and a reel&rsquo;s date is read out of its id rather than
               fetched. A reel is kept only if its caption matches one of your lanes, and the words

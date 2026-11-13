@@ -72,7 +72,7 @@ export function CompetitorTable({
                   <TableRow key={row.handle} className={cn(row.isYou && "bg-muted/40 font-medium")}>
                     <TableCell className="whitespace-nowrap">
                       <span className="font-medium">{row.displayName || row.handle}</span>
-                      <span className="block text-[11px] font-normal text-muted-foreground">
+                      <span className="block text-xs font-normal text-muted-foreground">
                         {row.isYou ? "You" : `@${row.handle}`}
                       </span>
                     </TableCell>
@@ -99,7 +99,7 @@ export function CompetitorTable({
                           : "Only scraped views exist for other accounts, and yours come from Instagram's own API — the two are not like-for-like."
                       }
                     >
-                      not comparable
+                      —
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {row.medianEngagements ? compactNumber(row.medianEngagements) : "—"}

@@ -203,7 +203,7 @@ export function FilmedReels() {
               {viralItems.map(({ learning, idea }) => (
                 <ViralReel key={learning.ideaId} learning={learning} title={idea?.title ?? ""} />
               ))}
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Every new script is shown these reels, part by part, as the clearest proof of what
                 this audience wants.
               </p>

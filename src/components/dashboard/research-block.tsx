@@ -15,7 +15,7 @@ export function ResearchBlock({ research }: { research: StoryResearch }) {
 
   return (
     <section>
-      <h3 className="mb-3 flex items-center gap-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+      <h3 className="mb-3 flex items-center gap-3 text-xs font-bold text-muted-foreground">
         Research
         <span aria-hidden className="h-px flex-1 bg-border" />
       </h3>
@@ -67,7 +67,7 @@ export function ResearchBlock({ research }: { research: StoryResearch }) {
         <div className="space-y-2.5">
           {byCategory.map((group) => (
             <div key={group.category}>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-semibold text-muted-foreground">
                 {FACT_CATEGORY_LABEL[group.category]}
               </p>
               <ul className="mt-1 space-y-1">

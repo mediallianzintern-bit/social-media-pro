@@ -59,10 +59,7 @@ export function ScriptDrawer({
         {recommendation ? (
           <>
             <SheetHeader className="border-b p-6 text-left">
-              <SheetDescription
-                className="text-xs font-bold uppercase tracking-wider"
-                style={{ color: accent }}
-              >
+              <SheetDescription className="text-xs font-bold" style={{ color: accent }}>
                 {recommendation.kicker}
               </SheetDescription>
               <SheetTitle className="text-xl leading-snug">{recommendation.title}</SheetTitle>
@@ -144,7 +141,7 @@ export function ScriptDrawer({
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="mb-3 flex items-center gap-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+    <h3 className="mb-3 flex items-center gap-3 text-xs font-bold text-muted-foreground">
       {children}
       <span aria-hidden className="h-px flex-1 bg-border" />
     </h3>

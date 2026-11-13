@@ -34,9 +34,7 @@ export function KpiTile({
   const body = (
     <CardContent className="p-5">
       <div className="flex items-start justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          {label}
-        </p>
+        <p className="text-xs font-semibold text-muted-foreground">{label}</p>
         <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
       </div>
       <p className="mt-2.5 text-3xl font-semibold tracking-tight tabular-nums text-foreground">

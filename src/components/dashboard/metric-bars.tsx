@@ -47,7 +47,7 @@ export function MetricBars({
                     {row.label}
                   </span>
                   {row.sub ? (
-                    <span className="block truncate text-[10px] text-muted-foreground/70">
+                    <span className="block truncate text-xs text-muted-foreground/70">
                       {row.sub}
                     </span>
                   ) : null}

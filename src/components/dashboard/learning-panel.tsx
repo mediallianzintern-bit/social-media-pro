@@ -116,8 +116,7 @@ function LanesTable({
                 {goalMetric ? (
                   <TableHead className="text-right whitespace-nowrap">
                     {/* first-letter, not capitalize: "Save rate", not "Save Rate". */}
-                    <span className="inline-block first-letter:uppercase">{goalMetric}</span> vs
-                    median
+                    <span className="inline-block first-letter:">{goalMetric}</span> vs median
                     <span className="ml-1 font-normal text-muted-foreground">(the goal)</span>
                   </TableHead>
                 ) : null}

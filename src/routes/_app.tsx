@@ -21,6 +21,9 @@ const searchSchema = z.object({
   // A script to open in its drawer on the Instagram or LinkedIn page, from a
   // link elsewhere (Trends: "Go to LinkedIn"). Dropped by any other link.
   idea: z.string().uuid().optional().catch(undefined),
+  // The tab open on an account page (13 Nov 2026, UI review). Absent means
+  // Summary.
+  tab: z.enum(["summary", "posts", "audience", "competitors", "ideas"]).optional().catch(undefined),
 });
 
 export const Route = createFileRoute("/_app")({

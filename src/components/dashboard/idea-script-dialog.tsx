@@ -81,7 +81,7 @@ export function IdeaScriptBody({ idea: written }: { idea: ContentIdea }) {
   return (
     <>
       <div className="space-y-1">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <p className="text-xs font-semibold text-muted-foreground">
           {isPost ? "Opening line" : "Hook"}
         </p>
         <p className="rounded-lg border bg-muted/40 p-3 text-sm font-semibold leading-snug">
@@ -133,7 +133,7 @@ export function IdeaScriptBody({ idea: written }: { idea: ContentIdea }) {
 
       {idea.shots.length ? (
         <div className="space-y-1.5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <p className="text-xs font-semibold text-muted-foreground">
             {idea.format === "carousel" ? "Slides" : "Shot list"}
           </p>
           <ol className="divide-y rounded-lg border">
@@ -162,9 +162,7 @@ export function IdeaScriptBody({ idea: written }: { idea: ContentIdea }) {
 
       {idea.post ? (
         <div className="space-y-1.5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            The post
-          </p>
+          <p className="text-xs font-semibold text-muted-foreground">The post</p>
           <p className="whitespace-pre-line rounded-lg border p-3 text-sm leading-relaxed">
             {idea.post.body}
           </p>
@@ -179,9 +177,7 @@ export function IdeaScriptBody({ idea: written }: { idea: ContentIdea }) {
 
       {idea.caption ? (
         <div className="space-y-1.5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Caption
-          </p>
+          <p className="text-xs font-semibold text-muted-foreground">Caption</p>
           <p className="whitespace-pre-line rounded-lg border p-3 text-sm leading-relaxed">
             {idea.caption}
           </p>

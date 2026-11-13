@@ -118,7 +118,7 @@ export function ErasPanel({ platform }: { platform: PlatformId }) {
                     <span className="text-sm font-medium">{day(boundary.startsAt)}</span>
                     <span className="text-xs text-muted-foreground">{boundary.reason}</span>
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Lane mix moved {Math.round(boundary.evidence.laneShift * 100)}%, format mix{" "}
                     {Math.round(boundary.evidence.formatShift * 100)}%, posting{" "}
                     {boundary.evidence.cadence[0]} → {boundary.evidence.cadence[1]} a week.

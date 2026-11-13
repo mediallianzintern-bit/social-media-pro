@@ -35,7 +35,7 @@ export function ToneReferencesBlock({ idea }: { idea: ContentIdea }) {
 
   return (
     <section>
-      <h3 className="mb-3 flex items-center gap-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+      <h3 className="mb-3 flex items-center gap-3 text-xs font-bold text-muted-foreground">
         Tone references
         <span aria-hidden className="h-px flex-1 bg-border" />
       </h3>

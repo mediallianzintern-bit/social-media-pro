@@ -132,7 +132,7 @@ export function TrendStrip({ platform }: { platform: PlatformId }) {
                       href={url}
                       target="_blank"
                       rel="noreferrer noopener"
-                      className="inline-flex items-center gap-1 text-[11px] font-medium underline underline-offset-2"
+                      className="inline-flex items-center gap-1 text-xs font-medium underline underline-offset-2"
                       style={{ color: meta.color }}
                     >
                       <ExternalLink className="size-3" aria-hidden />

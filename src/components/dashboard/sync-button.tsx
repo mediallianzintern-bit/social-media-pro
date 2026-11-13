@@ -131,8 +131,8 @@ export function SyncButton({
 
   return (
     <div className="flex items-center gap-3">
-      <span className="hidden text-xs text-muted-foreground sm:inline">
-        Synced <span className="font-medium text-foreground">{relative}</span>
+      <span className="hidden text-[13px] text-muted-foreground sm:inline">
+        Updated <span className="font-medium text-foreground">{relative}</span>
       </span>
       {/* Click to read, not hover to read.
           Every message explain() produces is an instruction — top up Apify,
@@ -157,7 +157,7 @@ export function SyncButton({
               {lastError
                 ? failedPlatforms.length === 1
                   ? `${failedPlatforms[0]} not updated`
-                  : "Sync failed"
+                  : "Update failed"
                 : `${skipped.length} skipped`}
             </button>
           </PopoverTrigger>
@@ -179,7 +179,7 @@ export function SyncButton({
                 ))}
               </div>
             ) : null}
-            <p className="mt-3 border-t pt-2 text-[11px] leading-relaxed text-muted-foreground">
+            <p className="mt-3 border-t pt-2 text-xs leading-relaxed text-muted-foreground">
               Stored data is untouched — a platform that fails or is skipped keeps its last good
               sync rather than being overwritten.
             </p>
@@ -187,14 +187,13 @@ export function SyncButton({
         </Popover>
       ) : null}
       <Button
-        size="sm"
         variant="outline"
-        className="gap-2"
+        className="h-11 gap-2"
         disabled={disabled || isPending}
         onClick={() => mutate("manual")}
       >
         <RefreshCw className={cn("size-3.5", isPending && "animate-spin")} aria-hidden />
-        {isPending ? "Syncing…" : "Sync"}
+        {isPending ? "Refreshing…" : "Refresh"}
       </Button>
     </div>
   );

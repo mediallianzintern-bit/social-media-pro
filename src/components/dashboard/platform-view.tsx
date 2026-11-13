@@ -1,18 +1,14 @@
-import { Link } from "@tanstack/react-router";
-import { AlertTriangle, ExternalLink, Eye, FileText, Heart, Info, Send } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Link, useSearch } from "@tanstack/react-router";
+import { AlertTriangle, ArrowDown, ArrowUp, ExternalLink, FileText, Info } from "lucide-react";
+import { useMemo } from "react";
 
 import { AiPanel } from "@/components/dashboard/ai-panel";
 import { CompetitorTable, type BenchmarkRow } from "@/components/dashboard/competitor-table";
-import { ContentTiles } from "@/components/dashboard/content-tiles";
-import { FollowersTile } from "@/components/dashboard/followers-tile";
 import { followersForPeriod } from "@/lib/followers";
 import { GrowthChart } from "@/components/dashboard/growth-chart";
-import { KpiTile } from "@/components/dashboard/kpi-tile";
 import { InsightsPanels } from "@/components/dashboard/insights-panels";
 import { CadenceNudge } from "@/components/dashboard/cadence-nudge";
 import { DeriveLanes } from "@/components/dashboard/derive-lanes";
-import { ErasPanel } from "@/components/dashboard/eras-panel";
 import { LearningPanel } from "@/components/dashboard/learning-panel";
 import { LinkedInOwnerMetrics } from "@/components/dashboard/linkedin-owner-metrics";
 import { PostLessons } from "@/components/dashboard/post-lessons";
@@ -21,14 +17,25 @@ import { LockedPanel } from "@/components/dashboard/locked-panel";
 import { PublicEngagement } from "@/components/dashboard/public-engagement";
 import { MetricBars, type BarRow } from "@/components/dashboard/metric-bars";
 import { PostPerformanceChart } from "@/components/dashboard/post-performance-chart";
-import { PostsTable } from "@/components/dashboard/posts-table";
 import { TopicCards } from "@/components/dashboard/topic-cards";
-import { CollapseToggle } from "@/components/dashboard/collapse-toggle";
-import { SectionHeading, StrongSectionHeadings } from "@/components/dashboard/section-heading";
+import { PostCover } from "@/components/dashboard/post-cover";
+import { PostsBrowser } from "@/components/dashboard/posts-browser";
+import { SectionHeading } from "@/components/dashboard/section-heading";
+import { InfoTip } from "@/components/dashboard/info-tip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { compactNumber, fullNumber, percent, shortDate } from "@/lib/format";
+import { fullNumber, percent } from "@/lib/format";
+import {
+  accountSummary,
+  changeSentence,
+  compact,
+  doMoreAndLess,
+  postTitle,
+  type Finding,
+} from "@/lib/account-summary";
+import { dayMonth } from "@/lib/date-range";
+import { cn } from "@/lib/utils";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import { computeInsights } from "@/lib/insights";
 import { buildRecommendations } from "@/lib/recommendations";
@@ -43,6 +50,8 @@ import {
   viewsOf,
 } from "@/lib/analytics-types";
 import { toInputValue, type ResolvedRange } from "@/lib/date-range";
+
+type Tab = "summary" | "posts" | "audience" | "competitors" | "ideas";
 
 /** Sections from the original spec that public data cannot fill, per platform. */
 const LOCKED = {
@@ -90,10 +99,9 @@ export function PlatformView({
   /** Every stored post, unfiltered: for comparisons with the previous period. */
   allPosts?: PlatformData["posts"];
 }) {
-  // The post ledger is the longest thing on the page and the least often
-  // read, so it can be folded away. Open by default, like every other
-  // collapsible section here.
-  const [postsCollapsed, setPostsCollapsed] = useState(false);
+  // One tab at a time (13 Nov 2026, UI review): the page was 17 sections and
+  // about 25 screens long. The tab is in the URL, so Home can link to one.
+  const { tab = "summary" } = useSearch({ from: "/_app" });
   const meta = PLATFORM_META[data.platform];
   const color = meta.color;
   const isInstagram = data.platform === "instagram";
@@ -110,8 +118,7 @@ export function PlatformView({
         <Info className="size-4" aria-hidden />
         <AlertTitle>Not connected yet</AlertTitle>
         <AlertDescription>
-          Add {data.missingEnv?.join(", ")} to <code>.env</code>, restart the dev server, then press
-          Sync.
+          {data.missingEnv?.join(", ")} still needs adding. See Settings, Data sources.
         </AlertDescription>
       </Alert>
     );
@@ -137,8 +144,7 @@ export function PlatformView({
         <Info className="size-4" aria-hidden />
         <AlertTitle>No snapshot stored yet</AlertTitle>
         <AlertDescription>
-          Press Sync to scrape {meta.label} for the first time. Every screen is built from stored
-          syncs.
+          Press Refresh to collect {meta.label}&apos;s figures for the first time.
         </AlertDescription>
       </Alert>
     );
@@ -146,7 +152,6 @@ export function PlatformView({
 
   const { latest, posts } = data;
   const organic = organicPosts(posts);
-  const pinnedCount = posts.length - organic.length;
   const hasViews = insights.useViews;
   const metric = hasViews ? ("views" as const) : ("engagements" as const);
   const primaryOf = (post: (typeof posts)[number]) =>
@@ -156,7 +161,6 @@ export function PlatformView({
   const best = ranked[0];
   // On the followers the period had, not today's.
   const rate = engagementRate(posts, followersForPeriod(data) ?? latest.followers);
-  const totalInteractions = organic.reduce((sum, post) => sum + engagementsOf(post), 0);
 
   // Best-performer funnel: only the rows public data actually supports. The
   // missing rows are named in the locked panel rather than shown as zeroes.
@@ -199,7 +203,9 @@ export function PlatformView({
       const rateRatio = rate > 0 ? rival.engagementRate / rate : 0;
       const gap: BenchmarkRow["gap"] =
         rateRatio >= 1.25
-          ? { label: `Engages ${rateRatio.toFixed(1)}× better`, tone: "bad" }
+          ? // Ahead of you is not "bad" (13 Nov 2026, UI review: every rival
+            // was labelled bad). It is something to learn from.
+            { label: `Engages ${rateRatio.toFixed(1)}× more than you`, tone: "warn" }
           : rateRatio > 0 && rateRatio <= 0.8
             ? { label: "You engage better", tone: "good" }
             : followerRatio >= 2
@@ -209,316 +215,424 @@ export function PlatformView({
     }),
   ];
 
-  const page = (
-    <>
-      <CadenceNudge platform={data.platform} />
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span
-            className="flex size-10 items-center justify-center rounded-xl text-white"
-            style={{ backgroundColor: color }}
-          >
-            <meta.icon className="size-5" aria-hidden />
-          </span>
-          <div>
-            <p className="text-sm font-semibold">{latest.displayName}</p>
-            <a
-              href={data.profileUrl}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+  const summary = accountSummary(data, range);
+  const findings = doMoreAndLess(data);
+  const change = changeSentence(summary);
+  const unit = hasViews ? "views" : "interactions";
+  const handle = latest.handle.startsWith("@") ? latest.handle : `@${latest.handle}`;
+  const firstPoint = data.growth[0];
+  const lastPoint = data.growth.at(-1);
+
+  const tabs: Array<{ id: Tab; label: string }> = [
+    { id: "summary", label: "Summary" },
+    { id: "posts", label: `Posts · ${posts.length}` },
+    { id: "audience", label: "Audience" },
+    { id: "competitors", label: `Competitors · ${data.competitors.length}` },
+    { id: "ideas", label: "Ideas" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="-mt-2 flex flex-wrap items-center justify-between gap-2 border-b">
+        <nav aria-label={`${meta.label} sections`} className="flex gap-1 overflow-x-auto">
+          {tabs.map((entry) => (
+            <Link
+              key={entry.id}
+              to="."
+              search={(prev) => ({ ...prev, tab: entry.id === "summary" ? undefined : entry.id })}
+              aria-current={tab === entry.id ? "page" : undefined}
+              className={cn(
+                "flex min-h-11 items-center border-b-2 px-3 text-sm whitespace-nowrap",
+                tab === entry.id
+                  ? "border-primary font-semibold text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
             >
-              {data.profileUrl.replace("https://www.", "")}
-              <ExternalLink className="size-3" aria-hidden />
-            </a>
-          </div>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {range.label} · {organic.length} post{organic.length === 1 ? "" : "s"}
-        </p>
+              {entry.label}
+            </Link>
+          ))}
+        </nav>
+        <a
+          href={data.profileUrl}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="inline-flex min-h-11 items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground"
+        >
+          {handle}
+          <ExternalLink className="size-3.5" aria-hidden />
+        </a>
       </div>
 
-      {/* ---- Overview ---- */}
-      <SectionHeading title="Overview" note={range.label} />
-      <section aria-label="Headline metrics" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <FollowersTile data={data} range={range} color={color} />
-        <KpiTile
-          label="Interactions"
-          value={fullNumber(totalInteractions)}
-          icon={Heart}
-          hint={`${organic.length} posts${pinnedCount ? ` · ${pinnedCount} pinned excluded` : ""}`}
-          accent={color}
-        />
-        <KpiTile
-          label="Engagement rate"
-          value={percent(rate, 2)}
-          icon={Eye}
-          hint={hasViews ? "interactions ÷ views" : "interactions ÷ follower-impressions"}
-          accent={color}
-        />
-        <KpiTile
-          label={hasViews ? "Top post views" : "Top post interactions"}
-          value={best ? compactNumber(primaryOf(best)) : "—"}
-          icon={Send}
-          hint={best ? shortDate(best.publishedAt) : undefined}
-          accent={color}
-          {...(best?.url ? { href: best.url } : {})}
-        />
-      </section>
-
-      {/* ---- Growth ---- */}
-      <SectionHeading title="Follower growth" note="One point per stored sync" />
-      <Card>
-        <CardContent className="pt-6">
-          <GrowthChart points={data.growth} color={color} eras={data.eras ?? []} />
-        </CardContent>
-      </Card>
-
-      {/* ---- Top content ---- */}
-      <SectionHeading title={hasViews ? "Top content by views" : "Top content by interactions"} />
-      <ContentTiles
-        posts={ranked.slice(0, 4)}
-        color={color}
-        metric={metric}
-        platform={data.platform}
-      />
-
-      {/* ---- Best performer + distribution ---- */}
-      {best ? (
+      {tab === "summary" ? (
         <>
-          <SectionHeading
-            title="Best performer breakdown"
-            note={best.caption.split(/[.!?\n]/)[0]?.slice(0, 60) ?? ""}
-            {...(best.url ? { noteHref: best.url } : {})}
-          />
-          <div className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
-            <MetricBars
-              title="Engagement funnel"
-              description="Only the rows a public profile actually publishes."
-              rows={funnel}
-              color={color}
-              note={
+          <h2 className="text-2xl leading-tight font-bold">
+            {change
+              ? `Followers are ${summary.change! < 0 ? "down" : summary.change! > 0 ? "up" : "unchanged"}${summary.change ? ` ${fullNumber(Math.abs(summary.change))}` : ""} ${summary.since}.`
+              : `${fullNumber(summary.followers ?? latest.followers)} followers.`}{" "}
+            Your typical post gets {compact(summary.typical)} {unit}.
+          </h2>
+
+          <section
+            aria-label="Headline numbers"
+            className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+          >
+            <Stat
+              label="Followers"
+              value={summary.followers == null ? "—" : fullNumber(summary.followers)}
+              sub={
+                summary.change == null
+                  ? undefined
+                  : summary.change === 0
+                    ? "No change"
+                    : `${summary.change < 0 ? "Down" : "Up"} ${fullNumber(Math.abs(summary.change))}`
+              }
+              tone={summary.change == null ? undefined : summary.change < 0 ? "bad" : "good"}
+            />
+            <Stat
+              label={hasViews ? "Typical views per post" : "Typical interactions per post"}
+              value={compact(summary.typical)}
+              sub={`Middle value of ${summary.posts} post${summary.posts === 1 ? "" : "s"}`}
+              tip="Half your posts did better than this and half did worse, so one viral post does not move it."
+            />
+            <Stat
+              label="Engagement rate"
+              value={percent(rate, 2)}
+              sub={
                 hasViews
-                  ? `${percent(engagementsOf(best) / Math.max(viewsOf(best), 1), 2)} of viewers interacted. Reach, saves and shares are owner-only — see the locked panel below.`
-                  : "LinkedIn publishes no view count on personal posts, so this funnel starts at interactions."
+                  ? "Of viewers who liked, commented or reposted"
+                  : "Interactions for every follower who could see a post"
               }
             />
-            <MetricBars
-              title={hasViews ? "Median views by format" : "Median interactions by format"}
-              rows={formatRows}
-              color={color}
-              note={
-                formatRows.some((row) => row.muted)
-                  ? "Dimmed formats have fewer than 3 posts in this window — too few to compare."
-                  : undefined
-              }
+            <Stat
+              label="Posts a week"
+              value={summary.postsPerWeek.toFixed(1)}
+              sub={`${summary.posts} posts in this period`}
             />
-          </div>
-        </>
-      ) : null}
+          </section>
 
-      {/* ---- Performance over time ---- */}
-      {organic.length ? (
-        <>
-          <SectionHeading title={hasViews ? "Views per post" : "Interactions per post"} />
           <Card>
-            <CardHeader>
-              <CardDescription>
-                Oldest to newest. Solid bars are posts at 3× the median or better.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <PostPerformanceChart
-                posts={organic}
-                color={color}
-                metric={metric}
-                eras={data.eras ?? []}
-              />
+            <CardContent className="space-y-3 p-5">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h3 className="text-base font-semibold">Followers over time</h3>
+                {firstPoint && lastPoint ? (
+                  <p className="text-[13px] text-muted-foreground tabular-nums">
+                    {dayMonth(new Date(firstPoint.capturedAt))}: {fullNumber(firstPoint.followers)}{" "}
+                    → {dayMonth(new Date(lastPoint.capturedAt))}: {fullNumber(lastPoint.followers)}
+                  </p>
+                ) : null}
+              </div>
+              <GrowthChart points={data.growth} color={color} eras={data.eras ?? []} />
             </CardContent>
           </Card>
-        </>
-      ) : null}
 
-      {/* ---- Timing ---- */}
-      {dayRows.length > 1 ? (
-        <>
-          <SectionHeading title="When posts land best" note="By weekday, median performance" />
-          <MetricBars
-            title={hasViews ? "Median views by weekday" : "Median interactions by weekday"}
-            rows={dayRows}
-            color={color}
-            note="Sample sizes are small at this cadence — read this as a direction to test, not a rule."
-          />
-        </>
-      ) : null}
-
-      {/* ---- LinkedIn public engagement ----
-           What public posts show: reactions, comments, reposts, top posts. The
-           owner-only half (impressions and reach) stays locked below. */}
-      {!isInstagram ? (
-        <>
-          <SectionHeading
-            title="Public engagement"
-            note="Posts found by the scraper, ranked by LinkedIn's impressions"
-          />
-          <PublicEngagement posts={posts} range={range} />
-        </>
-      ) : null}
-
-      {/* ---- Owner-only sections ----
-           Unlocked on Instagram once a Meta Graph token is configured; locked
-           on LinkedIn until its export or Member Post Analytics API is
-           connected. */}
-      {data.insights ? (
-        <>
-          <SectionHeading title="Owner-only metrics" note="Measured by Instagram, not scraped" />
-          <InsightsPanels insights={data.insights} posts={data.posts} color={color} />
-        </>
-      ) : !isInstagram ? (
-        <>
-          <SectionHeading title="Owner-only metrics" note="Measured by LinkedIn, not scraped" />
-          <LinkedInOwnerMetrics posts={posts} color={color} range={range} />
-        </>
-      ) : (
-        <>
-          <SectionHeading title="Owner-only metrics" note="Not available from public data" />
-          <div className="grid gap-4 lg:grid-cols-2">
-            {LOCKED[data.platform].map((panel) => (
-              <LockedPanel key={panel.title} {...panel} rows={[...panel.rows]} />
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* ---- What his LinkedIn posts taught ----
-           Every post he published, reviewed 14 days after it went up, and the
-           lessons the writer reads (post-learning). LinkedIn only: filmed
-           reels have their own page. */}
-      {!isInstagram ? (
-        <>
-          <SectionHeading
-            title="What his posts taught"
-            note={`Each post reviewed ${POST_REVIEW_DAYS} days after it went up`}
-          />
-          <PostLessons />
-        </>
-      ) : null}
-
-      {/* ---- Content lanes and the learning scorecard ----
-           Lane figures are recomputed for the selected window in filterPlatform,
-           so the note names the window: the table used to sum the whole stored
-           history while the header above it counted the range, and nothing on
-           screen said the two were answering different questions. The guard is on
-           the contents rather than on `learning` itself, so a window with no
-           classified posts does not leave a heading with nothing beneath it. */}
-      <ErasPanel platform={data.platform} />
-
-      {data.learning && (data.learning.lanes.length || data.learning.suggestions) ? (
-        <>
-          <SectionHeading
-            title="Content lanes"
-            note={`${range.label} · what this account published, scored against its own median`}
-            action={
-              <div className="flex flex-wrap items-baseline gap-1">
-                <Button
-                  asChild
-                  size="sm"
-                  variant="ghost"
-                  className="h-auto gap-1.5 px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  {/* The report opens on the dates being viewed here; it has
-                      its own date picker for any other window. */}
-                  <Link
-                    to="/lane-report"
-                    search={{
-                      platform: data.platform,
-                      from: toInputValue(range.from) || "2015-01-01",
-                      to: toInputValue(range.to ? new Date(range.to.getTime() - 1) : new Date()),
-                    }}
-                    title="Every reel in each lane, with its metrics and dates, as a page you can save as a PDF"
-                  >
-                    <FileText className="size-3" aria-hidden />
-                    Lane report
-                  </Link>
-                </Button>
-                <DeriveLanes platform={data.platform} mode="refresh" />
-              </div>
-            }
-          />
-          <LearningPanel learning={data.learning} />
-        </>
-      ) : organic.length ? (
-        // Posts but no lanes. The section used to vanish entirely here, which
-        // reads as "this platform does not have lanes" rather than "nobody has
-        // derived them yet" — and left no control anywhere that could.
-        <>
-          <SectionHeading
-            title="Content lanes"
-            note="What this account publishes, read from its own captions"
-          />
-          <DeriveLanes platform={data.platform} />
-        </>
-      ) : null}
-
-      {/* ---- Competitors ---- */}
-      <SectionHeading title="Competitor analysis" />
-      <CompetitorTable
-        rows={benchmark}
-        viewsLabel={hasViews ? "Med. views" : "Med. views (n/a)"}
-        envVar={isInstagram ? "COMPETITORS_INSTAGRAM" : "COMPETITORS_LINKEDIN"}
-      />
-
-      {/* ---- AI layer ----
-          The Google Trends strip that stood here is superseded by the topic
-          inbox inside AiPanel: it returned bare search terms with nothing to
-          read, and its actor failed on both paid runs. */}
-
-      <AiPanel platform={data.platform} />
-
-      {/* ---- Rule-based plays ----
-          Renamed away from "Next reel to make", which now labels the AI ideas
-          above. These cards cannot name a subject — they are triggered by a
-          measured pattern with no model involved, so the most they can honestly
-          say is "reuse this structure" or "move this slot". Calling them the
-          next reel implied a topic they never contained. */}
-      <SectionHeading
-        title="Insights from your own data"
-        note="Rule-based — each card is triggered by a measured pattern, no model involved"
-      />
-      <TopicCards recommendations={recommendations} />
-
-      {/* ---- Ledger ---- */}
-      <SectionHeading
-        title="All posts in this window"
-        action={
-          <CollapseToggle
-            collapsed={postsCollapsed}
-            onToggle={() => setPostsCollapsed((value) => !value)}
-            showLabel={`Show ${posts.length} post${posts.length === 1 ? "" : "s"}`}
-          />
-        }
-      />
-      {
-        <Card>
-          <CardContent className="pt-6">
-            <PostsTable
-              posts={postsCollapsed ? posts.slice(0, 3) : posts}
-              showViews={hasViews}
-              platform={data.platform}
-            />
-            <div className="flex justify-center pt-2">
-              <CollapseToggle
-                placement="bottom"
-                collapsed={postsCollapsed}
-                onToggle={() => setPostsCollapsed((value) => !value)}
-                showLabel={`Show ${posts.length} post${posts.length === 1 ? "" : "s"}`}
-              />
+          {findings.more.length || findings.less.length ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              <FindingCard title="Do more of" findings={findings.more} tone="good" />
+              <FindingCard title="Do less of" findings={findings.less} tone="bad" />
             </div>
-          </CardContent>
-        </Card>
-      }
-    </>
+          ) : null}
+
+          {ranked.length ? (
+            <section className="space-y-3">
+              <div className="flex items-baseline justify-between gap-2">
+                <h3 className="text-base font-semibold">Top posts</h3>
+                <Link
+                  to="."
+                  search={(prev) => ({ ...prev, tab: "posts" as const })}
+                  className="inline-flex min-h-11 items-center text-sm font-semibold underline underline-offset-4"
+                >
+                  See all {posts.length} posts
+                </Link>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {ranked.slice(0, 4).map((post) => (
+                  <a
+                    key={post.postId}
+                    href={post.url}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="flex gap-3 rounded-xl border bg-card p-3 hover:bg-muted/40"
+                  >
+                    {isInstagram ? <PostCover post={post} className="h-16 w-12" /> : null}
+                    <div className="min-w-0">
+                      <p className="text-base font-bold tabular-nums">
+                        {compact(primaryOf(post))} {unit}
+                      </p>
+                      <p className="line-clamp-2 text-[13px] text-muted-foreground">
+                        {postTitle(post.caption, 60)} · {dayMonth(new Date(post.publishedAt))}
+                      </p>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </>
+      ) : null}
+
+      {tab === "posts" ? (
+        <>
+          <PostsBrowser posts={posts} platform={data.platform} />
+          {data.learning && (data.learning.lanes.length || data.learning.suggestions) ? (
+            <>
+              <SectionHeading
+                title="How each topic performs"
+                note={`${range.label} · against your typical post`}
+                action={
+                  <div className="flex flex-wrap items-baseline gap-1">
+                    <Button asChild variant="ghost" className="h-11 gap-1.5 px-3 text-[13px]">
+                      {/* The report opens on the dates being viewed here; it has
+                          its own date picker for any other window. */}
+                      <Link
+                        to="/lane-report"
+                        search={{
+                          platform: data.platform,
+                          from: toInputValue(range.from) || "2015-01-01",
+                          to: toInputValue(
+                            range.to ? new Date(range.to.getTime() - 1) : new Date(),
+                          ),
+                        }}
+                      >
+                        <FileText className="size-3.5" aria-hidden />
+                        Topic report
+                      </Link>
+                    </Button>
+                    <DeriveLanes platform={data.platform} mode="refresh" />
+                  </div>
+                }
+              />
+              <LearningPanel learning={data.learning} />
+            </>
+          ) : organic.length ? (
+            <>
+              <SectionHeading
+                title="How each topic performs"
+                note="Topics are read from the account's own captions"
+              />
+              <DeriveLanes platform={data.platform} />
+            </>
+          ) : null}
+        </>
+      ) : null}
+
+      {tab === "audience" ? (
+        <>
+          <CadenceNudge platform={data.platform} />
+          {organic.length ? (
+            <>
+              <SectionHeading title={hasViews ? "Views per post" : "Interactions per post"} />
+              <Card>
+                <CardHeader>
+                  <CardDescription className="text-[13px]">
+                    Oldest to newest. Solid bars are posts at 3× your typical post or better.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <PostPerformanceChart
+                    posts={organic}
+                    color={color}
+                    metric={metric}
+                    eras={data.eras ?? []}
+                  />
+                </CardContent>
+              </Card>
+            </>
+          ) : null}
+
+          {dayRows.length > 1 ? (
+            <>
+              <SectionHeading title="Best days to post" note="Typical post on each day" />
+              <MetricBars
+                title={hasViews ? "Typical views by day" : "Typical interactions by day"}
+                rows={dayRows}
+                color={color}
+                note="Few posts fall on each day, so read this as something to test, not a rule."
+              />
+            </>
+          ) : null}
+
+          {best ? (
+            <>
+              <SectionHeading
+                title="Your best post, broken down"
+                note={best.caption.split(/[.!?\n]/)[0]?.slice(0, 60) ?? ""}
+                {...(best.url ? { noteHref: best.url } : {})}
+              />
+              <div className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
+                <MetricBars
+                  title="From views to interactions"
+                  rows={funnel}
+                  color={color}
+                  note={
+                    hasViews
+                      ? `${percent(engagementsOf(best) / Math.max(viewsOf(best), 1), 2)} of viewers interacted.`
+                      : "LinkedIn shows no view count on personal posts, so this starts at interactions."
+                  }
+                />
+                <MetricBars
+                  title={hasViews ? "Typical views by format" : "Typical interactions by format"}
+                  rows={formatRows}
+                  color={color}
+                  note={
+                    formatRows.some((row) => row.muted)
+                      ? "Dimmed formats have fewer than 3 posts in this period, too few to compare."
+                      : undefined
+                  }
+                />
+              </div>
+            </>
+          ) : null}
+
+          {!isInstagram ? (
+            <>
+              <SectionHeading title="Reactions, comments and reposts" />
+              <PublicEngagement posts={posts} range={range} />
+            </>
+          ) : null}
+
+          {data.insights ? (
+            <>
+              <SectionHeading title="Instagram's own figures" note="Reach, saves and watch time" />
+              <InsightsPanels insights={data.insights} posts={data.posts} color={color} />
+            </>
+          ) : !isInstagram ? (
+            <>
+              <SectionHeading
+                title="LinkedIn's own figures"
+                note="Impressions and members reached"
+              />
+              <LinkedInOwnerMetrics posts={posts} color={color} range={range} />
+            </>
+          ) : (
+            <>
+              <SectionHeading title="Not available yet" />
+              <div className="grid gap-4 lg:grid-cols-2">
+                {LOCKED[data.platform].map((panel) => (
+                  <LockedPanel key={panel.title} {...panel} rows={[...panel.rows]} />
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      ) : null}
+
+      {tab === "competitors" ? (
+        <CompetitorTable
+          rows={benchmark}
+          viewsLabel={hasViews ? "Typical views" : "Typical views (n/a)"}
+          envVar={isInstagram ? "COMPETITORS_INSTAGRAM" : "COMPETITORS_LINKEDIN"}
+        />
+      ) : null}
+
+      {tab === "ideas" ? (
+        <>
+          <AiPanel platform={data.platform} />
+          <SectionHeading
+            title="Patterns in your own posts"
+            note="Each one is found in your numbers, not written by AI"
+          />
+          <TopicCards recommendations={recommendations} />
+        </>
+      ) : null}
+    </div>
   );
-  // Section titles stand out on both platform pages, so each section is easy to find.
-  return <StrongSectionHeadings>{page}</StrongSectionHeadings>;
+}
+
+function Stat({
+  label,
+  value,
+  sub,
+  tone,
+  tip,
+}: {
+  label: string;
+  value: string;
+  sub?: string | undefined;
+  tone?: "good" | "bad" | undefined;
+  tip?: string;
+}) {
+  return (
+    <Card>
+      <CardContent className="space-y-1 p-5">
+        <p className="flex items-center gap-1 text-[13px] text-muted-foreground">
+          {label}
+          {tip ? <InfoTip text={tip} /> : null}
+        </p>
+        <p className="text-3xl font-bold tabular-nums">{value}</p>
+        {sub ? (
+          <p
+            className={cn(
+              "text-[13px]",
+              tone === "bad"
+                ? "font-semibold text-red-700 dark:text-red-400"
+                : tone === "good"
+                  ? "font-semibold text-emerald-700 dark:text-emerald-400"
+                  : "text-muted-foreground",
+            )}
+          >
+            {sub}
+          </p>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function FindingCard({
+  title,
+  findings,
+  tone,
+}: {
+  title: string;
+  findings: Finding[];
+  tone: "good" | "bad";
+}) {
+  const Icon = tone === "good" ? ArrowUp : ArrowDown;
+  return (
+    <Card>
+      <CardContent className="p-0">
+        <h3 className="flex items-center gap-2 border-b px-5 py-4 text-base font-semibold">
+          <Icon
+            className={cn(
+              "size-4",
+              tone === "good"
+                ? "text-emerald-700 dark:text-emerald-400"
+                : "text-red-700 dark:text-red-400",
+            )}
+            aria-hidden
+          />
+          {title}
+        </h3>
+        {findings.length ? (
+          <ul>
+            {findings.map((finding) => (
+              <li
+                key={finding.label}
+                className="flex min-h-12 items-center justify-between gap-3 border-b px-5 py-3 text-sm last:border-b-0"
+              >
+                <span>
+                  {finding.label}{" "}
+                  <span className="text-[13px] text-muted-foreground">· {finding.posts} posts</span>
+                </span>
+                <span
+                  className={cn(
+                    "font-semibold whitespace-nowrap",
+                    tone === "good"
+                      ? "text-emerald-700 dark:text-emerald-400"
+                      : "text-red-700 dark:text-red-400",
+                  )}
+                >
+                  {finding.value}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="px-5 py-4 text-sm text-muted-foreground">
+            Nothing stands out yet in this period.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
 }

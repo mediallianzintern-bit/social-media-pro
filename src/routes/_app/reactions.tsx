@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 
 import { AiIdeaCards } from "@/components/dashboard/ai-idea-cards";
+import { IdeasTabs } from "@/components/dashboard/ideas-tabs";
 import { SectionHeading } from "@/components/dashboard/section-heading";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -99,6 +100,7 @@ function ReactionsPage() {
   const { data } = useQuery(reactionsQueryOptions(PLATFORM));
   return (
     <div className="space-y-6">
+      <IdeasTabs />
       <p className="max-w-3xl text-sm text-muted-foreground">
         Take a clip from a bigger creator that makes a claim in a field next to yours, credit it,
         and cut in with the expert&rsquo;s correction or deeper take — then land it in your own
@@ -583,7 +585,7 @@ function ClipCard({
             </Badge>
           ) : null}
         </div>
-        <p className="break-all text-[11px] text-muted-foreground">{source.sourceUrl}</p>
+        <p className="break-all text-xs text-muted-foreground">{source.sourceUrl}</p>
 
         {source.transcript ? (
           <details className="text-xs">
