@@ -31,6 +31,17 @@ const NICHE = "universal-trends";
 const SEARCH_DAYS = 14;
 
 /**
+ * Every search runs twice: over the two weeks, and over the last day alone
+ * (13 Nov 2026). Google News returns at most 100 results a search, chosen
+ * across the whole window, not newest first. In a big week for one company
+ * those slots go to the week's older coverage: on 13 Nov the Anthropic search
+ * was filled by the Claude Fable 5.2 launch, and Claude Meetings, announced
+ * that day and carried by 57 outlets, was missing from one fetch and 40th in
+ * the next. The day's own pass gives today's news its own 100 slots.
+ */
+const WINDOWS = [SEARCH_DAYS, 1] as const;
+
+/**
  * Stories kept per category per fetch, the most urgent first. Enough to
  * reach back two weeks: Meta's Andromeda update (28 Oct) was the 110th most
  * urgent ad-platform story on 6 Nov, two single-outlet headlines, and was
@@ -51,8 +62,12 @@ const KEEP_FETCH_HOURS = 3;
 /** A second fetch within this many minutes returns the stored list instead. */
 const FLOOR_MINUTES = 10;
 
-/** Searches run at once: quick, and still gentle on a free public feed. */
-const PARALLEL = 3;
+/**
+ * Searches run at once: quick, and still gentle on a free public feed. Four,
+ * since each search runs for both windows, so a fetch takes about half as long
+ * again rather than twice as long.
+ */
+const PARALLEL = 4;
 
 /** Job moves and stock-market stories, which every company search also finds. */
 const NOISE = " -appoints -appointed -joins -hires -promoted -stock -shares -investors";
@@ -366,23 +381,31 @@ export async function fetchUniversalTrends(): Promise<{
   const rows: Array<Record<string, unknown>> = [];
   // Every search, a few at a time, then grouped back into their categories.
   const plan = Object.entries(SEARCHES).flatMap(([category, queries]) =>
-    queries.map((query) => ({ category, query })),
+    queries.flatMap((query) => WINDOWS.map((days) => ({ category, query, days }))),
   );
   const results = new Map<string, SourceDraft[]>();
   for (let start = 0; start < plan.length; start += PARALLEL) {
     await Promise.all(
-      plan.slice(start, start + PARALLEL).map(async ({ category, query }) => {
+      plan.slice(start, start + PARALLEL).map(async ({ category, query, days }) => {
         try {
-          const found = await searchNews(`${query}${NOISE}`, null, { days: SEARCH_DAYS });
+          const found = await searchNews(`${query}${NOISE}`, null, { days });
           results.set(category, [...(results.get(category) ?? []), ...found]);
         } catch (error) {
-          failures.push(`${query}: ${error instanceof Error ? error.message : String(error)}`);
+          failures.push(
+            `${query} (last ${days} day${days === 1 ? "" : "s"}): ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       }),
     );
   }
   for (const category of Object.keys(SEARCHES)) {
-    const found = results.get(category) ?? [];
+    // The two windows overlap, so an article both returned is counted once.
+    const seenUrl = new Set<string>();
+    const found = (results.get(category) ?? []).filter((story) => {
+      if (seenUrl.has(story.url)) return false;
+      seenUrl.add(story.url);
+      return true;
+    });
     const must = MUST[category];
     const stories = byUrgency(
       clusterStories(
