@@ -422,6 +422,16 @@ const STOCK_PHRASES: Array<[RegExp, string]> = [
   [/\bkeep pace\b/i, "keep up"],
   [/\brapid evolution\b/i, "fast change"],
   [/\b(\w+ )?revolution\b/i, "say what changes"],
+  // From the team's comparison with a hand-checked draft (13 Nov 2026): the
+  // lines that read like a consultant's report, not a teacher.
+  [/\btaps? into (the|a) trend\b/i, "say what people actually do"],
+  [/\bis becoming (more )?(central|key|critical)\b/i, "say what changed"],
+  [
+    /\b(new|exciting|fresh) (advertising |marketing |business |growth )?opportunities\b/i,
+    "name the opportunity",
+  ],
+  [/\bthe key is (knowing|understanding)\b/i, "say what to do"],
+  [/\bexplore new\b/i, "say what to try"],
 ];
 
 /** The stock phrases in a post, outside quotation marks, with what to do instead. */
@@ -439,8 +449,63 @@ export function stockPhrasesIn(body: string): Array<{ phrase: string; instead: s
  * checked against his 43 posts (0, 0 and 1 of them trip it) and caught the
  * dashboard's Duolingo post of 4 Nov.
  */
+/** Short forms everyone reads without help, and brands written in capitals. */
+const KNOWN_SHORT_FORMS = new Set(
+  (
+    "AI UK US USA EU UAE UN CEO CEOs CFO CMO CTO COO TV HR IT OK PDF FAQ PR " +
+    "LG IBM BMW KFC HBO BBC CNN NBC CBS BCG WSJ NASA FIFA IPL BSE NSE IIT IIM SAP HP"
+  ).split(" "),
+);
+
+/** "So what is CTV?", "CTV means", "In simple words": the term explained. */
+const explains = (term: string) =>
+  new RegExp(
+    `\\b(what is|what's|what are)\\s+(an?\\s+)?${term}\\b|\\b${term}s?\\s+(is|are|means|stands for)\\b`,
+    "i",
+  );
+
+/**
+ * Short forms a reader may not know, used without being explained: "CTV" in
+ * a post about connected TV ads (13 Nov 2026), where the hand-checked draft
+ * stopped to ask "So what is CTV? Let me make it simple." Counted only when a
+ * short form is used twice or more, so a partner brand named once in
+ * capitals is not mistaken for jargon.
+ */
+export function unexplainedTerms(body: string): string[] {
+  const text = body.replace(/[‘’]/g, "'");
+  const counts = new Map<string, number>();
+  for (const match of text.matchAll(/\b([A-Z]{2,5})s?\b/g)) {
+    const term = match[1]!;
+    if (KNOWN_SHORT_FORMS.has(term)) continue;
+    counts.set(term, (counts.get(term) ?? 0) + 1);
+  }
+  return [...counts]
+    .filter(([term, count]) => count >= 2 && !explains(term).test(text))
+    .map(([term]) => term);
+}
+
+/**
+ * A first line that asks a general question about change ("Is LinkedIn
+ * changing how UK brands advertise?") instead of naming the surprising thing
+ * itself ("LinkedIn ads on your TV?").
+ */
+const GENERAL_CHANGE_OPENING =
+  /^\s*["“]?(is|are|will|could|can|has|have|does|do)\b[^?\n]{0,80}\b(chang(e|es|ing)|transform\w*|reshap\w*|redefin\w*|disrupt\w*|the future of)\b/i;
+
 export function writingProblems(body: string): string[] {
   const problems: string[] = [];
+  const firstLine = body.trim().split("\n")[0] ?? "";
+  if (GENERAL_CHANGE_OPENING.test(firstLine)) {
+    problems.push(
+      `opens on a general question about change ("${firstLine.trim().slice(0, 70)}"); open on the surprising concrete thing itself, so the first line already surprises ("LinkedIn ads on your TV?")`,
+    );
+  }
+  const terms = unexplainedTerms(body);
+  if (terms.length) {
+    problems.push(
+      `uses ${terms.join(", ")} without saying what ${terms.length === 1 ? "it means" : "they mean"}; explain it in plain words the first time, as he would ("So what is CTV? Let me make it simple. It's TV you watch through the internet.")`,
+    );
+  }
   // Curly apostrophes folded first: "suppose you’re a marketer" slipped past.
   const stock = body.replace(/[‘’]/g, "'").match(STOCK_EXAMPLE);
   if (stock) {

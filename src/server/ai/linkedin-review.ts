@@ -32,7 +32,7 @@ import { earlyYears, figuresOf, sharesFigures, unsupportedFigures } from "@/lib/
 import type { ContentIdea } from "@/lib/ai-types";
 import { isOpeningPair } from "@/lib/hook-variants";
 import { linkedInShapesBlock } from "@/lib/linkedin-shapes";
-import { factSheetText, type StoryResearch } from "@/lib/research";
+import { factSheetText, factUsed, type StoryResearch } from "@/lib/research";
 import type { SourceItem } from "@/lib/sources";
 import { linkedInLength, voiceFlags } from "@/lib/voice-check";
 
@@ -179,7 +179,72 @@ export function problemsOf(
       `It states figures from the research without naming where they come from; name the source as his posts do ("According to The Wall Street Journal…", "A 2026 BCG study found…").`,
     );
   }
+  // From the team's comparison with a hand-checked draft (13 Nov 2026).
+  // Each claim figure says whose it is, on its own line or the next: "LinkedIn
+  // says people who saw a brand's TV ad first cost 30% less to turn into
+  // leads." A company's figure about its own product is its claim, not a fact.
+  const loose = unattributedClaims(draftText(body, sections));
+  if (loose.length) {
+    problems.push(
+      `It states ${loose.map((figure) => `"${figure}"`).join(", ")} without saying whose number ${loose.length === 1 ? "it is" : "they are"}; say who says it on the same line ("LinkedIn says…"), and when a company is measuring its own product, add that it is their own number ("(That's LinkedIn's own number. Keep that in mind.)")`,
+    );
+  }
+  // A fact the outlets report two different ways is the one most likely to
+  // be wrong: the article behind the CTV story gave the 2.6x two ways, and
+  // the draft used the one its own body contradicts.
+  if (research) {
+    const said = draftText(body, sections);
+    const disputed = research.facts.filter((fact) => fact.conflict && factUsed(fact, said));
+    if (disputed.length) {
+      problems.push(
+        `It uses ${disputed.map((fact) => `"${fact.text}"`).join("; ")}, which the outlets report in different ways (${disputed.map((fact) => fact.conflict).join("; ")}); leave it out, or say exactly how one named outlet put it`,
+      );
+    }
+  }
+  // Every full post teaches through one example from the story: a step by
+  // step, a scene the reader can picture ("Your TV ad makes people remember
+  // your name → your LinkedIn ad asks them to book a call").
+  // A brand story told in scenes is its own example (the Duolingo model); a
+  // post explaining something launched needs one.
+  if (raw.format === "text_post" && !teaser && EXPLAINS_NEWS.test(body) && !EXAMPLE.test(body)) {
+    problems.push(
+      `It has no example. Add one simple, concrete example built from this story, as his posts do ("Here's a simple example:" then two or three short steps, each on its own line starting with →)`,
+    );
+  }
   return problems;
+}
+
+/** A post explaining something launched or now available, rather than a story in scenes. */
+const EXPLAINS_NEWS =
+  /\b(launch(ed|es)?|introduc(ed|es)|roll(ed|s)? out|now available|can now|now lets|new feature|unveil(ed|s))\b/i;
+
+/** "For example", "Here's a simple example:", "Imagine…", or a → step list. */
+const EXAMPLE =
+  /\b(for example|for instance|here['’]?s a (simple |quick )?example|take a (simple )?example|imagine|let['’]?s say|say you)\b|^\s*(→|->)/im;
+
+/** Wording that says whose a figure is. */
+const ATTRIBUTED =
+  /\b(says?|said|according to|claims?|claimed|reports?|reported|found|its own|their own|own (number|figure|data)|study|survey|research|data from|estimates?|told)\b/i;
+
+/**
+ * The claim figures (a percentage, a multiple, an amount of money) on lines
+ * where neither that line nor the one around it says whose figure it is. A
+ * plain count ("66 million viewers") reports what happened; a percentage or a
+ * multiple is how a company grades its own product, and that is the claim.
+ */
+function unattributedClaims(text: string): string[] {
+  const lines = text.split("\n").map((line) => line.trim());
+  const claims: string[] = [];
+  lines.forEach((line, index) => {
+    const figures =
+      line.match(
+        /[$₹€£]\s?\d[\d,]*(?:\.\d+)?(?:\s?(?:billion|million|crore|lakh))?|\d[\d,]*(?:\.\d+)?\s?(?:%|percent|per cent|x\b|×|times\b)/gi,
+      ) ?? [];
+    if (!figures.length) return;
+    const near = [lines[index - 1] ?? "", line, lines[index + 1] ?? ""].join(" ");
+    if (!ATTRIBUTED.test(near)) claims.push(...figures.map((figure) => figure.trim()));
+  });
+  return [...new Set(claims)];
 }
 
 /** More distinct figures than this, and the post is reproducing the fact sheet. */
@@ -211,7 +276,7 @@ const POINTS_TO_ARTICLE = /\b(article|read the full|full breakdown)\b/i;
  * those of the post the team approved as the reference (voice.ts LINKEDIN_EDITORIAL).
  */
 const LINKEDIN_TURN =
-  /\b(here['’]?s (why|what|where|how)|but there['’]?s a catch|think about (that|it|this|the impact)|but here['’]?s|there is a bigger lesson|that['’]?s (where|when)|this is where|now look at|now,? here['’]?s|i['’]?ve seen this pattern|what does this mean|so,? what should|my takeaway|but what happens (when|if)|consider the (potential )?implications|for businesses,? this)\b/i;
+  /\b(here['’]?s (why|what|where|how)|why does (this|it) matter|but there['’]?s a catch|think about (that|it|this|the impact)|but here['’]?s|there is a bigger lesson|that['’]?s (where|when)|this is where|now look at|now,? here['’]?s|i['’]?ve seen this pattern|what does this mean|so,? what should|my takeaway|but what happens (when|if)|consider the (potential )?implications|for businesses,? this)\b/i;
 /** Wording that names where a fact comes from. */
 const NAMED_SOURCE =
   /\b(according to|study|survey|report(ed|s)?|found that|research|data from|announced|said|says|told)\b/i;

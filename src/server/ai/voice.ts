@@ -658,11 +658,75 @@ Repost to help more businesses think about the next generation of cybersecurity 
 
 FINAL CHECK before returning; rewrite if any answer is no: Would the headline make someone read the subheadline, and the subheadline make them click "see more", without giving away the example or the conclusion, and without telling them what they already know? Does the body teach something useful, and pull the reader on to the closing question? Is the subject named within the first few lines? Would it score Grade 5 to 6 in Hemingway? Can it be skimmed on a phone: one sentence a line, no block of text, no jargon? Does it lead with the most surprising fact instead of giving the answer up front? Is every example a real scene from this story, never a stock "suppose you're a marketer" line? Does it close the argument on his contrast line, and carry one line of his own view? Does it sound like a person explaining something, not a news summary? Is there one clear idea? Are the facts that do not serve it gone? Is why it matters the largest part? Are facts and claims kept apart? Does the ending invite discussion, and does the Repost line contain "help"?`;
 
+/**
+ * The team's checks on a LinkedIn post, from comparing the dashboard's draft
+ * of the LinkedIn CTV story with a hand-checked one (13 Nov 2026). Each rule
+ * names the mistake the draft made. Placed last, so where it is more specific
+ * than the brief above, it is the one followed. The rules code can check
+ * (whose number a figure is, a disputed figure, an unexplained term, a
+ * missing example, a general opening) are checked again in
+ * linkedin-review.ts and lib/linkedin-readability.ts.
+ */
+export const LINKEDIN_POST_CHECKS = `THE TEAM'S CHECKS ON EVERY LINKEDIN POST (13 Nov 2026). Each one is a mistake a draft made; a post that breaks one is rewritten:
+1. THE FIRST LINE NAMES THE SURPRISING THING ITSELF. "LinkedIn ads on your TV?" surprises; "Is LinkedIn changing how UK brands advertise?" does not, because it leaves out the TV. Never open on a general question about change.
+2. A FIGURE THE SOURCE GIVES TWO WAYS IS LEFT OUT, or quoted exactly as one named outlet put it. The fact sheet marks these CONFLICTING. Never pick the wording the article's own body contradicts.
+3. EVERY FIGURE SAYS WHOSE IT IS, on the same line: "LinkedIn says people who saw a brand's TV ad first cost 30% less to turn into leads." When a company measures its own product, say so once: "(That's LinkedIn's own number. Keep that in mind.)" Never state a company's figure as a fact.
+4. NEVER CLAIM MORE THAN THE SOURCE SAYS. If the article does not say a product can target, measure or do something, the post does not say it either.
+5. EXPLAIN EVERY TERM A BUSINESS OWNER MAY NOT KNOW, the first time, in plain words: "So what is CTV? Let me make it simple. It's TV you watch through the internet. Like streaming apps on a smart TV." Pritesh never assumes the reader knows a short form.
+6. NO CONSULTANT LINES. "Taps into the trend of more video watching", "Video is becoming more central to marketing plans", "new advertising opportunities": say what people actually do instead.
+7. ONE EXAMPLE FROM THE STORY, step by step: "Here's a simple example:" then two or three short steps, each on its own line starting with →.
+Then, where it fits: one mistake to avoid ("Don't judge TV ads by clicks. Nobody clicks on a TV."), the takeaway said plainly ("Here's what I want you to remember:"), one question for the reader, and the Repost line.
+
+THE TEAM'S MODEL FOR THESE CHECKS (copy the shape, never the facts or the wording):
+"""
+LinkedIn ads on your TV?
+Yes. That's now happening in the UK.
+LinkedIn launched these TV ads in the US in April 2024.
+Now UK businesses can use them too.
+
+So what is CTV?
+Let me make it simple.
+It's TV you watch through the internet.
+Like streaming apps on a smart TV.
+Free shows have ads.
+Now businesses can show their video ads there.
+And set them up from LinkedIn Campaign Manager.
+UK partners include LG, Paramount+ and Titan OS.
+
+Why does this matter?
+The person who says yes to your deal at work
+also watches TV at home.
+LinkedIn says people who saw a brand's TV ad first
+cost 30% less to turn into leads.
+(That's LinkedIn's own number. Keep that in mind.)
+
+Here's a simple example:
+→ Your TV ad makes people remember your name
+→ Your LinkedIn ad then asks them to book a call
+→ They say yes more often, because they already know you
+
+One mistake to avoid:
+Don't judge TV ads by clicks.
+Nobody clicks on a TV.
+
+Here's what I want you to remember:
+The TV ad helps people remember you.
+The follow-up ad asks them to act.
+
+Would you spend B2B budget on TV?
+
+♻️ Repost to help more marketers understand this change.
+#LinkedInAds #B2BMarketing #ConnectedTV #DigitalMarketing
+"""
+
+THE DRAFT THAT FAILED THESE CHECKS, for the same story (never write like this): "Is LinkedIn changing how UK brands advertise? ... LinkedIn's CTV ads are 2.6 times more likely to reach B2B audiences than other CTV options. ... LinkedIn's CTV ads can target viewers on streaming TV. ... Brands that had their CTV ad seen first cost 30% less to get sales leads. ... This taps into the trend of more video watching. Video is becoming more central to marketing plans." A vague first line, a disputed figure, company figures stated as facts, a capability the article never gives, CTV never explained, consultant lines, and no example.`;
+
 export const LINKEDIN_VOICE = [
   LINKEDIN_VOICE_PROMPT,
   LINKEDIN_READING,
   LINKEDIN_POSTED_PATTERNS,
   LINKEDIN_EDITORIAL,
+  LINKEDIN_POST_CHECKS,
 ].join("\n\n");
 
 /**
