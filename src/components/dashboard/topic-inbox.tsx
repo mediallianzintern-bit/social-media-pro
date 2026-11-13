@@ -135,7 +135,7 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
     <>
       <SectionHeading
         title="Topics in the news"
-        note="Live news for your lanes, and standout creator reels for AI tool workflows — nothing here is generated"
+        note="Live news for your topics, and standout creator reels for AI tool workflows — nothing here is generated"
         action={
           <CollapseToggle
             collapsed={collapsed}
@@ -189,7 +189,7 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
               ) : null}
 
               {lanes.length > 1 ? (
-                <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filter by lane">
+                <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filter by topic">
                   {[null, ...lanes].map((value) => (
                     <button
                       key={value ?? "all"}
@@ -207,7 +207,7 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                           : "text-muted-foreground hover:bg-muted",
                       )}
                     >
-                      {value ?? "All lanes"}
+                      {value ?? "All topics"}
                     </button>
                   ))}
                 </div>

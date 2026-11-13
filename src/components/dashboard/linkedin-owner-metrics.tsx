@@ -256,7 +256,7 @@ export function LinkedInOwnerMetrics({
   return (
     <div className="space-y-4">
       <section
-        aria-label="LinkedIn owner-only metrics"
+        aria-label="LinkedIn's own figures"
         className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
       >
         <KpiTile

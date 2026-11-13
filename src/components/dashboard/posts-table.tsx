@@ -157,7 +157,10 @@ export function PostsTable({
                       the label is the model's own wording ("AI tools" must not
                       become "Ai Tools"). */}
                   {post.contentLane ? (
-                    <Badge variant="secondary" className="text-xs font-normal first-letter:">
+                    <Badge
+                      variant="secondary"
+                      className="text-xs font-normal first-letter:uppercase"
+                    >
                       {post.contentLane}
                     </Badge>
                   ) : null}

@@ -15,7 +15,7 @@ import { THIN_LANE, type LanePerformance, type PlatformData } from "@/lib/analyt
 
 type Learning = NonNullable<PlatformData["learning"]>;
 
-/** Colours a multiple of the account's own median: 1.0 is par. */
+/** Colours a multiple of the account's own typical post: 1.0 is par. */
 function multipleClass(value: number): string {
   if (value >= 1.25) return "text-emerald-700 dark:text-emerald-400";
   if (value <= 0.8) return "text-destructive";
@@ -47,7 +47,7 @@ function GoalCell({ read }: { read: GoalByLane[number] | undefined }) {
   if (!read || read.multiple == null) {
     return (
       <TableCell className="text-right tabular-nums text-muted-foreground">
-        <span title="Not measured for this lane">&mdash;</span>
+        <span title="Not measured for this topic">&mdash;</span>
       </TableCell>
     );
   }
@@ -87,11 +87,11 @@ function LanesTable({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Content lanes</CardTitle>
+        <CardTitle className="text-base">Topics</CardTitle>
         <CardDescription>
-          Every figure is relative to this account&apos;s own median, so a lane that reads 1.8× is
-          doing nearly twice its typical numbers. Where share of output runs well ahead of share of
-          performance, that lane is absorbing effort it isn&apos;t repaying.
+          Each topic against your typical post: 1.8× means nearly twice your usual numbers. Where a
+          topic takes a bigger share of your posts than of your results, it is taking effort it
+          isn&apos;t repaying.
           {goalMetric ? (
             <>
               {" "}
@@ -99,8 +99,8 @@ function LanesTable({
                 Reach and {goalMetric} can disagree, and {goalMetric} is the one this account is
                 judged on
               </strong>{" "}
-              — a lane can be seen by few people and still be the one worth making, which is why the
-              reel suggestions are ordered by that column and not by reach.
+              — a topic can be seen by few people and still be the one worth making, which is why
+              the reel suggestions are ordered by that column and not by reach.
             </>
           ) : null}
         </CardDescription>
@@ -110,19 +110,20 @@ function LanesTable({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="min-w-[160px]">Lane</TableHead>
+                <TableHead className="min-w-[160px]">Topic</TableHead>
                 <TableHead className="text-right">Posts</TableHead>
-                <TableHead className="text-right">Reach vs median</TableHead>
+                <TableHead className="text-right">Reach vs typical post</TableHead>
                 {goalMetric ? (
                   <TableHead className="text-right whitespace-nowrap">
                     {/* first-letter, not capitalize: "Save rate", not "Save Rate". */}
-                    <span className="inline-block first-letter:">{goalMetric}</span> vs median
+                    <span className="inline-block first-letter:uppercase">{goalMetric}</span> vs
+                    typical
                     <span className="ml-1 font-normal text-muted-foreground">(the goal)</span>
                   </TableHead>
                 ) : null}
                 <TableHead className="text-right">Share of output</TableHead>
                 <TableHead className="text-right">Share of performance</TableHead>
-                <TableHead className="text-right">Med. saves</TableHead>
+                <TableHead className="text-right">Typical saves</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -178,18 +179,16 @@ function LanesTable({
         {lanes.some((lane) => lane.directional) ||
         goalByLane.some((entry) => entry.sample != null && entry.sample < THIN_LANE) ? (
           <p className="border-l-2 border-amber-500/50 pl-3 text-xs leading-relaxed text-muted-foreground">
-            A <AlertTriangle className="inline size-3 text-amber-600" aria-hidden /> on the lane
-            name means fewer than {THIN_LANE} posts in it. On a figure, it means that figure rests
-            on fewer than {THIN_LANE} posts that actually carried the metric — which can happen in a
-            lane wide enough to look solid. Either way one post moves the median a long way, so read
-            it as a direction to test, not a result.
+            A <AlertTriangle className="inline size-3 text-amber-600" aria-hidden /> means fewer
+            than {THIN_LANE} posts stand behind that figure, so one post can move it a long way.
+            Read it as something to test, not a result.
           </p>
         ) : null}
         {stale ? (
           <p className="border-l-2 border-border pl-3 text-xs leading-relaxed text-muted-foreground">
-            A growing share of posts fit none of these lanes, which usually means the account&apos;s
-            content has moved on. The vocabulary is deliberately not rebuilt automatically —
-            renaming lanes would break every comparison already made against them.
+            A growing share of posts fit none of these topics, which usually means the
+            account&apos;s content has moved on. The topics are not rebuilt automatically, because
+            renaming them would break every comparison already made against them.
           </p>
         ) : null}
       </CardContent>

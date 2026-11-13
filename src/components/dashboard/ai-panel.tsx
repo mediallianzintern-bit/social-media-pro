@@ -302,7 +302,7 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
                 not for looking like the bio. */}
               {discovery.seededFrom?.length ? (
                 <p className="text-xs text-muted-foreground">
-                  Seeded from the lanes you win in:{" "}
+                  Seeded from the topics you win in:{" "}
                   {discovery.seededFrom.map((seed, index) => (
                     <span key={seed.lane}>
                       {index ? ", " : ""}
@@ -314,7 +314,7 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
                 </p>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Found from the bio and captions — no lane was beating the account median yet.
+                  Found from the bio and captions — no topic was beating the typical post yet.
                 </p>
               )}
               <div className="flex flex-wrap gap-1.5">
@@ -418,7 +418,7 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
               </div>
               {analyst.laneNotes.length ? (
                 <div>
-                  <h3 className="mb-2 text-xs font-bold text-muted-foreground">Lane by lane</h3>
+                  <h3 className="mb-2 text-xs font-bold text-muted-foreground">Topic by topic</h3>
                   <ul className="space-y-2">
                     {analyst.laneNotes.map((note) => (
                       <li key={note.lane} className="text-sm">
@@ -482,7 +482,7 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
                     {competitors.contestedLanes.length ? (
                       <section>
                         <h3 className="mb-2 text-xs font-bold text-muted-foreground">
-                          Contested lanes
+                          Contested topics
                         </h3>
                         <ul className="space-y-1.5">
                           {competitors.contestedLanes.map((item: string) => (
@@ -500,7 +500,9 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
                     ) : null}
                     {competitors.openLanes.length ? (
                       <section>
-                        <h3 className="mb-2 text-xs font-bold text-muted-foreground">Open lanes</h3>
+                        <h3 className="mb-2 text-xs font-bold text-muted-foreground">
+                          Open topics
+                        </h3>
                         <ul className="space-y-1.5">
                           {competitors.openLanes.map((item: string) => (
                             <li key={item} className="flex gap-2 text-sm leading-relaxed">
@@ -738,7 +740,7 @@ function LaneButtons({ platform }: { platform: PlatformId }) {
             key={lane}
             size="sm"
             variant="outline"
-            className="h-auto px-2 py-1 text-xs font-normal first-letter:"
+            className="h-auto px-2 py-1 text-xs font-normal first-letter:uppercase"
             disabled={one.isPending}
             onClick={() => {
               setMessage(null);

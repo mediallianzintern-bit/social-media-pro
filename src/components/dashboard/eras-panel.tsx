@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Flag, Loader2, X } from "lucide-react";
 import { useState } from "react";
 
+import { PLATFORM_META } from "@/lib/platform-meta";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -72,13 +73,12 @@ export function ErasPanel({ platform }: { platform: PlatformId }) {
 
   return (
     <>
-      <SectionHeading title="Content eras" note="When this account changed what it was doing" />
+      <SectionHeading title={PLATFORM_META[platform].label} />
       <Card>
         <CardContent className="space-y-4 p-5">
           <p className="text-sm text-muted-foreground">
-            An era is a stretch during which this account was doing one thing. Medians, lane shares
-            and the suggestion scorecard all compare this account against its own past, which is
-            only a fair comparison inside one era.
+            The account is compared with its own past only since its last strategy change, so the
+            comparison stays fair.
           </p>
 
           {eras.length ? (
@@ -86,10 +86,11 @@ export function ErasPanel({ platform }: { platform: PlatformId }) {
               {eras.map((era) => (
                 <li key={era.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
                   <Flag className="size-3.5 text-muted-foreground" aria-hidden />
-                  <span className="text-sm font-medium">{era.label}</span>
-                  <span className="text-xs text-muted-foreground">from {day(era.startsAt)}</span>
+                  <span className="text-sm font-medium">
+                    Strategy change on {day(era.startsAt)}
+                  </span>
                   <Badge variant="outline" className="font-normal text-muted-foreground">
-                    {era.origin === "detected" ? "detected, confirmed" : "set by hand"}
+                    {era.origin === "detected" ? "found in the data, confirmed" : "set by hand"}
                   </Badge>
                   <Button
                     size="sm"

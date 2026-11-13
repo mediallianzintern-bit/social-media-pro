@@ -226,7 +226,7 @@ function toPlainText(idea: ContentIdea): string {
   if (idea.prediction?.goal) {
     const g = idea.prediction.goal;
     lines.push(
-      `Goal fit: ${g.multiple == null ? `${g.metric} not measured for this lane` : `${g.metric} ${g.multiple}x median${g.servesGoal ? "" : " — below par for the goal"}`}`,
+      `Goal fit: ${g.multiple == null ? `${g.metric} not measured for this topic` : `${g.metric} ${g.multiple}x typical${g.servesGoal ? "" : " — below par for the goal"}`}`,
     );
   }
   lines.push(`Evidence: ${idea.whyNow}`);
@@ -764,7 +764,7 @@ export function AiIdeaCards({
                     </div>
                     {open.contentLane ? (
                       <div className="flex gap-2">
-                        <dt className="w-28 shrink-0 text-muted-foreground">Lane</dt>
+                        <dt className="w-28 shrink-0 text-muted-foreground">Topic</dt>
                         <dd className="font-medium capitalize">{open.contentLane}</dd>
                       </div>
                     ) : null}
@@ -779,7 +779,7 @@ export function AiIdeaCards({
                         <dt className="w-28 shrink-0 text-muted-foreground">Goal fit</dt>
                         <dd className="font-medium">
                           {open.prediction.goal.multiple == null
-                            ? `${open.prediction.goal.metric} not measured for this lane`
+                            ? `${open.prediction.goal.metric} not measured for this topic`
                             : `${open.prediction.goal.metric} ${open.prediction.goal.multiple}\u00d7 median` +
                               (open.prediction.goal.servesGoal ? "" : " — below par for the goal")}
                         </dd>
@@ -1291,7 +1291,7 @@ function HookChoice({
                 </Badge>
                 {variant.multiple != null ? (
                   <span className="text-xs text-muted-foreground">
-                    {variant.multiple}× your median across {variant.posts} post
+                    {variant.multiple}× your typical post across {variant.posts} post
                     {variant.posts === 1 ? "" : "s"}
                   </span>
                 ) : (

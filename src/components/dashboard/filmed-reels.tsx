@@ -280,7 +280,7 @@ export function FilmedReels() {
                           title={`Written for ${moved.from}, went live as ${moved.to}. Its ✓ and ✗ and its results now teach ${moved.to}, so ${moved.from} does not drift toward this topic.`}
                         >
                           <ArrowRightLeft className="mr-1 size-3" aria-hidden />
-                          Lane changed · now teaches {moved.to}
+                          Topic changed · now teaches {moved.to}
                         </Badge>
                       ) : null}
                       <Result learning={learning} />

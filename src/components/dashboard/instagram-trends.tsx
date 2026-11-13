@@ -37,7 +37,7 @@ import { voteKey } from "@/lib/preferences";
  * lets LinkedIn use it at all — see instagramTrends().
  *
  * Every row is a real post by a tracked competitor that beat THAT ACCOUNT'S
- * own median, linked to its permalink. Nothing here is generated, and nothing
+ * own typical post, linked to its permalink. Nothing here is generated, and nothing
  * new is fetched to build it: the posts arrive with the ordinary sync.
  *
  * The rejected list is shown deliberately. The loudest breakouts in this niche
@@ -104,7 +104,7 @@ export function InstagramTrends({ platform }: { platform: PlatformId }) {
             {isLoading
               ? "Scoring competitor posts…"
               : data?.scanned.length
-                ? `Scanned ${data.scanned.length} tracked accounts on ${metricNoun}. Each post is scored against that account's own median, so a big post counts as a breakout on a small account and not on a large one.`
+                ? `Scanned ${data.scanned.length} tracked accounts on ${metricNoun}. Each post is scored against that account's own typical post, so a big post counts as a breakout on a small account and not on a large one.`
                 : "No competitor posts stored yet."}
           </p>
 
@@ -135,7 +135,7 @@ export function InstagramTrends({ platform }: { platform: PlatformId }) {
                     <Badge
                       variant="secondary"
                       className="gap-1 font-semibold tabular-nums"
-                      title={`${metricNoun} as a multiple of that account's own median`}
+                      title={`${metricNoun} as a multiple of that account's own typical post`}
                     >
                       <Flame className="size-3" style={{ color: accent }} aria-hidden />
                       {trend.vsAccountMedian}×
@@ -152,7 +152,7 @@ export function InstagramTrends({ platform }: { platform: PlatformId }) {
                       </Badge>
                     ) : (
                       <Badge variant="outline" className="font-normal text-muted-foreground">
-                        no clear lane
+                        no clear topic
                       </Badge>
                     )}
                     <VoteButtons

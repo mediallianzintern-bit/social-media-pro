@@ -46,10 +46,10 @@ const ACTORS: Record<string, Array<{ name: string; url: string; gives: string; c
 };
 
 const NOT_AVAILABLE = [
-  ["Impressions / reach", "Owner-only; never rendered on a public profile"],
-  ["Profile visits, link taps", "Owner-only"],
-  ["Audience age, gender, location", "Owner-only"],
-  ["Video retention, watch time", "Owner-only"],
+  ["Impressions / reach", "Only the account owner can see this"],
+  ["Profile visits, link taps", "Only the account owner"],
+  ["Audience age, gender, location", "Only the account owner"],
+  ["Video retention, watch time", "Only the account owner"],
   ["Saves and shares (Instagram)", "Not published publicly"],
 ];
 
@@ -141,7 +141,7 @@ function Sources() {
       <LinkedInApiCard />
 
       <SectionHeading
-        title="Creator-fed lanes"
+        title="Creator-fed topics"
         note="Reels from watched creators, filtered by a pattern learned from them"
       />
       <CreatorPatternPanel />

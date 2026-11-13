@@ -96,8 +96,8 @@ export function DiscoveredReels({ platform }: { platform: PlatformId }) {
   return (
     <>
       <SectionHeading
-        title="Working in your lanes"
-        note="Reels from creators you don't track, kept only when they match one of your lanes"
+        title="Working in your topics"
+        note="Reels from creators you don't track, kept only when they match one of your topics"
         action={
           <CollapseToggle
             collapsed={collapsed}
@@ -131,7 +131,7 @@ export function DiscoveredReels({ platform }: { platform: PlatformId }) {
                   ) : (
                     <Search className="size-3.5" aria-hidden />
                   )}
-                  {search.isPending ? "Searching…" : "Search thinnest lane"}
+                  {search.isPending ? "Searching…" : "Search the thinnest topic"}
                 </Button>
                 <Button
                   variant="outline"
@@ -147,8 +147,8 @@ export function DiscoveredReels({ platform }: { platform: PlatformId }) {
                     <Layers className="size-3.5" aria-hidden />
                   )}
                   {sweep.isPending
-                    ? "Searching every lane…"
-                    : `Search every lane (${laneCount} runs)`}
+                    ? "Searching every topic…"
+                    : `Search every topic (${laneCount} runs)`}
                 </Button>
               </div>
             </div>
@@ -219,7 +219,7 @@ export function DiscoveredReels({ platform }: { platform: PlatformId }) {
             ) : null}
 
             {lanes.length > 1 ? (
-              <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filter by lane">
+              <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filter by topic">
                 {[null, ...lanes].map((value) => (
                   <button
                     key={value ?? "all"}
@@ -237,7 +237,7 @@ export function DiscoveredReels({ platform }: { platform: PlatformId }) {
                         : "text-muted-foreground hover:bg-muted",
                     )}
                   >
-                    {value ?? "All lanes"}
+                    {value ?? "All topics"}
                   </button>
                 ))}
               </div>

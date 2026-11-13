@@ -116,7 +116,7 @@ export function SavedTopics() {
         <CardContent className="space-y-4 p-5">
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-start sm:justify-between">
             {lanes.length > 1 ? (
-              <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filter by lane">
+              <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filter by topic">
                 {[null, ...lanes].map((value) => (
                   <button
                     key={value ?? "all"}
@@ -131,7 +131,7 @@ export function SavedTopics() {
                         : "text-muted-foreground hover:bg-muted",
                     )}
                   >
-                    {value ?? "All lanes"}
+                    {value ?? "All topics"}
                   </button>
                 ))}
               </div>
@@ -168,7 +168,7 @@ export function SavedTopics() {
           ) : !isLoading ? (
             <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
               {onPlatform.length
-                ? "No saved topics in this lane."
+                ? "Nothing saved in this topic."
                 : items.length
                   ? `Nothing saved ${where} yet.`
                   : "Press Save on a story in Topics in the news, or on a post in Rising on Instagram, and it will appear here."}

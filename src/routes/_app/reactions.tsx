@@ -813,7 +813,7 @@ function LearningCard({
     <>
       <SectionHeading
         title="Does the format work here?"
-        note="Measured against this account's own median — 1.0× is a typical post"
+        note="Measured against this account's own typical post — 1.0× is a typical post"
       />
       <Card>
         <CardContent className="space-y-4 p-5">

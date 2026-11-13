@@ -534,10 +534,10 @@ function Parts({ learning }: { learning: ReelLearning }) {
             }
           >
             {c.cta.usedLaneCta
-              ? "Ended on the lane's CTA"
+              ? "Ended on the topic's CTA"
               : c.cta.expected
-                ? "Did not end on the lane's CTA"
-                : "This lane has no fixed CTA"}
+                ? "Did not end on the topic's CTA"
+                : "This topic has no fixed CTA"}
           </span>
         ) : null}
         {c.reel?.seconds ? (
@@ -666,7 +666,7 @@ function Review({ learning }: { learning: ReelLearning }) {
         </table>
       </div>
       <p className="text-xs text-muted-foreground">
-        Typical is the median {w.thing} in the 90 days before this one
+        Typical is the middle {w.thing} in the 90 days before this one
         {learning.platform === "linkedin" ? ", from LinkedIn's own figures where it has them" : ""}.
       </p>
 
@@ -738,7 +738,7 @@ export function Patterns({ platform }: { platform: "instagram" | "linkedin" }) {
                 {platform === "linkedin" ? "Posts" : "Reels"}
               </th>
               <th className="px-2 py-1.5 text-right font-medium">Worked</th>
-              <th className="px-2 py-1.5 text-right font-medium">Median vs typical</th>
+              <th className="px-2 py-1.5 text-right font-medium">Middle vs typical</th>
             </tr>
           </thead>
           <tbody>

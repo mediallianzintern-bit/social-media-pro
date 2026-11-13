@@ -166,7 +166,7 @@ export function InsightsPanels({
               <CardHeader>
                 <CardTitle className="text-base">Per-post, measured by Instagram</CardTitle>
                 <CardDescription>
-                  Median across {measured.length} post{measured.length === 1 ? "" : "s"} Instagram
+                  Typical across {measured.length} post{measured.length === 1 ? "" : "s"} Instagram
                   still reports on. Reach is unique accounts, so the rate below is the honest one —
                   it answers what share of people who saw a post acted on it.
                 </CardDescription>
@@ -177,14 +177,14 @@ export function InsightsPanels({
                   value={reachRate === null ? "—" : percent(reachRate)}
                   hint="Likes + comments + saves + shares ÷ reach"
                 />
-                <Stat label="Median reach" value={compactNumber(reachPerPost)} hint="Per post" />
+                <Stat label="Typical reach" value={compactNumber(reachPerPost)} hint="Per post" />
                 <Stat
-                  label="Median saves"
+                  label="Typical saves"
                   value={fullNumber(saves)}
                   hint="The strongest ranking signal"
                   icon={Bookmark}
                 />
-                <Stat label="Median shares" value={fullNumber(shares)} hint="Sends per post" />
+                <Stat label="Typical shares" value={fullNumber(shares)} hint="Sends per post" />
                 {watch.length ? (
                   <Stat
                     label="Avg watch time"
@@ -232,7 +232,7 @@ export function InsightsPanels({
           placement="bottom"
           collapsed={collapsed}
           onToggle={() => setCollapsed((value) => !value)}
-          showLabel="Expand Owner-only metrics"
+          showLabel="Show Instagram's own figures"
         />
       </div>
     </div>

@@ -512,9 +512,9 @@ function AddToPlatform({
         {lanes.length ? (
           <>
             <label className="block space-y-1.5">
-              <span className="text-xs text-muted-foreground">Lane</span>
+              <span className="text-xs text-muted-foreground">Topic</span>
               <Select {...(chosen ? { value: chosen } : {})} onValueChange={setLane}>
-                <SelectTrigger className="h-9" aria-label={`${meta.label} lane`}>
+                <SelectTrigger className="h-9" aria-label={`${meta.label} topic`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -592,7 +592,7 @@ function AddToPlatform({
           </>
         ) : (
           <p className="text-xs text-muted-foreground">
-            {meta.label} has no content lanes yet. Set them up on the {meta.label} page first.
+            {meta.label} has no topics yet. Set them up on the {meta.label} page first.
           </p>
         )}
       </PopoverContent>
