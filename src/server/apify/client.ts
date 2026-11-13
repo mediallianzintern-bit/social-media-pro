@@ -16,14 +16,19 @@ export class ApifyError extends Error {
 }
 
 // ---------------------------------------------------------------------------
-// Two Apify accounts (Oct 2026). APIFY_TOKEN is used first; when its account
-// has used its monthly allowance, runs move to APIFY_TOKEN_2 by themselves,
-// and back again once the first account's month resets. A run's dataset can
-// only be read with the key of the account that ran it, so each run and
+// Up to three Apify accounts (two in Oct 2026, a third on 13 Nov). APIFY_TOKEN
+// is used first; when its account has used its monthly allowance, or its key
+// is no longer valid, runs move to APIFY_TOKEN_2, then APIFY_TOKEN_3, by
+// themselves, and back again once the first account works. A run's dataset
+// can only be read with the key of the account that ran it, so each run and
 // dataset remembers its key.
+//
+// An invalid key used to stop the sync: the switch only knew "out of
+// allowance", and on 13 Nov both keys came back 401 ("authentication token is
+// not valid") and every sync failed on the first one.
 // ---------------------------------------------------------------------------
 
-const TOKEN_VARS = ["APIFY_TOKEN", "APIFY_TOKEN_2"] as const;
+const TOKEN_VARS = ["APIFY_TOKEN", "APIFY_TOKEN_2", "APIFY_TOKEN_3"] as const;
 
 /** Every configured key, in the order they are used. */
 function apifyTokens(): string[] {
@@ -39,6 +44,10 @@ export function apifyToken(): string | undefined {
 
 /** Keys whose account is out of allowance, and until when (epoch ms). */
 const spentUntil = new Map<string, number>();
+/** Keys Apify rejected as invalid (401), and until when they are tried again (epoch ms). */
+const invalidUntil = new Map<string, number>();
+/** How long an invalid key is skipped before it is tried again, in case it was fixed. */
+const INVALID_RETRY_MS = 30 * 60_000;
 /** When each key's allowance was last read from Apify (epoch ms). */
 const checkedAt = new Map<string, number>();
 /** Which key started a run or holds a dataset. */
@@ -114,13 +123,30 @@ export async function apifyAccounts(): Promise<Array<{ account: number; spent: b
   );
 }
 
-/** The keys to try for a new run, spent ones last (in case Apify's figure was stale). */
+/** Apify refusing a key outright: revoked, regenerated, or its account gone. */
+function isInvalidKeyError(error: unknown): boolean {
+  return error instanceof ApifyError && error.status === 401;
+}
+
+function markInvalid(token: string): void {
+  invalidUntil.set(token, Date.now() + INVALID_RETRY_MS);
+  console.warn(`[apify] ${label(token)}'s key was rejected as invalid; using the next account`);
+}
+
+const isInvalid = (token: string) => (invalidUntil.get(token) ?? 0) > Date.now();
+
+/**
+ * The keys to try for a new run: good ones first, then spent ones (in case
+ * Apify's figure was stale), then ones rejected as invalid in the last half
+ * hour (in case someone has just fixed them).
+ */
 async function usableTokens(): Promise<string[]> {
   const tokens = apifyTokens();
-  const spent = await Promise.all(tokens.map(isSpent));
+  const spent = await Promise.all(tokens.map((token) => !isInvalid(token) && isSpent(token)));
   return [
-    ...tokens.filter((_, index) => !spent[index]),
-    ...tokens.filter((_, index) => spent[index]),
+    ...tokens.filter((token, index) => !isInvalid(token) && !spent[index]),
+    ...tokens.filter((token, index) => !isInvalid(token) && spent[index]),
+    ...tokens.filter(isInvalid),
   ];
 }
 
@@ -216,14 +242,27 @@ export async function runActor(
 ): Promise<{ runId: string; datasetId: string; status: string }> {
   const tokens = await usableTokens();
   if (!tokens.length) throw new ApifyError("APIFY_TOKEN is not set");
+  const rejected: string[] = [];
   for (const [index, token] of tokens.entries()) {
     const last = index === tokens.length - 1;
     try {
       const result = await runActorWith(token, actor, input, deadlineMs, options);
       keyFor.set(result.runId, token);
       keyFor.set(result.datasetId, token);
+      invalidUntil.delete(token);
       return result;
     } catch (error) {
+      // An invalid key: the next account runs it. When every key was
+      // rejected, the error names them all, so the dashboard can say which.
+      if (isInvalidKeyError(error)) {
+        markInvalid(token);
+        rejected.push(label(token));
+        if (!last) continue;
+        throw new ApifyError(
+          `Every Apify key was rejected as invalid (401): ${rejected.join(", ")}`,
+          401,
+        );
+      }
       // Out of allowance: refused at the start, or stopped part-way because
       // the account ran out. Either way the next account runs it from scratch.
       const spent =

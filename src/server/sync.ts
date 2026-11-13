@@ -399,7 +399,12 @@ function explain(error: unknown): string {
     normalised.includes("unauthorized") ||
     normalised.includes("invalid token")
   ) {
-    return "Apify rejected the API token. Check APIFY_TOKEN in .env, then restart the dev server.";
+    const accounts = /rejected as invalid \(401\): ([^.]+)/i.exec(message)?.[1];
+    return (
+      `Apify rejected ${accounts ? `every API key (${accounts})` : "the API key"} as invalid: it was regenerated, revoked or its account was closed. ` +
+      "Copy a current token from apify.com, Settings, API & Integrations, into APIFY_TOKEN, APIFY_TOKEN_2 and APIFY_TOKEN_3 " +
+      "in Vercel's environment variables (and .env locally), redeploy, then press Sync. Stored data is untouched."
+    );
   }
   return message;
 }
