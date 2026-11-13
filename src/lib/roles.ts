@@ -30,7 +30,20 @@ export const ROLE_LABEL: Record<Role, string> = {
   growth_manager: "Growth manager",
   creator: "Content creator",
   editor: "Content editor",
-  team_manager: "Team manager",
+  // Shown as "Admin" since 13 Nov 2026: it is the role that gives out roles.
+  // Stored as team_manager, so nothing already saved changes.
+  team_manager: "Admin",
+};
+
+/** The roles in the order Settings lists them, most access first. */
+export const ROLE_ORDER: Role[] = ["team_manager", "growth_manager", "editor", "creator"];
+
+/** What each role may do, in a line, for the Team and roles settings. */
+export const ROLE_DESCRIPTION: Record<Role, string> = {
+  team_manager: "Everything, and decides who is on the team and what each person may do.",
+  growth_manager: "Approves or dismisses ideas and decides who makes what.",
+  editor: "Edits what is in production and publishes it.",
+  creator: "Films or writes approved ideas and marks them published.",
 };
 
 export const STATUS_LABEL: Record<IdeaStatus, string> = {
