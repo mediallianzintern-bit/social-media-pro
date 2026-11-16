@@ -29,6 +29,12 @@ import {
 import { CTA_TYPE_LABEL, HOOK_TYPE_LABEL } from "@/lib/reel-parts";
 import { deriveRules, reelPatterns, type ReviewedReel } from "@/lib/reel-patterns";
 
+import {
+  PUBLISHED_HEADER,
+  publishedPostLines,
+  reviewedPublishedPosts,
+  type ReviewedPost,
+} from "../post-learning/lessons";
 import { readIdeaById } from "../store";
 
 import { postedLanes } from "./lane";
@@ -81,10 +87,27 @@ async function reviewedReels(rows: ReelLearningRow[]): Promise<ReviewedReel[]> {
   );
 }
 
+/**
+ * On LinkedIn, every post he published and that has been reviewed, drafted
+ * here or not (post-learning), less the ones already reviewed as drafts.
+ * Empty on Instagram, and before migration 0036.
+ */
+async function publishedFor(
+  platform: PlatformId,
+  rows: ReelLearningRow[],
+): Promise<ReviewedPost[]> {
+  if (platform !== "linkedin") return [];
+  const drafted = new Set(
+    rows.filter(isFinalReview).flatMap((row) => (row.shortcode ? [row.shortcode] : [])),
+  );
+  return reviewedPublishedPosts(drafted).catch(() => []);
+}
+
 /** Every reviewed reel's counts, grouped (lib/reel-patterns.ts). Free. */
 export async function filmedPatterns(platform: PlatformId): Promise<ReelPattern[]> {
   const rows = await readAllReelLearning(platform).catch(() => []);
-  return reelPatterns(await reviewedReels(rows));
+  const published = await publishedFor(platform, rows);
+  return reelPatterns([...(await reviewedReels(rows)), ...published.map((entry) => entry.reel)]);
 }
 
 /** The rules the patterns justify, for the writer, the reviewer and Get more hooks. */
@@ -119,10 +142,14 @@ export async function filmedLessonsBlock(platform: PlatformId): Promise<string> 
   const rows = await readAllReelLearning(platform).catch(() => []);
   // Early checks are not learned from: their figures were still growing.
   const reviewed = rows.filter(isFinalReview);
-  if (!reviewed.length) return "";
-  const patterns = reelPatterns(await reviewedReels(rows));
+  const published = await publishedFor(platform, rows);
+  if (!reviewed.length && !published.length) return "";
+  const patterns = reelPatterns([
+    ...(await reviewedReels(rows)),
+    ...published.map((entry) => entry.reel),
+  ]);
   const rules = deriveRules(patterns);
-  // A LinkedIn post is judged on impressions after a week, a reel on views after two.
+  // A LinkedIn post and a reel are both judged after 14 days, on impressions and on views.
   const w = LEARNING_WORDS[platform === "linkedin" ? "linkedin" : "instagram"];
   const linkedin = platform === "linkedin";
 
@@ -156,6 +183,18 @@ export async function filmedLessonsBlock(platform: PlatformId): Promise<string> 
       ].join("\n"),
     );
 
+  // His published posts, drafted here or not: those at 3x or more, part by part,
+  // and the newest results with their lessons.
+  const publishedViral = published
+    .filter((entry) => entry.row.review.primaryRatio >= VIRAL_RATIO)
+    .sort((a, b) => b.row.review.primaryRatio - a.row.review.primaryRatio)
+    .slice(0, MAX_VIRAL)
+    .map((entry) => publishedPostLines(entry, true));
+  const publishedResults = published
+    .filter((entry) => entry.row.review.primaryRatio < VIRAL_RATIO)
+    .slice(0, MAX_REVIEWED)
+    .map((entry) => publishedPostLines(entry));
+
   const results = reviewed.slice(0, MAX_REVIEWED).map((row) => {
     const review = row.review!;
     const verdict =
@@ -179,17 +218,18 @@ export async function filmedLessonsBlock(platform: PlatformId): Promise<string> 
 
   return [
     linkedin
-      ? `WHAT PUBLISHED POSTS TAUGHT US — LinkedIn posts the team actually published from this dashboard,
-measured on LinkedIn's own impressions after a week. Follow the RULES; copy what made the posts at
-3x or more work; trust a pattern marked STRONG (3+ posts) over any single result; follow REPEAT
-lessons and never repeat AVOID ones. Pritesh Sir's brief and the team's model post still decide
-the voice: these results decide between ways of following it.`
+      ? `WHAT PUBLISHED POSTS TAUGHT US — his LinkedIn posts, measured on LinkedIn's own impressions.
+${PUBLISHED_HEADER} Follow the RULES; copy what made the posts at 3x or more work; trust a pattern
+marked STRONG (3+ posts) over any single result; follow REPEAT lessons and never repeat AVOID ones.
+Their facts belong to their own stories: learn how they were built, never what they said. Pritesh
+Sir's brief and the team's model post still decide the voice: these results decide between ways of
+following it.`
       : `WHAT FILMED REELS TAUGHT US — reels the team actually posted, measured after two weeks. Follow the
 RULES; copy what made the VIRAL reels work; trust a pattern marked STRONG (3+ reels) over any single
 result; follow REPEAT lessons and never repeat AVOID ones.`,
     ruleLines.length ? `RULES LEARNED FROM RESULTS:\n${ruleLines.join("\n")}` : "",
-    viral.length
-      ? `${linkedin ? "POSTS AT 3X OR MORE" : "VIRAL REELS"} — the clearest proof of what this audience wants:\n${viral.join("\n")}`
+    viral.length || publishedViral.length
+      ? `${linkedin ? "POSTS AT 3X OR MORE" : "VIRAL REELS"} — the clearest proof of what this audience wants:\n${[...viral, ...publishedViral].join("\n")}`
       : "",
     patterns.length
       ? `MEASURED PATTERNS, counted across every reviewed ${w.thing} (median ${w.measure} vs the typical ${w.thing}):\n${patterns
@@ -201,6 +241,9 @@ result; follow REPEAT lessons and never repeat AVOID ones.`,
           .join("\n")}`
       : "",
     results.length ? `RESULTS:\n${results.join("\n")}` : "",
+    publishedResults.length
+      ? `RESULTS OF HIS OTHER PUBLISHED POSTS, newest first:\n${publishedResults.join("\n")}`
+      : "",
     teamChanges.length
       ? `WHEN THE TEAM REWROTE OUR SCRIPT, AND HOW IT DID:\n${teamChanges.join("\n")}`
       : "",

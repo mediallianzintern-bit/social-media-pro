@@ -1,5 +1,5 @@
-// Review (paid, from a button, once the reel has run 14 days, or a LinkedIn
-// post 7): did it work, and why. A LinkedIn post is judged on LinkedIn's own
+// Review (paid, from a button, once the reel or LinkedIn post has run 14
+// days): did it work, and why. A LinkedIn post is judged on LinkedIn's own
 // impressions against his typical post (Phase 3, 5 Nov 2026).
 //
 // "Get results now" runs the same review earlier, as an EARLY CHECK: the reel's
@@ -33,7 +33,7 @@ const DAY_MS = 86_400_000;
 
 /**
  * When a reel or post published at `publishedAt` has run long enough to
- * judge: 14 days for a reel, 7 for a LinkedIn post.
+ * judge: 14 days, for a reel and for a LinkedIn post.
  */
 export function reviewableAt(
   publishedAt: string,
@@ -250,7 +250,7 @@ Rules:
   the ending), as REPEAT lessons a writer can follow.
 - Plain words, no hype.`;
 
-const LINKEDIN_SYSTEM = `You review one LinkedIn post by Pritesh Patel after it has run for a week, for the team
+const LINKEDIN_SYSTEM = `You review one LinkedIn post by Pritesh Patel after it has run for two weeks, for the team
 that writes his posts with a dashboard, so the next post is better.
 
 How to attribute, from the figures you are given:

@@ -520,6 +520,13 @@ async function runSyncOnce(
         // a few steps per sync; never fatal (reel-learning/auto.ts).
         const { learnFromFilmedReels } = await import("./reel-learning/auto");
         await learnFromFilmedReels(platform);
+        // LinkedIn: every post he published, drafted here or not, is analysed
+        // and, after 14 days, reviewed; the lessons go into every new post.
+        // Paid, within its own monthly cap; never fatal (post-learning/auto.ts).
+        if (platform === "linkedin") {
+          const { learnFromPublishedPosts } = await import("./post-learning/auto");
+          await learnFromPublishedPosts();
+        }
       }
       // Fresh metrics are now stored, so this is the moment any matured
       // suggestion can be frozen. Deterministic, and never fatal.

@@ -1,6 +1,6 @@
 // What happened to a filmed idea: the live reel, what of the script it used,
 // and, after 14 days, whether it worked and why. A LinkedIn post the team
-// published goes through the same steps, judged after 7 days on LinkedIn's
+// published goes through the same steps, judged after 14 days on LinkedIn's
 // own impressions (Phase 3, 5 Nov 2026).
 //
 // The team presses "I filmed this" and nothing else is asked of them (Pritesh,

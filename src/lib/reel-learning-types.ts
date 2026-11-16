@@ -200,10 +200,11 @@ export interface ReelReview {
 export const REEL_REVIEW_DAYS = 14;
 
 /**
- * How long a published LinkedIn post runs before Review judges it: most of a
- * post's impressions come in its first week (Phase 3, 5 Nov 2026).
+ * How long a published LinkedIn post runs before Review judges it. 7 days
+ * from Phase 3 (5 Nov 2026); 14 from 16 Nov 2026, the same as a reel, as the
+ * team asked when every published post started being reviewed.
  */
-export const POST_REVIEW_DAYS = 7;
+export const POST_REVIEW_DAYS = 14;
 
 /** The review window for a platform. */
 export const reviewDaysFor = (platform: "instagram" | "linkedin") =>

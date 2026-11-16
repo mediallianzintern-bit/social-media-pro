@@ -70,8 +70,8 @@ describe("a published LinkedIn post", () => {
     expect(linkedInPostId("https://www.instagram.com/reel/abc/")).toBeNull();
   });
 
-  it("is reviewed after 7 days, a reel after 14", () => {
-    expect(reviewableAt("2026-11-01T00:00:00.000Z", "linkedin")).toBe("2026-11-08T00:00:00.000Z");
+  it("is reviewed after 14 days, the same as a reel", () => {
+    expect(reviewableAt("2026-11-01T00:00:00.000Z", "linkedin")).toBe("2026-11-15T00:00:00.000Z");
     expect(reviewableAt("2026-11-01T00:00:00.000Z")).toBe("2026-11-15T00:00:00.000Z");
   });
 
