@@ -15,7 +15,7 @@
 //
 // Pure and client-safe: the plan can be read before anything is spent.
 import type { PostRecord } from "@/lib/analytics-types";
-import type { PostShape, ReelReview } from "@/lib/reel-learning-types";
+import type { PostShape, ReelLesson, ReelReview } from "@/lib/reel-learning-types";
 import { POST_REVIEW_DAYS } from "@/lib/reel-learning-types";
 import type { CtaType, HookType } from "@/lib/reel-parts";
 
@@ -133,4 +133,30 @@ export function planPostSteps(
     budget -= step.estimate;
   }
   return { steps, spent, cap, waiting: due.length - steps.length };
+}
+
+/** What the LinkedIn page's "What his posts taught" card shows. */
+export interface PostLessonsView {
+  /** False until migration 0036 is applied. */
+  ready: boolean;
+  analysed: number;
+  /** Analysed, still inside their REVIEW_DAYS. */
+  waiting: number;
+  /** When the next one is due for review. */
+  nextReviewAt: string | null;
+  /** Reviewed posts, newest first. */
+  posts: Array<{
+    postId: string;
+    url: string | null;
+    publishedAt: string;
+    lane: string | null;
+    ratio: number;
+    worked: boolean;
+    summary: string;
+    lessons: ReelLesson[];
+    opening: string;
+    hookType: string;
+    bodyShape: string;
+    structure: string;
+  }>;
 }

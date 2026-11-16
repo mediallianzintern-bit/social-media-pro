@@ -583,7 +583,9 @@ export function AiIdeaCards({
                     </span>
                   </p>
                 ) : null}
-                {open.id ? <FilmedPanel idea={open} /> : null}
+                {/* LinkedIn: every published post is analysed and reviewed on its
+                    own now (post-learning), shown on the LinkedIn page. */}
+                {open.id && platform !== "linkedin" ? <FilmedPanel idea={open} /> : null}
                 {open.reaction ? <ReactionPanel idea={open} /> : null}
                 <section>
                   <SectionLabel>Why this, from your data</SectionLabel>
@@ -836,19 +838,23 @@ export function AiIdeaCards({
                   </p>
                 ) : !open.status || open.status === "suggested" ? (
                   <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      className="flex-1 gap-2"
-                      disabled={filmed.isPending || !open.id}
-                      onClick={() => filmed.mutate(open.id)}
-                    >
-                      {filmed.isPending ? (
-                        <Loader2 className="size-4 animate-spin" aria-hidden />
-                      ) : (
-                        <Clapperboard className="size-4" aria-hidden />
-                      )}
-                      {platform === "linkedin" ? "I posted this" : "I filmed this"}
-                    </Button>
+                    {/* No "I posted this" on LinkedIn (16 Nov 2026): every post he
+                        publishes is learned from without it (post-learning). */}
+                    {platform !== "linkedin" ? (
+                      <Button
+                        variant="outline"
+                        className="flex-1 gap-2"
+                        disabled={filmed.isPending || !open.id}
+                        onClick={() => filmed.mutate(open.id)}
+                      >
+                        {filmed.isPending ? (
+                          <Loader2 className="size-4 animate-spin" aria-hidden />
+                        ) : (
+                          <Clapperboard className="size-4" aria-hidden />
+                        )}
+                        I filmed this
+                      </Button>
+                    ) : null}
                     <Button
                       variant="ghost"
                       className="gap-2 text-muted-foreground"
@@ -864,7 +870,7 @@ export function AiIdeaCards({
                     <p className="flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">
                       <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-600" aria-hidden />
                       {platform === "linkedin"
-                        ? "Linked to the post you published. Analyse it above to see what was used, and review it after 7 days to see what worked and why."
+                        ? "Linked to the post you published. It is reviewed 14 days after it went up, and what it taught shows under What his posts taught on the LinkedIn page."
                         : "Linked to the reel you published. Analyse it above to see what was used, and review it after 14 days to see what worked and why."}
                     </p>
                     <Button

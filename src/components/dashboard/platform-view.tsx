@@ -15,6 +15,8 @@ import { DeriveLanes } from "@/components/dashboard/derive-lanes";
 import { ErasPanel } from "@/components/dashboard/eras-panel";
 import { LearningPanel } from "@/components/dashboard/learning-panel";
 import { LinkedInOwnerMetrics } from "@/components/dashboard/linkedin-owner-metrics";
+import { PostLessons } from "@/components/dashboard/post-lessons";
+import { POST_REVIEW_DAYS } from "@/lib/reel-learning-types";
 import { LockedPanel } from "@/components/dashboard/locked-panel";
 import { PublicEngagement } from "@/components/dashboard/public-engagement";
 import { MetricBars, type BarRow } from "@/components/dashboard/metric-bars";
@@ -387,6 +389,20 @@ export function PlatformView({
           </div>
         </>
       )}
+
+      {/* ---- What his LinkedIn posts taught ----
+           Every post he published, reviewed 14 days after it went up, and the
+           lessons the writer reads (post-learning). LinkedIn only: filmed
+           reels have their own page. */}
+      {!isInstagram ? (
+        <>
+          <SectionHeading
+            title="What his posts taught"
+            note={`Each post reviewed ${POST_REVIEW_DAYS} days after it went up`}
+          />
+          <PostLessons />
+        </>
+      ) : null}
 
       {/* ---- Content lanes and the learning scorecard ----
            Lane figures are recomputed for the selected window in filterPlatform,
