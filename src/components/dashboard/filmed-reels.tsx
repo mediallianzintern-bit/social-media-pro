@@ -1,6 +1,11 @@
-// The Filmed reels page: every script the team marked filmed, and every
-// LinkedIn post it marked posted (Phase 3, 5 Nov 2026), where each one has
-// got to, and what the system has learned from them so far.
+// The Filmed reels page: every script the team marked filmed, where each one
+// has got to, and what the system has learned from them so far.
+//
+// Instagram only (16 Nov 2026). LinkedIn posts the team marked posted were
+// listed here too (Phase 3, 5 Nov); the team asked for them off this page.
+// The LinkedIn writer now learns from every post he publishes, drafted here
+// or not (lib/linkedin-lane-posts.ts), and a marked post still opens from its
+// own drawer on the LinkedIn page.
 //
 // Each row opens the same drawer as everywhere else, where Analyse and Review
 // live. This page spends nothing: it reads stored rows and synced posts, and
@@ -45,7 +50,7 @@ import {
 } from "@/lib/reel-learning.functions";
 import { CTA_TYPE_LABEL, HOOK_TYPE_LABEL } from "@/lib/reel-parts";
 
-const PLATFORMS: PlatformId[] = ["instagram", "linkedin"];
+const PLATFORMS: PlatformId[] = ["instagram"];
 
 type Stage = "waiting" | "found" | "analysed" | "review_ready" | "reviewed";
 
@@ -135,7 +140,6 @@ export function FilmedReels() {
     [results],
   );
   const { data: patterns } = useQuery(reelPatternsQueryOptions("instagram"));
-  const { data: postPatterns } = useQuery(reelPatternsQueryOptions("linkedin"));
   const [viewing, setViewing] = useState<{ idea: ContentIdea; platform: PlatformId } | null>(null);
 
   const viralItems = items
@@ -151,16 +155,14 @@ export function FilmedReels() {
   return (
     <div className="space-y-6">
       <p className="max-w-3xl text-sm text-muted-foreground">
-        Every reel the team marked filmed and every LinkedIn post it marked posted. The live reel or
-        post is found by its topic on each Sync; open one to Analyse what was used, Get results now
-        for an early check, and Review how it did after {REEL_REVIEW_DAYS} days for a reel or{" "}
-        {POST_REVIEW_DAYS} for a post, on LinkedIn&rsquo;s own impressions. What the reviews teach
-        goes into every new script and post.
+        Every reel the team marked filmed. The live reel is found by its topic on each Sync; open
+        one to Analyse what was used, Get results now for an early check, and Review how it did
+        after {REEL_REVIEW_DAYS} days. What the reviews teach goes into every new script.
       </p>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {[
-          { label: "Filmed or posted", value: items.length },
+          { label: "Filmed", value: items.length },
           { label: "Waiting to go live", value: count("waiting") },
           { label: "To analyse", value: count("found") },
           { label: "Due for review", value: count("review_ready") },
@@ -175,18 +177,16 @@ export function FilmedReels() {
       </div>
 
       <SectionHeading title="What the system has learned" />
-      {patterns?.length || postPatterns?.length ? (
+      {patterns?.length ? (
         <Card>
           <CardContent className="space-y-4 p-5">
-            {patterns?.length ? <Patterns platform="instagram" /> : null}
-            {postPatterns?.length ? <Patterns platform="linkedin" /> : null}
+            <Patterns platform="instagram" />
           </CardContent>
         </Card>
       ) : (
         <p className="text-sm text-muted-foreground">
           Nothing yet. Patterns appear once filmed reels have been reviewed, {REEL_REVIEW_DAYS} days
-          after they go live, and LinkedIn posts {POST_REVIEW_DAYS} days after. Each review adds to
-          them.
+          after they go live. Each review adds to them.
         </p>
       )}
 
@@ -213,7 +213,7 @@ export function FilmedReels() {
       ) : null}
 
       <SectionHeading
-        title="Filmed reels and published posts"
+        title="Filmed reels"
         note={isLoading ? "Loading…" : `${items.length} in all`}
       />
       <Card>
@@ -224,8 +224,7 @@ export function FilmedReels() {
             </p>
           ) : !items.length ? (
             <p className="p-5 text-sm text-muted-foreground">
-              Nothing yet. Press I filmed this on a reel script once it is shot, or I posted this on
-              a LinkedIn post once it is up.
+              Nothing yet. Press I filmed this on a reel script once it is shot.
             </p>
           ) : (
             items.map(({ learning, idea, postedLane }) => {
