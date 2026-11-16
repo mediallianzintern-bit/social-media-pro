@@ -534,6 +534,17 @@ export function PlatformView({
             note="Each one is found in your numbers, not written by AI"
           />
           <TopicCards recommendations={recommendations} />
+          {/* LinkedIn: every post he published, reviewed 14 days after it went
+              up, and the lessons the writer reads (post-learning). */}
+          {!isInstagram ? (
+            <>
+              <SectionHeading
+                title="What his posts taught"
+                note={`Each post reviewed ${POST_REVIEW_DAYS} days after it went up`}
+              />
+              <PostLessons />
+            </>
+          ) : null}
         </>
       ) : null}
     </div>
