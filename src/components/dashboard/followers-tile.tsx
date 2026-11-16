@@ -6,10 +6,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Users } from "lucide-react";
 
+import { FollowFlowLine } from "@/components/dashboard/follow-flow-line";
 import { KpiTile } from "@/components/dashboard/kpi-tile";
 import type { PlatformData } from "@/lib/analytics-types";
 import type { ResolvedRange } from "@/lib/date-range";
-import { followFlowQueryOptions } from "@/lib/follow-flow.functions";
 import { followersForPeriod } from "@/lib/followers";
 import { fullNumber, shortDate } from "@/lib/format";
 import { periodOf } from "@/lib/linkedin-analytics";
@@ -28,10 +28,6 @@ export function FollowersTile({
   const { data: figures } = useQuery({
     ...linkedInPeriodQueryOptions(periodOf(range)),
     enabled: linkedin,
-  });
-  const { data: flow } = useQuery({
-    ...followFlowQueryOptions(periodOf(range)),
-    enabled: data.platform === "instagram",
   });
   const period = data.followersInPeriod;
   const total = followersForPeriod(data);
@@ -60,20 +56,7 @@ export function FollowersTile({
       value={total == null ? "—" : fullNumber(total)}
       icon={Users}
       hint={parts.join(" · ") || undefined}
-      detail={
-        flow ? (
-          <span title="Instagram's own count. The last day or two can still be filling in.">
-            <span className="font-medium text-emerald-700 dark:text-emerald-400">
-              +{fullNumber(flow.followed)} followed
-            </span>
-            {" · "}
-            <span className="font-medium text-red-700 dark:text-red-400">
-              −{fullNumber(flow.unfollowed)} unfollowed
-            </span>
-            {flow.capped ? ` since ${shortDate(flow.from)}` : ""}
-          </span>
-        ) : undefined
-      }
+      detail={<FollowFlowLine platform={data.platform} range={range} />}
       accent={color}
     />
   );
