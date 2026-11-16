@@ -1,10 +1,11 @@
 import { Link, useSearch } from "@tanstack/react-router";
 import { AlertTriangle, ArrowDown, ArrowUp, ExternalLink, FileText, Info } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 
 import { AiPanel } from "@/components/dashboard/ai-panel";
 import { CompetitorTable, type BenchmarkRow } from "@/components/dashboard/competitor-table";
 import { followersForPeriod } from "@/lib/followers";
+import { FollowFlowLine } from "@/components/dashboard/follow-flow-line";
 import { GrowthChart } from "@/components/dashboard/growth-chart";
 import { InsightsPanels } from "@/components/dashboard/insights-panels";
 import { CadenceNudge } from "@/components/dashboard/cadence-nudge";
@@ -287,6 +288,7 @@ export function PlatformView({
                     : `${summary.change < 0 ? "Down" : "Up"} ${fullNumber(Math.abs(summary.change))}`
               }
               tone={summary.change == null ? undefined : summary.change < 0 ? "bad" : "good"}
+              extra={<FollowFlowLine platform={data.platform} range={range} />}
             />
             <Stat
               label={hasViews ? "Typical views per post" : "Typical interactions per post"}
@@ -544,12 +546,15 @@ function Stat({
   sub,
   tone,
   tip,
+  extra,
 }: {
   label: string;
   value: string;
   sub?: string | undefined;
   tone?: "good" | "bad" | undefined;
   tip?: string;
+  /** A second line under `sub`, such as followed and unfollowed. */
+  extra?: ReactNode;
 }) {
   return (
     <Card>
@@ -573,6 +578,7 @@ function Stat({
             {sub}
           </p>
         ) : null}
+        {extra ? <div className="text-[13px] text-muted-foreground">{extra}</div> : null}
       </CardContent>
     </Card>
   );

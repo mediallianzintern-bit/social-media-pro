@@ -8,6 +8,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Info } from "lucide-react";
 
+import { FollowFlowLine } from "@/components/dashboard/follow-flow-line";
 import { PostCover, Sparkline } from "@/components/dashboard/post-cover";
 import { PostInsightButton } from "@/components/dashboard/post-insight-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -27,7 +28,7 @@ import {
   type AccountSummary,
 } from "@/lib/account-summary";
 import { viewsOf, type PlatformData, type PostRecord } from "@/lib/analytics-types";
-import { dayMonth } from "@/lib/date-range";
+import { dayMonth, type ResolvedRange } from "@/lib/date-range";
 import { fullNumber, percent } from "@/lib/format";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import { usePlatform, useFilteredDashboard } from "@/lib/use-dashboard";
@@ -51,6 +52,7 @@ function Home() {
   const linkedin = usePlatform("linkedin");
   const { waiting, byPlatform } = useWaitingIdeas();
 
+  const ranges = { instagram: instagram.range, linkedin: linkedin.range };
   const accounts = [instagram, linkedin]
     .filter((entry): entry is typeof entry & { data: PlatformData } => Boolean(entry.data))
     .filter((entry) => entry.data.status === "ok")
@@ -150,7 +152,12 @@ function Home() {
 
       <div className="grid gap-4 md:grid-cols-2">
         {accounts.map(({ data: account, summary }) => (
-          <AccountCard key={account.platform} data={account} summary={summary} />
+          <AccountCard
+            key={account.platform}
+            data={account}
+            summary={summary}
+            range={ranges[account.platform]}
+          />
         ))}
       </div>
 
@@ -201,9 +208,11 @@ function Home() {
 function AccountCard({
   data,
   summary,
+  range,
 }: {
   data: PlatformData;
   summary: AccountSummary & { label: string };
+  range: ResolvedRange;
 }) {
   const meta = PLATFORM_META[data.platform];
   const change = changeSentence(summary);
@@ -254,6 +263,7 @@ function AccountCard({
             {change}
           </p>
         ) : null}
+        <FollowFlowLine platform={data.platform} range={range} className="block text-[13px]" />
         <p className="text-[13px] text-muted-foreground">
           Engagement rate {percent(summary.rate, 2)} · {summary.postsPerWeek.toFixed(1)} posts a
           week
