@@ -225,6 +225,8 @@ export function ideasSchemaFor(options: {
   lanes: string[];
   /** A dedicated workflow tutorial is a filmed reel, even when it creates a carousel. */
   reelOnly?: boolean;
+  /** LinkedIn: the format the team chose (Write post / Write article). */
+  writtenFormat?: "text_post" | "article" | undefined;
 }): Record<string, unknown> {
   const written = options.platform === "linkedin";
   const sourceIds = options.sourceIds.length ? options.sourceIds : ["none"];
@@ -252,7 +254,9 @@ export function ideasSchemaFor(options: {
       format: {
         type: "string",
         enum: written
-          ? ["text_post", "article", "document"]
+          ? options.writtenFormat
+            ? [options.writtenFormat]
+            : ["text_post", "article", "document"]
           : options.reelOnly
             ? ["reel"]
             : ["reel", "carousel"],

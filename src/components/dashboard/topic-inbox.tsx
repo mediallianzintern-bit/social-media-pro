@@ -31,6 +31,7 @@ import {
   topicInboxQueryOptions,
 } from "@/lib/analytics.functions";
 import { dateTime } from "@/lib/format";
+import { writeLinkedIn } from "@/lib/linkedin-write.functions";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import { ageDays, TRENDING_COVERAGE } from "@/lib/sources";
 import { cn } from "@/lib/utils";
@@ -72,8 +73,15 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
   });
 
   const write = useMutation({
-    mutationFn: (selection: { sourceId: string; regenerate?: boolean }) =>
-      generateOneIdea({ data: { platform, ...selection } }),
+    mutationFn: (selection: {
+      sourceId: string;
+      regenerate?: boolean;
+      /** LinkedIn: Write post or Write article. */
+      format?: "text_post" | "article";
+    }) =>
+      selection.format
+        ? writeLinkedIn({ data: { ...selection, format: selection.format } })
+        : generateOneIdea({ data: { platform, ...selection } }),
     onMutate: () => setScriptMessage(null),
     onSuccess: (result, selection) => {
       if (result.analysis) {
@@ -349,6 +357,40 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                                   {pending ? "Regenerating…" : "Regenerate script"}
                                 </Button>
                               }
+                            </span>
+                          ) : platform === "linkedin" ? (
+                            // LinkedIn: the team chooses the format (16 Nov 2026).
+                            <span className="flex flex-wrap gap-2">
+                              {(
+                                [
+                                  ["text_post", "Write post"],
+                                  ["article", "Write article"],
+                                ] as const
+                              ).map(([format, label]) => {
+                                const busy = pending && write.variables?.format === format;
+                                return (
+                                  <Button
+                                    key={format}
+                                    variant="outline"
+                                    size="sm"
+                                    className="gap-1.5"
+                                    disabled={write.isPending || openSavedScript.isPending}
+                                    onClick={() => write.mutate({ sourceId: item.id, format })}
+                                    title={
+                                      format === "article"
+                                        ? "Uses AI calls: a LinkedIn article, an introduction and 4 to 7 sections"
+                                        : "Uses AI calls: a LinkedIn text post"
+                                    }
+                                  >
+                                    {busy ? (
+                                      <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                                    ) : (
+                                      <Sparkles className="size-3.5" aria-hidden />
+                                    )}
+                                    {busy ? "Writing…" : label}
+                                  </Button>
+                                );
+                              })}
                             </span>
                           ) : (
                             <Button

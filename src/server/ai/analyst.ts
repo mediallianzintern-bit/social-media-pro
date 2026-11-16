@@ -756,6 +756,8 @@ export function buildIdeaRequest(
   /** Restrict every idea to this one lane — the per-lane buttons. */
   onlyLane?: string | undefined,
   regenerate = false,
+  /** LinkedIn: the format the team chose, Write post or Write article. */
+  writtenFormat?: "text_post" | "article",
 ): IdeaRequest {
   const {
     analyst = null,
@@ -839,6 +841,13 @@ export function buildIdeaRequest(
     regenerate && sources.length === 1
       ? regenerationPrompt(platform, onlyLane ?? sources[0]?.lane, sources[0]?.id)
       : "";
+  // The team chose the format with the button they pressed (16 Nov 2026).
+  const chosenFormat =
+    written && writtenFormat === "article"
+      ? 'FORMAT, CHOSEN BY THE TEAM: a LinkedIn ARTICLE. format is "article": post.body is the introduction, and post.sections are 4 to 7 sections, each a plain heading and its full paragraphs. Analysis that goes further than a post could, never a stretched post, and every rule in the brief still applies.'
+      : written && writtenFormat === "text_post"
+        ? 'FORMAT, CHOSEN BY THE TEAM: a LinkedIn TEXT POST. format is "text_post": the whole argument in the post body, with no sections, never an article teaser.'
+        : "";
 
   const system = `You are a content strategist writing production-ready ${
     written ? "LinkedIn posts" : `${platform} scripts`
@@ -1329,13 +1338,14 @@ above or to a gap named in the competitive read, and whyNow must say which.${
   }`;
 
   return {
-    system: regeneration ? `${system}\n\n${regeneration}` : system,
-    user: regeneration ? `${user}\n\n${regeneration}` : user,
+    system: [system, regeneration, chosenFormat].filter(Boolean).join("\n\n"),
+    user: [user, regeneration, chosenFormat].filter(Boolean).join("\n\n"),
     schema: ideasSchemaFor({
       platform,
       sourceIds: sources.map((source) => source.id),
       lanes: allowedLanes,
       reelOnly: workflowOnly,
+      writtenFormat: written ? writtenFormat : undefined,
     }),
     blocked,
     written,
@@ -1607,6 +1617,8 @@ export async function generateIdeas(
      * fixes exactly that rather than rolling the dice again.
      */
     discarded?: string[];
+    /** LinkedIn: Write post or Write article, as the team chose. */
+    format?: "text_post" | "article";
   } = {},
 ): Promise<{
   ideas: ContentIdea[];
@@ -1649,6 +1661,7 @@ export async function generateIdeas(
     sources,
     onlyLane,
     regenerate,
+    extra.format,
   );
 
   const retry = extra.discarded?.length

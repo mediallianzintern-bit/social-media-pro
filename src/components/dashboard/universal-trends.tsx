@@ -472,13 +472,14 @@ function AddToPlatform({
   const noun = platform === "instagram" ? "reel script" : "post";
 
   const add = useMutation({
-    mutationFn: (write: boolean) =>
+    mutationFn: (choice: { write: boolean; format?: "text_post" | "article" }) =>
       addTrend({
         data: {
           ...(item.kept ? { sourceId: item.id } : { trendId: item.id }),
           platform,
           lane: chosen!,
-          write,
+          write: choice.write,
+          ...(choice.format ? { format: choice.format } : {}),
         },
       }),
     onSuccess: (result) => {
@@ -530,25 +531,41 @@ function AddToPlatform({
                 size="sm"
                 variant="outline"
                 disabled={add.isPending}
-                onClick={() => add.mutate(false)}
+                onClick={() => add.mutate({ write: false })}
               >
-                {add.isPending && add.variables === false ? (
+                {add.isPending && add.variables?.write === false ? (
                   <Loader2 className="size-3.5 animate-spin" aria-hidden />
                 ) : (
                   <Plus className="size-3.5" aria-hidden />
                 )}
                 Add to topics only
               </Button>
-              <Button size="sm" disabled={add.isPending} onClick={() => add.mutate(true)}>
-                {add.isPending && add.variables === true ? (
-                  <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                ) : (
-                  <Sparkles className="size-3.5" aria-hidden />
-                )}
-                {add.isPending && add.variables === true
-                  ? `Writing the ${noun}… up to 3 minutes`
-                  : `Add and write the ${noun}`}
-              </Button>
+              {/* LinkedIn: a text post or an article, as the team chooses (16 Nov 2026). */}
+              {(platform === "linkedin"
+                ? ([
+                    ["text_post", "Add and write a post", "post"],
+                    ["article", "Add and write an article", "article"],
+                  ] as const)
+                : ([[undefined, `Add and write the ${noun}`, noun]] as const)
+              ).map(([format, label, what]) => {
+                const busy =
+                  add.isPending && add.variables?.write === true && add.variables.format === format;
+                return (
+                  <Button
+                    key={label}
+                    size="sm"
+                    disabled={add.isPending}
+                    onClick={() => add.mutate({ write: true, ...(format ? { format } : {}) })}
+                  >
+                    {busy ? (
+                      <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                    ) : (
+                      <Sparkles className="size-3.5" aria-hidden />
+                    )}
+                    {busy ? `Writing the ${what}… up to 3 minutes` : label}
+                  </Button>
+                );
+              })}
             </div>
             <p className="text-xs text-muted-foreground">
               Writing uses AI (a few cents) and follows Pritesh Sir&apos;s {meta.label} voice.

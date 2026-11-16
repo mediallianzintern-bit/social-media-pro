@@ -727,7 +727,14 @@ const RETRY_MIN_MS = 150_000;
 
 export async function generateMore(
   platform: PlatformId,
-  options: { sourceId?: string; fresh?: boolean; lane?: string; regenerate?: boolean } = {},
+  options: {
+    sourceId?: string;
+    fresh?: boolean;
+    lane?: string;
+    regenerate?: boolean;
+    /** LinkedIn: Write post or Write article. */
+    format?: "text_post" | "article";
+  } = {},
 ): Promise<MoreResult> {
   if (!hasOpenAi()) {
     return { analysis: null, idea: null, reason: "OPENAI_API_KEY is not set." };
@@ -841,7 +848,11 @@ export async function generateMore(
       sources,
       requestedLane,
       options.regenerate,
-      { deadline, ...(discarded ? { discarded } : {}) },
+      {
+        deadline,
+        ...(discarded ? { discarded } : {}),
+        ...(platform === "linkedin" && options.format ? { format: options.format } : {}),
+      },
     );
 
   let result: Awaited<ReturnType<typeof generateIdeas>>;

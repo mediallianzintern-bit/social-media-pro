@@ -53,6 +53,8 @@ export const addTrend = createServerFn({ method: "POST" })
         platform: platformSchema,
         lane: z.string().min(1).max(120),
         write: z.boolean().optional(),
+        /** LinkedIn: write it as a text post or an article (16 Nov 2026). */
+        format: z.enum(["text_post", "article"]).optional(),
       })
       .refine((value) => Boolean(value.trendId) !== Boolean(value.sourceId), {
         message: "Give a trend or a kept story, not both.",
@@ -68,6 +70,9 @@ export const addTrend = createServerFn({ method: "POST" })
     );
     if (!data.write) return { sourceId, idea: null, reason: null };
     const { generateMore } = await import("@/server/ai/index");
-    const result = await generateMore(data.platform, { sourceId });
+    const result = await generateMore(data.platform, {
+      sourceId,
+      ...(data.platform === "linkedin" && data.format ? { format: data.format } : {}),
+    });
     return { sourceId, idea: result.idea ?? null, reason: result.reason ?? null };
   });
