@@ -32,7 +32,7 @@ import {
 import { reviewLinkedInDrafts, withFactNotes } from "./linkedin-review";
 import { filmedScriptsFor } from "../reel-learning/filmed-scripts";
 import { scriptFeedbackFor } from "../script-feedback";
-import { linkedInPostReferences } from "./linkedin-references";
+import { linkedInLanePosts, linkedInPostReferences } from "./linkedin-references";
 import { factSheetText } from "@/lib/research";
 import { NO_RULES, type LearnedRules } from "@/lib/reel-learning-types";
 import { coveredCampaignsBlock } from "@/lib/covered-campaigns";
@@ -1647,7 +1647,13 @@ export async function generateIdeas(
     (sources.length && sources.every((source) => source.lane === sources[0]!.lane)
       ? sources[0]!.lane
       : null);
-  const filmedScripts = await filmedScriptsFor(platform, scriptLane).catch(() => "");
+  // LinkedIn: every post he published in this topic that beat his typical
+  // post, drafted here or not (lib/linkedin-lane-posts.ts). They include the
+  // dashboard drafts he posted, so they replace the filmed block there. Free.
+  const filmedScripts =
+    platform === "linkedin"
+      ? await linkedInLanePosts(scriptLane, extra.format).catch(() => "")
+      : await filmedScriptsFor(platform, scriptLane).catch(() => "");
   // LinkedIn: his own best posts of the last 30 days, for tone and format. Free.
   const postReferences =
     platform === "linkedin" ? await linkedInPostReferences().catch(() => "") : "";

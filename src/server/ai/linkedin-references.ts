@@ -15,6 +15,7 @@
 // Free: reads stored posts and stored impressions. Never fatal.
 import type { PostRecord } from "@/lib/analytics-types";
 import { engagementsOf } from "@/lib/analytics-types";
+import { lanePostsBlock, pickLanePosts, type WrittenKind } from "@/lib/linkedin-lane-posts";
 
 import { OWNER_ACCOUNTS } from "../apify/accounts";
 import { readLinkedInAnalytics } from "../linkedin-analytics";
@@ -79,6 +80,40 @@ ${post.caption.trim()}
   .join("\n\n")}`;
   } catch (error) {
     console.warn("[ai:linkedin] post references unavailable:", error);
+    return "";
+  }
+}
+
+/**
+ * His posts in `lane` that beat his typical post, as structure examples for
+ * the writer and the rewrite (lib/linkedin-lane-posts.ts), or "" when that
+ * topic has none. Posts already quoted as tone references are left out.
+ * Free: stored posts and stored impressions. Never fatal.
+ */
+export async function linkedInLanePosts(
+  lane: string | null | undefined,
+  kind: WrittenKind = "text_post",
+  now = Date.now(),
+): Promise<string> {
+  if (!lane?.trim()) return "";
+  try {
+    const [posts, analytics] = await Promise.all([
+      readPosts("linkedin", OWNER_ACCOUNTS.linkedin.handle, 1000),
+      readLinkedInAnalytics(),
+    ]);
+    const impressions = new Map(
+      analytics.posts
+        .filter((row) => row.impressions != null)
+        .map((row) => [row.postId, row.impressions as number]),
+    );
+    const exclude = new Set(
+      bestRecentPosts(posts, impressions, now).map(({ post }) => post.postId),
+    );
+    const titles = new Map(analytics.articles.map((row) => [row.postId, row.title]));
+    const picked = pickLanePosts(posts, impressions, lane, { kind, now, exclude, titles });
+    return lanePostsBlock(picked, lane, kind);
+  } catch (error) {
+    console.warn("[ai:linkedin] topic examples unavailable:", error);
     return "";
   }
 }
