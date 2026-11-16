@@ -1,4 +1,5 @@
 import { ExternalLink, type LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -18,6 +19,7 @@ export function KpiTile({
   hint,
   accent,
   href,
+  detail,
 }: {
   label: string;
   value: string;
@@ -26,6 +28,8 @@ export function KpiTile({
   accent?: string | undefined;
   /** The post this number is about, when it is about exactly one. */
   href?: string | undefined;
+  /** A second line under the hint, such as followed and unfollowed. */
+  detail?: ReactNode;
 }) {
   const body = (
     <CardContent className="p-5">
@@ -44,6 +48,7 @@ export function KpiTile({
           {href ? <ExternalLink className="size-3 shrink-0" aria-hidden /> : null}
         </p>
       ) : null}
+      {detail ? <div className="mt-1 text-xs text-muted-foreground">{detail}</div> : null}
     </CardContent>
   );
 
