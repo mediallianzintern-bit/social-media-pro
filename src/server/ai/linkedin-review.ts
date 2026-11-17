@@ -31,6 +31,7 @@ import { costOf, type GenerationCost } from "@/lib/ai-cost";
 import { earlyYears, figuresOf, sharesFigures, unsupportedFigures } from "@/lib/fact-check";
 import type { ContentIdea } from "@/lib/ai-types";
 import { isOpeningPair } from "@/lib/hook-variants";
+import { LINKEDIN_ARTICLE_SHAPE, linkedInArticleLength } from "@/lib/linkedin-article-shape";
 import { linkedInShapesBlock } from "@/lib/linkedin-shapes";
 import { factSheetText, factUsed, type StoryResearch } from "@/lib/research";
 import type { SourceItem } from "@/lib/sources";
@@ -128,6 +129,17 @@ export function problemsOf(
     if (length && !length.ok) {
       problems.push(
         `It is ${length.count} words; ${length.kind} of his runs ${length.min} to ${length.max}.`,
+      );
+    }
+  }
+  if (raw.format === "article") {
+    // His nine articles run 457 to 1,087 words (lib/linkedin-article-shape.ts).
+    const length = linkedInArticleLength(body, sections);
+    if (length && !length.ok) {
+      problems.push(
+        length.count < length.min
+          ? `It is ${length.count} words; his articles run ${length.min} to ${length.max}, aiming for 700 to 1,000. Teach more of the idea: an everyday explanation, a worked example from the reader's work, the honest limit. Never padding.`
+          : `It is ${length.count} words; his articles run ${length.min} to ${length.max}, aiming for 700 to 1,000. Cut repetition and general statements first.`,
       );
     }
   }
@@ -444,6 +456,7 @@ export async function reviewLinkedInDrafts(
           system: [
             LINKEDIN_VOICE,
             lane ? linkedInShapesBlock([{ name: lane, definition: "" }]) : "",
+            raw.format === "article" ? LINKEDIN_ARTICLE_SHAPE : "",
             context,
           ]
             .filter(Boolean)
@@ -507,7 +520,9 @@ one person: simpler where it can be simpler, specific where it is vague, never o
 ${
   raw.format === "text_post"
     ? '- About 150 to 220 words, never more than 300 (75 to 125 if it is a teaser pointing to his article):\n  shorter is better than padded. End on a question the post has earned, then "♻️ Repost to help …".'
-    : `- Keep every ${raw.format === "document" ? "page" : "section"} and its heading's purpose; tighten and make each one specific.`
+    : raw.format === "article"
+      ? "- An ARTICLE, built as the LINKEDIN ARTICLE SHAPE above says: 700 to 1,000 words in all\n  (never under 450 or over 1,200), the introduction ending on a handover line (\"Let's understand.\"),\n  5 to 8 sections with plain headings, the idea explained before any term, a worked example from\n  the reader's work, the honest limit, what it means for the reader, and his first-person\n  takeaway last, ending on his two-line closing contrast. One sentence per line in every section,\n  never a paragraph. Keep each section's purpose; tighten and make each one specific."
+      : `- Keep every ${raw.format === "document" ? "page" : "section"} and its heading's purpose; tighten and make each one specific.`
 }
 ${feedback.length ? `\nYOUR LAST REWRITE STILL HAD THESE PROBLEMS, counted by code. Fix each one:\n${feedback.map((problem) => `- ${problem}`).join("\n")}\n` : ""}
 ${storyFor(raw, sources)}

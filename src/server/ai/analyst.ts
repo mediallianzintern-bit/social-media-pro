@@ -20,6 +20,7 @@ import {
 import { costOf, type GenerationCost } from "@/lib/ai-cost";
 import { laneShapesBlock, withLaneCta } from "@/lib/script-families";
 import { isFixedIntro, withFixedIntro } from "@/lib/reel-intro";
+import { LINKEDIN_ARTICLE_SHAPE } from "@/lib/linkedin-article-shape";
 import { linkedInShapesBlock } from "@/lib/linkedin-shapes";
 import { fitLinkedInPosts } from "./linkedin-length";
 import { readToneReferences } from "./tone";
@@ -675,8 +676,9 @@ not notes for someone else to expand:
 - text_post: post.body is the complete post, about 150-220 words (300 at most), with the hook's
   two lines as its first two lines. One sentence per line, about nine words, a blank line between lines: never a
   paragraph. Plain, conversational words in place of marketing terms. post.sections is empty.
-- article: post.body is the introduction; post.sections are 4-7 sections, each a heading and its
-  full paragraphs. An article is analysis, not a stretched post: every section adds something
+- article: post.body is the introduction; post.sections are 5-8 sections, each a plain heading
+  and its text, one sentence per line, 700-1,000 words in all, built as the LINKEDIN ARTICLE
+  SHAPE above says. An article teaches, it is not a stretched post: every section adds something
   the one before it did not.
 - document: post.body is the short post that sits above the PDF; post.sections are 6-10 pages,
   each a heading and two to four lines. One idea per page — a page someone has to read twice
@@ -796,6 +798,9 @@ export function buildIdeaRequest(
         )
       : "";
   const covered = voice && !written ? coveredCampaignsBlock() : "";
+  // His articles' own shape (17 Nov 2026), whenever the writer may write one:
+  // Write article, or a LinkedIn run that chooses its own format.
+  const articleShape = written && writtenFormat !== "text_post" ? LINKEDIN_ARTICLE_SHAPE : "";
   // His posted reels, for how he sounds (never their facts). Instagram reels only.
   const tone = !written ? toneReferencesBlock(reads.toneReferences ?? []) : "";
   // A script the team asked for on one chosen story is written in that story's
@@ -844,7 +849,7 @@ export function buildIdeaRequest(
   // The team chose the format with the button they pressed (16 Nov 2026).
   const chosenFormat =
     written && writtenFormat === "article"
-      ? 'FORMAT, CHOSEN BY THE TEAM: a LinkedIn ARTICLE. format is "article": post.body is the introduction, and post.sections are 4 to 7 sections, each a plain heading and its full paragraphs. Analysis that goes further than a post could, never a stretched post, and every rule in the brief still applies.'
+      ? 'FORMAT, CHOSEN BY THE TEAM: a LinkedIn ARTICLE. format is "article": post.body is the introduction, and post.sections are 5 to 8 sections, each a plain heading and its text in one-sentence lines, 700 to 1,000 words in all, built exactly as the LINKEDIN ARTICLE SHAPE block says. It teaches one development properly, never a stretched post, and every rule in the brief still applies.'
       : written && writtenFormat === "text_post"
         ? 'FORMAT, CHOSEN BY THE TEAM: a LinkedIn TEXT POST. format is "text_post": the whole argument in the post body, with no sections, never an article teaser.'
         : "";
@@ -855,7 +860,7 @@ export function buildIdeaRequest(
 creator, based on their own measured performance.
 
 ${groundRules(owner.owned?.source)}
-${voice ? `\n${voice}\n` : ""}${tone ? `\n${tone}\n` : ""}${reads.postReferences ? `\n${reads.postReferences}\n` : ""}${reads.scriptFeedback ? `\n${reads.scriptFeedback}\n` : ""}${reads.filmedScripts ? `\n${reads.filmedScripts}\n` : ""}${laneShapes ? `\n${laneShapes}\n` : ""}${covered ? `\n${covered}\n` : ""}${workflow ? `\n${workflow}\n` : ""}
+${voice ? `\n${voice}\n` : ""}${tone ? `\n${tone}\n` : ""}${reads.postReferences ? `\n${reads.postReferences}\n` : ""}${reads.scriptFeedback ? `\n${reads.scriptFeedback}\n` : ""}${reads.filmedScripts ? `\n${reads.filmedScripts}\n` : ""}${laneShapes ? `\n${laneShapes}\n` : ""}${articleShape ? `\n${articleShape}\n` : ""}${covered ? `\n${covered}\n` : ""}${workflow ? `\n${workflow}\n` : ""}
 Additional requirements:
 - EVERY IDEA MUST HAVE A CONCRETE SUBJECT. Name the specific brand, campaign, product, tool,
   person or event the reel covers, in the title and again in the angle. A reader who sees only
@@ -877,7 +882,7 @@ ${
   written
     ? `- Choose the format — text_post, article or document — for the story. A text post is the
   default: most LinkedIn reach goes to plain posts. Use an article only for a story with enough
-  substance for 600+ words of real analysis, and a document only when the idea is naturally a
+  substance for 700+ words that teach (the LINKEDIN ARTICLE SHAPE block), and a document only when the idea is naturally a
   sequence of steps or frames someone would swipe through and save.`
     : `- For AI tool workflows use a reel demo as specified above. For other lanes, choose the format (reel or carousel) based on which performs better in the data. Only mention
   the format choice in whyNow if the account actually publishes both and one measurably wins.

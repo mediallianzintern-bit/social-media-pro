@@ -459,14 +459,16 @@ export function ideasSchemaFor(options: {
                   type: "string",
                   description:
                     "text_post: the ENTIRE post, hook first, with line breaks as they should " +
-                    "appear, 120-250 words. article: the introduction, 60-120 words. document: " +
+                    "appear, 120-250 words. article: the introduction, 60-150 words, one sentence per " +
+                    "line. document: " +
                     "the post that sits above the PDF, 40-90 words.",
                 },
                 sections: {
                   type: "array",
                   description:
-                    "text_post: empty. article: 4-7 sections, each a heading and its full " +
-                    "paragraphs. document: 6-10 pages, each a short heading and the few lines " +
+                    "text_post: empty. article: 5-8 sections, each a plain heading (the question it " +
+                    "answers, or a numbered point) and its text, one sentence per line, never a " +
+                    "paragraph; 700-1,000 words in all. document: 6-10 pages, each a short heading and the few lines " +
                     "that go on that page.",
                   items: {
                     type: "object",
