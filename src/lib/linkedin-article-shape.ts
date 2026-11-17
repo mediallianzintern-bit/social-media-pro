@@ -238,3 +238,53 @@ HIS BEST ARTICLE, IN FULL. Shape and voice only: never its facts, its examples, 
 its sentences.
 TITLE: No AI Could Keep Up With How India Talks. Until This One?
 ${MODEL_ARTICLE}`;
+
+/** "OpenAI launches…", "Meta unveils…": a news headline, which none of his nine titles is. */
+const NEWS_TITLE =
+  /^\S+(?:\s\S+){0,3}\s(launch(es|ed)?|announc(es|ed)|unveil(s|ed)|introduc(es|ed)|releas(es|ed)|roll(s|ed) out)\b/i;
+const REPOST = /\brepost\b/i;
+
+/**
+ * What the CODE finds wrong with an article's shape against his nine, beyond
+ * its total length (linkedInArticleLength). Empty when it fits. Exported for
+ * the article writer (server/ai/linkedin-article.ts) and the tests.
+ */
+export function articleShapeProblems(
+  title: string,
+  body: string,
+  sections: Array<{ heading: string; text: string }>,
+): string[] {
+  const problems: string[] = [];
+  if (NEWS_TITLE.test(title.trim())) {
+    problems.push(
+      `The title "${title.trim()}" reads as a news headline; his are a striking fact with a question or twist ("OpenAI Just Cut AI Costs by 50%. But That's Not the Biggest Surprise.") or a question that challenges an assumption.`,
+    );
+  }
+  const intro = countWords(body);
+  if (intro > 170) {
+    problems.push(
+      `The introduction is ${intro} words; his run 60 to 150. It sets up the question and hands over ("Let's understand."); the explanation, the points and the ending belong in the sections.`,
+    );
+  }
+  if (REPOST.test(body)) {
+    problems.push(
+      "The introduction ends like a whole post, with a Repost line; the closing question and the Repost line go at the very end of the last section.",
+    );
+  }
+  if (sections.length < 5 || sections.length > 8) {
+    problems.push(`It has ${sections.length} sections; his articles have 5 to 8.`);
+  }
+  sections.forEach((section, index) => {
+    const lines = section.text.split("\n").filter((line) => line.trim());
+    // His sections run many short lines; his longest single line is 42 words.
+    const block =
+      (lines.length <= 2 && countWords(section.text) >= 30) ||
+      lines.some((line) => countWords(line) > 45 || (line.match(/[.?!](\s|$)/g) ?? []).length > 3);
+    if (block) {
+      problems.push(
+        `Section ${index + 1} ("${section.heading}") is written as a paragraph; one sentence per line, a blank line between, as in every one of his articles.`,
+      );
+    }
+  });
+  return problems;
+}

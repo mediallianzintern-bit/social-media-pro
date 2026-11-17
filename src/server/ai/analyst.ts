@@ -22,6 +22,7 @@ import { laneShapesBlock, withLaneCta } from "@/lib/script-families";
 import { isFixedIntro, withFixedIntro } from "@/lib/reel-intro";
 import { LINKEDIN_ARTICLE_SHAPE } from "@/lib/linkedin-article-shape";
 import { linkedInShapesBlock } from "@/lib/linkedin-shapes";
+import { writeLinkedInArticles } from "./linkedin-article";
 import { fitLinkedInPosts } from "./linkedin-length";
 import { readToneReferences } from "./tone";
 import {
@@ -1723,15 +1724,26 @@ Write it again and make sure each of these is fixed. Everything else above still
   // rewritten in his voice before it is shown (linkedin-length.ts).
   // LinkedIn's review-and-rewrite pass first (linkedin-review.ts), then the
   // length fit as the last check.
+  // An article is written first, in the shape of his own articles, by its own
+  // focused call (linkedin-article.ts); the post review then leaves it alone.
+  const articles = request.written
+    ? await writeLinkedInArticles(review.data, sources, extra.deadline)
+    : { data: review.data, cost: undefined, written: new Set<unknown>(), failed: 0 };
+  if (articles.written.size || articles.failed) {
+    console.info(
+      `[ai:${platform}] wrote ${articles.written.size} article(s) in his article shape, ${articles.failed} kept as drafted`,
+    );
+  }
   const reviewedPosts = request.written
     ? await reviewLinkedInDrafts(
-        review.data,
+        articles.data,
         sources,
         extra.deadline,
         // What his published posts proved (Phase 3), so the rewrite keeps it.
         [reads.postReferences, reads.scriptFeedback, reads.filmedScripts, reads.filmed]
           .filter(Boolean)
           .join("\n\n"),
+        articles.written,
       )
     : { data: review.data, cost: undefined, reviewed: 0, failed: 0 };
   if (reviewedPosts.reviewed || reviewedPosts.failed) {
@@ -1758,7 +1770,10 @@ Write it again and make sure each of these is fixed. Everything else above still
   // The review's own cost is added, so the panel shows what the script cost.
   const cost = addCosts(
     addCosts(
-      addCosts(result.usage ? costOf(result.usage, result.model) : undefined, review.cost),
+      addCosts(
+        addCosts(result.usage ? costOf(result.usage, result.model) : undefined, review.cost),
+        articles.cost,
+      ),
       reviewedPosts.cost,
     ),
     fitted.cost,

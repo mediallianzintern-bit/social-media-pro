@@ -376,7 +376,7 @@ export function withFactNotes(data: unknown, sources: SourceItem[]): unknown {
 }
 
 /** The facts the post may state: the fact sheet, one article, or the headline. */
-function storyFor(raw: RawPost, sources: SourceItem[]): string {
+export function storyFor(raw: RawPost, sources: SourceItem[]): string {
   const id = typeof raw.source?.sourceId === "string" ? raw.source.sourceId : null;
   const source = id ? sources.find((item) => item.id === id) : undefined;
   if (!source) {
@@ -421,6 +421,8 @@ export async function reviewLinkedInDrafts(
    * problems where the team's verdicts belonged (found 4 Nov 2026).
    */
   context = "",
+  /** Articles already written in his article shape (linkedin-article.ts): post rules would undo them. */
+  skip: Set<unknown> = new Set(),
 ): Promise<{ data: unknown; cost: GenerationCost | undefined; reviewed: number; failed: number }> {
   const ideas = (data as { ideas?: unknown })?.ideas;
   if (!reviewEnabled() || !Array.isArray(ideas)) {
@@ -434,7 +436,7 @@ export async function reviewLinkedInDrafts(
 
   for (const raw of ideas as RawPost[]) {
     const body = typeof raw.post?.body === "string" ? raw.post.body : "";
-    if (!body.trim()) {
+    if (!body.trim() || skip.has(raw)) {
       next.push(raw);
       continue;
     }
