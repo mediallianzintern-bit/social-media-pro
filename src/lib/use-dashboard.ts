@@ -3,7 +3,7 @@ import { useSearch } from "@tanstack/react-router";
 import { useMemo } from "react";
 
 import { dashboardQueryOptions } from "@/lib/analytics.functions";
-import { eraWindow, resolveRange, sharedEra, type ResolvedRange } from "@/lib/date-range";
+import { eraWindow, resolveRange, type ResolvedRange } from "@/lib/date-range";
 import { filterDashboard } from "@/lib/filter";
 import type { DashboardData, PlatformData, PlatformId } from "@/lib/analytics-types";
 
@@ -43,7 +43,7 @@ export function usePlatform(platform: PlatformId): {
     data: platformData,
     // The window actually applied to THIS platform. For "Current era" that is
     // its own era, or the 30-day fallback — and the label has to say which.
-    range: eraWindow(range, platformData?.currentEra, sharedEra(raw.platforms)),
+    range: eraWindow(range, platformData?.currentEra),
     allPosts: raw.platforms.find((p) => p.platform === platform)?.posts ?? [],
   };
 }

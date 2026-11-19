@@ -546,7 +546,7 @@ export async function markIdeaMeasured(_id: string): Promise<boolean> {
   return false;
 }
 
-export async function resolveStaffUser(_email: string, _actedAs: Role): Promise<string | null> {
+export async function resolveStaffUser(_email: string): Promise<string | null> {
   return null;
 }
 
@@ -678,6 +678,16 @@ export async function setChosenHook(): Promise<boolean> {
   return false;
 }
 
+/** The ephemeral store keeps no suggestions table, so there is no idea to read. */
+export async function readIdeaById(): Promise<null> {
+  return null;
+}
+
+/** The ephemeral store keeps no suggestions table, so there is nothing to add to. */
+export async function addIdeaHooks(): Promise<null> {
+  return null;
+}
+
 export async function readChosenHooks(): Promise<Map<string, string>> {
   return new Map();
 }
@@ -698,13 +708,19 @@ export async function readIdeaForSource(
 ): Promise<ContentIdea | null> {
   return null;
 }
-/** The ephemeral store keeps no suggestions table, so there is no idea to read. */
-export async function readIdeaById(): Promise<null> {
+
+/**
+ * The ephemeral store keeps no team. Returning nothing makes the roles screen
+ * say so rather than show an empty table that looks like a team of nobody.
+ */
+export async function readUserByEmail(): Promise<null> {
   return null;
 }
 
-/** The ephemeral store keeps no suggestions table, so there is nothing to add to. */
-export async function addIdeaHooks(): Promise<null> {
-  return null;
+export async function setUserRole(): Promise<boolean> {
+  return false;
 }
 
+export async function countUsersWithRole(): Promise<number> {
+  return 0;
+}

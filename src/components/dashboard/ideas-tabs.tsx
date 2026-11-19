@@ -7,7 +7,6 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 
 const TABS = [
-  { to: "/ideas", label: "Review" },
   { to: "/trends", label: "Trends" },
   { to: "/saved", label: "Saved" },
   { to: "/reactions", label: "Reaction hooks" },

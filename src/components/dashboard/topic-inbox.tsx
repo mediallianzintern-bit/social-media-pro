@@ -23,6 +23,7 @@ import { TasteSummary } from "@/components/dashboard/taste-summary";
 import { VoteButtons } from "@/components/dashboard/vote-buttons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   analysisQueryOptions,
   generateOneIdea,
@@ -33,6 +34,7 @@ import {
 import { dateTime } from "@/lib/format";
 import { writeLinkedIn } from "@/lib/linkedin-write.functions";
 import { PLATFORM_META } from "@/lib/platform-meta";
+import { matchesSearch } from "@/lib/search";
 import { ageDays, TRENDING_COVERAGE } from "@/lib/sources";
 import { cn } from "@/lib/utils";
 import type { PlatformId } from "@/lib/analytics-types";
@@ -58,6 +60,7 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery(topicInboxQueryOptions(platform));
   const [lane, setLane] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState(false);
   const [writtenFor, setWrittenFor] = useState<string | null>(null);
   // The whole section can be folded away, because this list runs to hundreds
@@ -125,7 +128,10 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
     ],
     [items],
   );
-  const filtered = lane ? items.filter((item) => item.lane === lane) : items;
+  const filtered = items.filter(
+    (item) =>
+      (!lane || item.lane === lane) && matchesSearch(search, item.title, item.publisher, item.lane),
+  );
   const visible = collapsed ? filtered.slice(0, 3) : expanded ? filtered : filtered.slice(0, PAGE);
   const trending = items.filter((item) => item.coverage >= TRENDING_COVERAGE).length;
 
@@ -186,6 +192,20 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                 <p className="text-xs text-destructive">
                   Some searches failed: {refresh.data.failures.join("; ")}
                 </p>
+              ) : null}
+
+              {items.length ? (
+                <Input
+                  type="search"
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    setExpanded(false);
+                  }}
+                  placeholder="Search headlines, e.g. Andromeda"
+                  aria-label="Search topics in the news"
+                  className="h-9 sm:max-w-xs"
+                />
               ) : null}
 
               {lanes.length > 1 ? (
@@ -414,6 +434,11 @@ export function TopicInbox({ platform }: { platform: PlatformId }) {
                     );
                   })}
                 </ul>
+              ) : !isLoading && items.length ? (
+                <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                  Nothing matches{search.trim() ? ` "${search.trim()}"` : ""}
+                  {lane ? ` in ${lane}` : ""}.
+                </p>
               ) : !isLoading ? (
                 <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
                   {data && !data.storable

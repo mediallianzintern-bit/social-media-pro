@@ -1645,12 +1645,31 @@ export async function markIdeaMeasured(id: string): Promise<boolean> {
  * address, so the row is keyed on that email and made the first time the
  * person does anything.
  *
- * The role recorded is the one they first acted as and is never overwritten
- * here: deciding what someone's role IS belongs to T46, and silently
- * re-labelling a person each time they switch lens would be worse than not
- * recording it.
+ * The role they start with is decided above, not by the caller, and is never
+ * overwritten here — changing someone's role is a team manager's deliberate
+ * act (see changeRole), not a side effect of them switching lens.
  */
-export async function resolveStaffUser(email: string, actedAs: Role): Promise<string | null> {
+/**
+ * The role a person is created with on their first action.
+ *
+ * The very first member of an empty team becomes the team manager, because
+ * granting roles is itself a team manager's job and otherwise nobody could
+ * ever hand out the first one. Everyone after that starts as a creator — the
+ * least that still lets them do the work — and a team manager raises them.
+ *
+ * Deliberately NOT the role the caller claimed. The workspace has a role
+ * switcher, and minting whatever it was set to would mean anyone could appoint
+ * themselves growth manager by picking it from a menu before their first click.
+ */
+async function roleForNewUser(): Promise<Role> {
+  const { count, error } = await db().from("users").select("id", { count: "exact", head: true });
+  // Content creator is no longer given on its own (roles.ts ASSIGNABLE_ROLES):
+  // a new colleague starts as a content editor.
+  if (error) return "editor";
+  return (count ?? 0) === 0 ? "team_manager" : "editor";
+}
+
+export async function resolveStaffUser(email: string): Promise<string | null> {
   const address = email.trim().toLowerCase();
   if (!address) return null;
   const found = await db().from("users").select("id").eq("email", address).maybeSingle();
@@ -1665,7 +1684,7 @@ export async function resolveStaffUser(email: string, actedAs: Role): Promise<st
     .replace(/\b\w/g, (c) => c.toUpperCase());
   const created = await db()
     .from("users")
-    .insert({ name, email: address, role: actedAs })
+    .insert({ name, email: address, role: await roleForNewUser() })
     .select("id")
     .single();
   if (created.error) {
@@ -1675,6 +1694,42 @@ export async function resolveStaffUser(email: string, actedAs: Role): Promise<st
     return retry.data ? String((retry.data as { id: string }).id) : null;
   }
   return String((created.data as { id: string }).id);
+}
+
+/** One person by their sign-in address, or null when they have never acted. */
+export async function readUserByEmail(email: string): Promise<UserRow | null> {
+  const address = email.trim().toLowerCase();
+  if (!address) return null;
+  const { data, error } = await db()
+    .from("users")
+    .select("id,name,email,role")
+    .eq("email", address)
+    .maybeSingle();
+  if (error || !data) return null;
+  const row = data as Record<string, unknown>;
+  return {
+    id: String(row["id"]),
+    name: String(row["name"] ?? ""),
+    email: (row["email"] as string | null) ?? null,
+    role: (row["role"] as Role) ?? "creator",
+  };
+}
+
+/** Changes what one person is allowed to do. Team manager only — checked above this. */
+export async function setUserRole(userId: string, role: Role): Promise<boolean> {
+  const { data, error } = await db().from("users").update({ role }).eq("id", userId).select("id");
+  if (error) throw new Error(`users role update failed: ${error.message}`);
+  return ((data ?? []) as unknown[]).length > 0;
+}
+
+/** How many people currently hold a role. Used to keep the last manager in place. */
+export async function countUsersWithRole(role: Role): Promise<number> {
+  const { count, error } = await db()
+    .from("users")
+    .select("id", { count: "exact", head: true })
+    .eq("role", role);
+  if (error) return 0;
+  return count ?? 0;
 }
 
 /** Hands an idea to a person. Not a status change: who does it, not where it is. */

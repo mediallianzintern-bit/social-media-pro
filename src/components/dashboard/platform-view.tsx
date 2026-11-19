@@ -1,6 +1,8 @@
 import { Link, useSearch } from "@tanstack/react-router";
 import { AlertTriangle, ArrowDown, ArrowUp, ExternalLink, FileText, Info } from "lucide-react";
-import { useMemo, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { savedTopicsQueryOptions } from "@/lib/analytics.functions";
+import { useMemo, useState, type ReactNode } from "react";
 
 import { AiPanel } from "@/components/dashboard/ai-panel";
 import { CompetitorTable, type BenchmarkRow } from "@/components/dashboard/competitor-table";
@@ -18,9 +20,12 @@ import { LockedPanel } from "@/components/dashboard/locked-panel";
 import { PublicEngagement } from "@/components/dashboard/public-engagement";
 import { MetricBars, type BarRow } from "@/components/dashboard/metric-bars";
 import { PostPerformanceChart } from "@/components/dashboard/post-performance-chart";
+import { MetricTrendChart, type TrendRow } from "@/components/dashboard/metric-trend-chart";
 import { TopicCards } from "@/components/dashboard/topic-cards";
 import { PostCover } from "@/components/dashboard/post-cover";
-import { PostsBrowser } from "@/components/dashboard/posts-browser";
+import { KindBadge, PostsBrowser } from "@/components/dashboard/posts-browser";
+import { linkedInAnalyticsQueryOptions } from "@/lib/linkedin-api.functions";
+import { SavedTopics } from "@/components/dashboard/saved-topics";
 import { SectionHeading } from "@/components/dashboard/section-heading";
 import { InfoTip } from "@/components/dashboard/info-tip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -48,11 +53,13 @@ import {
   medianViews,
   organicPosts,
   type PlatformData,
+  type PostRecord,
+  publicViewsOf,
   viewsOf,
 } from "@/lib/analytics-types";
 import { toInputValue, type ResolvedRange } from "@/lib/date-range";
 
-type Tab = "summary" | "posts" | "audience" | "competitors" | "ideas";
+type Tab = "summary" | "posts" | "audience" | "competitors" | "ideas" | "saved";
 
 /** Sections from the original spec that public data cannot fill, per platform. */
 const LOCKED = {
@@ -103,6 +110,20 @@ export function PlatformView({
   // One tab at a time (13 Nov 2026, UI review): the page was 17 sections and
   // about 25 screens long. The tab is in the URL, so Home can link to one.
   const { tab = "summary" } = useSearch({ from: "/_app" });
+  // Which Summary card's figure the chart under them shows (18 Nov 2026).
+  const [chart, setChart] = useState<ChartKey>("followers");
+  // The count on the Saved tab: this account's saved items only.
+  const { data: saved } = useQuery(savedTopicsQueryOptions(data.platform));
+  // LinkedIn: which posts are articles, with each one's title, reading time
+  // and its own page, for the Post / Article label on Top posts (19 Nov 2026).
+  const { data: linkedinFigures } = useQuery({
+    ...linkedInAnalyticsQueryOptions,
+    enabled: data.platform === "linkedin",
+  });
+  const articleOf = useMemo(
+    () => new Map((linkedinFigures?.articles ?? []).map((article) => [article.postId, article])),
+    [linkedinFigures],
+  );
   const meta = PLATFORM_META[data.platform];
   const color = meta.color;
   const isInstagram = data.platform === "instagram";
@@ -223,6 +244,15 @@ export function PlatformView({
   const handle = latest.handle.startsWith("@") ? latest.handle : `@${latest.handle}`;
   const firstPoint = data.growth[0];
   const lastPoint = data.growth.at(-1);
+  const trend = trendFor(chart, {
+    posts: organic,
+    hasViews,
+    followers: followersForPeriod(data) ?? latest.followers,
+    range,
+    typical: summary.typical,
+    rate,
+    perWeek: summary.postsPerWeek,
+  });
 
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: "summary", label: "Summary" },
@@ -230,6 +260,7 @@ export function PlatformView({
     { id: "audience", label: "Audience" },
     { id: "competitors", label: `Competitors · ${data.competitors.length}` },
     { id: "ideas", label: "Ideas" },
+    { id: "saved", label: saved?.saved.length ? `Saved · ${saved.saved.length}` : "Saved" },
   ];
 
   return (
@@ -289,12 +320,16 @@ export function PlatformView({
               }
               tone={summary.change == null ? undefined : summary.change < 0 ? "bad" : "good"}
               extra={<FollowFlowLine platform={data.platform} range={range} />}
+              selected={chart === "followers"}
+              onSelect={() => setChart("followers")}
             />
             <Stat
               label={hasViews ? "Typical views per post" : "Typical interactions per post"}
               value={compact(summary.typical)}
               sub={`Middle value of ${summary.posts} post${summary.posts === 1 ? "" : "s"}`}
               tip="Half your posts did better than this and half did worse, so one viral post does not move it."
+              selected={chart === "typical"}
+              onSelect={() => setChart("typical")}
             />
             <Stat
               label="Engagement rate"
@@ -304,26 +339,44 @@ export function PlatformView({
                   ? "Of viewers who liked, commented or reposted"
                   : "Interactions for every follower who could see a post"
               }
+              selected={chart === "rate"}
+              onSelect={() => setChart("rate")}
             />
             <Stat
               label="Posts a week"
               value={summary.postsPerWeek.toFixed(1)}
               sub={`${summary.posts} posts in this period`}
+              selected={chart === "cadence"}
+              onSelect={() => setChart("cadence")}
             />
           </section>
 
           <Card>
             <CardContent className="space-y-3 p-5">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="text-base font-semibold">Followers over time</h3>
-                {firstPoint && lastPoint ? (
+                <h3 className="text-base font-semibold">
+                  {trend ? trend.title : "Followers over time"}
+                </h3>
+                {trend ? (
+                  <p className="text-[13px] text-muted-foreground tabular-nums">{trend.note}</p>
+                ) : firstPoint && lastPoint ? (
                   <p className="text-[13px] text-muted-foreground tabular-nums">
                     {dayMonth(new Date(firstPoint.capturedAt))}: {fullNumber(firstPoint.followers)}{" "}
                     → {dayMonth(new Date(lastPoint.capturedAt))}: {fullNumber(lastPoint.followers)}
                   </p>
                 ) : null}
               </div>
-              <GrowthChart points={data.growth} color={color} eras={data.eras ?? []} />
+              {trend ? (
+                <MetricTrendChart
+                  rows={trend.rows}
+                  color={color}
+                  name={trend.name}
+                  format={trend.format}
+                  reference={trend.reference}
+                />
+              ) : (
+                <GrowthChart points={data.growth} color={color} eras={data.eras ?? []} />
+              )}
             </CardContent>
           </Card>
 
@@ -347,25 +400,34 @@ export function PlatformView({
                 </Link>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {ranked.slice(0, 4).map((post) => (
-                  <a
-                    key={post.postId}
-                    href={post.url}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="flex gap-3 rounded-xl border bg-card p-3 hover:bg-muted/40"
-                  >
-                    {isInstagram ? <PostCover post={post} className="h-16 w-12" /> : null}
-                    <div className="min-w-0">
-                      <p className="text-base font-bold tabular-nums">
-                        {compact(primaryOf(post))} {unit}
-                      </p>
-                      <p className="line-clamp-2 text-[13px] text-muted-foreground">
-                        {postTitle(post.caption, 60)} · {dayMonth(new Date(post.publishedAt))}
-                      </p>
-                    </div>
-                  </a>
-                ))}
+                {ranked.slice(0, 4).map((post) => {
+                  const article = articleOf.get(post.postId);
+                  const isArticle = !isInstagram && (post.format === "article" || Boolean(article));
+                  return (
+                    <a
+                      key={post.postId}
+                      // An article opens on its own page, not the post that shared it.
+                      href={article?.url ?? post.url}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="flex gap-3 rounded-xl border bg-card p-3 hover:bg-muted/40"
+                    >
+                      {isInstagram ? <PostCover post={post} className="h-16 w-12" /> : null}
+                      <div className="min-w-0">
+                        {isInstagram ? null : (
+                          <KindBadge article={isArticle} minutes={article?.readMinutes ?? null} />
+                        )}
+                        <p className="text-base font-bold tabular-nums">
+                          {compact(primaryOf(post))} {unit}
+                        </p>
+                        <p className="line-clamp-2 text-[13px] text-muted-foreground">
+                          {article?.title ?? postTitle(post.caption, 60)} ·{" "}
+                          {dayMonth(new Date(post.publishedAt))}
+                        </p>
+                      </div>
+                    </a>
+                  );
+                })}
               </div>
             </section>
           ) : null}
@@ -526,6 +588,10 @@ export function PlatformView({
         />
       ) : null}
 
+      {/* Its own tab (18 Nov 2026), so saved stories, posts and scripts are not
+          mixed in with the ideas: this account's only. */}
+      {tab === "saved" ? <SavedTopics only={data.platform} /> : null}
+
       {tab === "ideas" ? (
         <>
           <AiPanel platform={data.platform} />
@@ -558,6 +624,8 @@ function Stat({
   tone,
   tip,
   extra,
+  selected,
+  onSelect,
 }: {
   label: string;
   value: string;
@@ -566,13 +634,36 @@ function Stat({
   tip?: string;
   /** A second line under `sub`, such as followed and unfollowed. */
   extra?: ReactNode;
+  /** Clickable: the chart under the cards shows this figure. */
+  selected?: boolean;
+  onSelect?: () => void;
 }) {
   return (
-    <Card>
-      <CardContent className="space-y-1 p-5">
+    <Card
+      className={cn(
+        "relative transition-colors",
+        onSelect && "hover:bg-muted/40",
+        selected && "border-primary ring-1 ring-primary",
+      )}
+    >
+      {onSelect ? (
+        // Covers the card, under the info tip, so the tip stays its own button.
+        <button
+          type="button"
+          onClick={onSelect}
+          aria-pressed={Boolean(selected)}
+          aria-label={`Show ${label.toLowerCase()} on the chart`}
+          className="absolute inset-0 rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        />
+      ) : null}
+      <CardContent className="pointer-events-none space-y-1 p-5">
         <p className="flex items-center gap-1 text-[13px] text-muted-foreground">
           {label}
-          {tip ? <InfoTip text={tip} /> : null}
+          {tip ? (
+            <span className="pointer-events-auto relative z-10">
+              <InfoTip text={tip} />
+            </span>
+          ) : null}
         </p>
         <p className="text-3xl font-bold tabular-nums">{value}</p>
         {sub ? (
@@ -593,6 +684,133 @@ function Stat({
       </CardContent>
     </Card>
   );
+}
+
+type ChartKey = "followers" | "typical" | "rate" | "cadence";
+
+const WEEK_MS = 7 * 86_400_000;
+
+/**
+ * The bars for a Summary card's figure, or null for followers (GrowthChart).
+ * Each uses the card's own basis, so the dashed line is the card's number:
+ * views or interactions per post; the rate per post on views where a post has
+ * usable views, else per follower (lib/analytics-types engagementRate); and
+ * posts in each week from Monday.
+ */
+function trendFor(
+  key: ChartKey,
+  input: {
+    posts: PostRecord[];
+    hasViews: boolean;
+    followers: number;
+    range: ResolvedRange;
+    typical: number;
+    rate: number;
+    perWeek: number;
+  },
+): {
+  title: string;
+  note: string;
+  name: string;
+  rows: TrendRow[];
+  format: (value: number) => string;
+  reference?: { value: number; label: string };
+} | null {
+  const { posts, hasViews, followers, range } = input;
+  const byDate = [...posts].sort((a, b) => a.publishedAt.localeCompare(b.publishedAt));
+  const label = (post: PostRecord) =>
+    `${dayMonth(new Date(post.publishedAt))} · ${postTitle(post.caption, 50)}`;
+
+  if (key === "typical") {
+    const unit = hasViews ? "views" : "interactions";
+    return {
+      title: hasViews ? "Views on each post" : "Interactions on each post",
+      note: `Dashed line: your typical post, ${compact(input.typical)} ${unit}`,
+      name: hasViews ? "Views" : "Interactions",
+      rows: byDate.map((post) => ({
+        date: post.publishedAt,
+        value: hasViews ? viewsOf(post) : engagementsOf(post),
+        label: label(post),
+        url: post.url ?? null,
+      })),
+      format: compact,
+      reference: { value: input.typical, label: `Typical ${compact(input.typical)}` },
+    };
+  }
+
+  if (key === "rate") {
+    // The same basis the card's rate uses (engagementRate): public views when
+    // any post has a usable public count, else interactions per follower.
+    // Instagram's own view figures (post.insight) are not that basis, so a
+    // period whose posts have only those is measured per follower.
+    const usable = (post: PostRecord) =>
+      publicViewsOf(post) > 0 && engagementsOf(post) <= publicViewsOf(post);
+    const onViews = byDate.some(usable);
+    const rows = byDate
+      .map((post) => {
+        const engagements = engagementsOf(post);
+        const value = onViews
+          ? usable(post)
+            ? engagements / publicViewsOf(post)
+            : null
+          : followers > 0
+            ? engagements / followers
+            : null;
+        return value == null
+          ? null
+          : { date: post.publishedAt, value, label: label(post), url: post.url ?? null };
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+    return {
+      title: "Engagement rate on each post",
+      note: `${onViews ? "Interactions ÷ views" : "Interactions ÷ followers"} · dashed line: the period's rate, ${percent(input.rate, 2)}`,
+      name: "Engagement rate",
+      rows,
+      format: (value) => percent(value, value < 0.01 ? 2 : 1),
+      reference: { value: input.rate, label: percent(input.rate, 2) },
+    };
+  }
+
+  if (key === "cadence") {
+    if (!byDate.length) {
+      return { title: "Posts each week", note: "", name: "Posts", rows: [], format: String };
+    }
+    const monday = (time: number) => {
+      const day = new Date(time);
+      day.setHours(0, 0, 0, 0);
+      day.setDate(day.getDate() - ((day.getDay() + 6) % 7));
+      return day.getTime();
+    };
+    const first = Date.parse(byDate[0]!.publishedAt);
+    const start = monday(range.from ? Math.max(range.from.getTime(), 0) : first);
+    const end = range.to ? range.to.getTime() - 1 : Date.now();
+    const counts = new Map<number, number>();
+    for (const post of byDate) {
+      const week = monday(Date.parse(post.publishedAt));
+      counts.set(week, (counts.get(week) ?? 0) + 1);
+    }
+    const rows: TrendRow[] = [];
+    for (let week = start; week <= end; week += WEEK_MS) {
+      // Recomputed from the date each time, so a clock change never shifts the weeks.
+      const at = monday(week + 12 * 3_600_000);
+      rows.push({
+        date: new Date(at).toISOString(),
+        value: counts.get(at) ?? 0,
+        label: `Week of ${dayMonth(new Date(at))}`,
+      });
+      week = at;
+    }
+    return {
+      title: "Posts each week",
+      note: `Dashed line: ${input.perWeek.toFixed(1)} a week on average`,
+      name: "Posts",
+      rows,
+      format: (value) => String(Math.round(value)),
+      reference: { value: input.perWeek, label: `${input.perWeek.toFixed(1)} a week` },
+    };
+  }
+
+  return null;
 }
 
 function FindingCard({

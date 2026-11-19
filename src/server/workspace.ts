@@ -7,17 +7,31 @@
 // the analytics — it is the creator's normal action, and the link between
 // suggestion and outcome falls out of it for free.
 import {
+  countUsersWithRole,
   readIdeaFormat,
   readQueue,
   readReactionSource,
+  readUserByEmail,
+  hasDurableStore,
   readUsers,
   resolveStaffUser,
+  setUserRole,
   transitionIdea,
 } from "./store";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { isAllowedEmail } from "@/lib/auth";
 import { approvalBlockers, productionBlockers } from "@/lib/reaction";
-import { canTransitionAny, QUEUE_STATUS, type IdeaStatus, type Role } from "@/lib/roles";
+import {
+  canTransitionAny,
+  QUEUE_STATUS,
+  ROLE_LABEL,
+  ASSIGNABLE_ROLES,
+  type IdeaStatus,
+  type Role,
+  ROLE_ORDER,
+} from "@/lib/roles";
 import { readAssignments, readClient } from "./store";
-import type { DailyHook, WorkItem, Workspace } from "@/lib/workspace-types";
+import type { Access, DailyHook, TeamMember, WorkItem, Workspace } from "@/lib/workspace-types";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -78,9 +92,147 @@ function dailyHook(role: Role, items: WorkItem[]): DailyHook {
   return { waiting, newSinceYesterday, oldestDays, headline };
 }
 
-export async function loadWorkspace(role: Role): Promise<Workspace> {
+/**
+ * T46 — who this request is from, and what they actually hold.
+ *
+ * Built from the verified session email alone. Nothing the browser sends is
+ * consulted, which is the whole point: before this, the role was a parameter
+ * the caller set, so the permission model only described what the screens
+ * chose to hide.
+ *
+ * A person's roles come from their client assignments where they have any —
+ * someone can be a creator on one account and an editor on another — and
+ * otherwise from their one row in the team table. The row is created on first
+ * sight, so a new colleague is a creator from their first click rather than
+ * whatever the role switcher happened to be set to.
+ */
+export async function accessFor(staffEmail: string): Promise<Access> {
+  const email = staffEmail.trim().toLowerCase();
+  const fallback: Access = {
+    userId: null,
+    name: email.split("@")[0] ?? "You",
+    email,
+    roles: ["creator"],
+    canManageTeam: false,
+    isFounder: false,
+  };
+  if (!email) return fallback;
+
+  const existing = await readUserByEmail(email).catch(() => null);
+  const userId = existing?.id ?? (await resolveStaffUser(email).catch(() => null));
+  if (!userId) return fallback;
+
+  const user = existing ?? (await readUserByEmail(email).catch(() => null));
+  const assigned = await readAssignments(userId).catch(() => []);
+  const given = assigned.length
+    ? [...new Set(assigned.map((entry) => entry.role))]
+    : [user?.role ?? "creator"];
+  // An admin can do everything (Settings says so, 18 Nov 2026): every role,
+  // admin first. Before this an admin with no account roles could see the
+  // whole queue but not approve, dismiss or publish anything in it.
+  const roles: Role[] = given.includes("team_manager") ? [...ROLE_ORDER] : given;
+
+  return {
+    userId,
+    name: user?.name || (email.split("@")[0] ?? "You"),
+    email,
+    roles,
+    canManageTeam: roles.includes("team_manager"),
+    // Said once, on the screen, so the first person understands why they hold
+    // the keys: there was nobody to grant them.
+    isFounder: roles.includes("team_manager") && (await countUsersWithRole("team_manager")) === 1,
+  };
+}
+
+/**
+ * Changes what one person may do. Team managers only.
+ *
+ * Refuses to demote the last team manager. A team with none cannot grant a
+ * role to anybody ever again, and recovering from that means someone editing
+ * the database by hand — so the one move that creates it is blocked here.
+ */
+export async function changeRole(input: {
+  staffEmail: string;
+  userId: string;
+  role: Role;
+}): Promise<{ ok: boolean; reason?: string }> {
+  const access = await accessFor(input.staffEmail);
+  if (!access.canManageTeam) {
+    return { ok: false, reason: "Only an admin can change what someone is allowed to do." };
+  }
+
+  const people = await readUsers().catch(() => []);
+  const target = people.find((person) => person.id === input.userId);
+  if (!target) return { ok: false, reason: "That person is no longer on the team." };
+  if (target.role === input.role) return { ok: true };
+  if (!ASSIGNABLE_ROLES.includes(input.role)) {
+    return { ok: false, reason: "Choose Admin, Growth manager or Content editor." };
+  }
+
+  if (target.role === "team_manager" && input.role !== "team_manager") {
+    const managers = people.filter((person) => person.role === "team_manager").length;
+    if (managers <= 1) {
+      return {
+        ok: false,
+        reason:
+          "This is the only admin. Make someone else an admin first, or nobody will be able to change roles again.",
+      };
+    }
+  }
+
+  const changed = await setUserRole(input.userId, input.role);
+  return changed
+    ? { ok: true }
+    : { ok: false, reason: "That change did not save — reload and try again." };
+}
+
+/** Cards shown on the To do page; the counts cover every item. */
+const QUEUE_SHOWN = 60;
+// Supabase returns at most 1,000 rows a request.
+const QUEUE_READ_LIMIT = 1000;
+
+/**
+ * The queue for one role, plus who the reader is and what they may do.
+ *
+ * The role asked for is a LENS, and an unheld one is refused rather than
+ * quietly swapped: a creator asking for the team manager's roll-up should be
+ * told no, not shown a different screen and left wondering.
+ */
+/**
+ * Everyone who can sign in is on the team (19 Nov 2026). A person used to get
+ * a row only when they opened To do or Settings themselves, so colleagues who
+ * signed in elsewhere (sahil@, kamalp@, tprakash@) never appeared and could
+ * not be given a role. Each @mediallianz.com login without a row gets one, as
+ * a content creator (store roleForNewUser), and keeps whatever role is set
+ * after. Never fatal: the team shows as stored when the login list is not
+ * readable.
+ */
+export async function syncTeamFromLogins(): Promise<void> {
+  if (!hasDurableStore()) return;
+  try {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+    if (error) throw error;
+    const known = new Set(
+      (await readUsers().catch(() => [])).map((user) => user.email?.toLowerCase()),
+    );
+    const missing = (data?.users ?? [])
+      .map((user) => user.email?.trim().toLowerCase() ?? "")
+      .filter((email) => email && isAllowedEmail(email) && !known.has(email));
+    await Promise.all(missing.map((email) => resolveStaffUser(email).catch(() => null)));
+  } catch (error) {
+    console.warn("[team] logins not read; the team shows as stored:", error);
+  }
+}
+
+export async function loadWorkspace(role: Role, staffEmail: string): Promise<Workspace> {
+  const access = await accessFor(staffEmail);
+  await syncTeamFromLogins();
+  const lens = access.roles.includes(role) ? role : (access.roles[0] ?? "creator");
+
   const [rows, users] = await Promise.all([
-    readQueue(QUEUE_STATUS[role]).catch(() => []),
+    // Every item, for honest counts: the headline and the roll-up were worked
+    // out from the newest 60 alone, so 212 in flight read as "60" (18 Nov 2026).
+    readQueue(QUEUE_STATUS[lens], QUEUE_READ_LIMIT).catch(() => []),
     readUsers().catch(() => []),
   ]);
 
@@ -101,14 +253,26 @@ export async function loadWorkspace(role: Role): Promise<Workspace> {
     ageDays: ageOf(row),
   }));
 
+  const team: TeamMember[] = users.map((user) => ({
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    isYou: user.id === access.userId,
+  }));
+
   const workspace: Workspace = {
-    role,
-    items,
-    today: dailyHook(role, items),
+    role: lens,
+    access,
+    team,
+    // The cards: the newest, so the page stays short.
+    items: items.slice(0, QUEUE_SHOWN),
+    total: items.length,
+    today: dailyHook(lens, items),
     noUsers: users.length === 0,
   };
 
-  if (role === "team_manager") {
+  if (lens === "team_manager") {
     const counts = new Map<IdeaStatus, number>();
     for (const item of items) counts.set(item.status, (counts.get(item.status) ?? 0) + 1);
 
@@ -155,38 +319,32 @@ export async function advance(inputArg: {
   const from = input.from as IdeaStatus;
   const to = input.to as IdeaStatus;
 
-  // The person acting, as a users row. Resolved from the verified session
-  // email by the caller; created on first use so the audit columns —
-  // approved_by, assigned_to, produced_by — finally record a real person.
-  if (!input.actorId && input.staffEmail) {
-    const resolved = await resolveStaffUser(input.staffEmail, input.role).catch(() => null);
-    if (resolved) input = { ...input, actorId: resolved };
-  }
+  // Who this actually is, and what they actually hold — from the verified
+  // session email alone (T46). The role on the request is a claim about which
+  // lens the person was looking through; it is checked against this, never
+  // believed. The users row is created on first sight, so the audit columns —
+  // approved_by, assigned_to, produced_by — record a real person from the
+  // first action onward.
+  const access = input.staffEmail ? await accessFor(input.staffEmail).catch(() => null) : null;
+  if (access?.userId && !input.actorId) input = { ...input, actorId: access.userId };
 
-  // Which roles this person ACTUALLY holds, rather than the one they claimed.
-  //
-  // Without this the role is just a parameter the caller sets, and the whole
-  // permission model is advisory. An actor with no assignments falls back to
-  // the claimed role, which keeps the single-user setup working before anyone
-  // has been added to the team.
-  let roles: Role[] = [input.role];
-  if (input.actorId) {
-    const assigned = await readAssignments(input.actorId).catch(() => []);
-    if (assigned.length) {
-      roles = assigned.map((entry) => entry.role);
-      if (!roles.includes(input.role)) {
-        return {
-          ok: false,
-          reason: `You are not assigned to this client as a ${input.role.replace(/_/g, " ")}.`,
-        };
-      }
-    }
+  const roles: Role[] = access?.roles ?? [];
+  if (!roles.length) {
+    return { ok: false, reason: "Sign in again — we could not confirm who you are." };
+  }
+  if (!roles.includes(input.role)) {
+    return {
+      ok: false,
+      reason: `You are not a ${ROLE_LABEL[input.role].toLowerCase()} here. You are ${roles
+        .map((role) => ROLE_LABEL[role].toLowerCase())
+        .join(" and ")}. Ask an admin if that is wrong.`,
+    };
   }
 
   if (!canTransitionAny(roles, from, to)) {
     return {
       ok: false,
-      reason: `A ${input.role.replace(/_/g, " ")} cannot move an idea from ${from} to ${to}.`,
+      reason: `A ${ROLE_LABEL[input.role].toLowerCase()} cannot move an idea from ${from} to ${to}.`,
     };
   }
 

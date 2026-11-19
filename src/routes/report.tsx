@@ -6,13 +6,15 @@
 // hidden with a flag.
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Download, TrendingUp } from "lucide-react";
-import { useEffect } from "react";
+import { CalendarRange, Download, TrendingUp } from "lucide-react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Wordmark } from "@/components/brand";
 import { GrowthChart } from "@/components/dashboard/growth-chart";
 import { compactNumber, dateTime } from "@/lib/format";
@@ -33,18 +35,27 @@ export const Route = createFileRoute("/report")({
   validateSearch: z.object({
     // An old link carrying ?period=era lands on the 30-day report rather than
     // an error.
-    period: z.enum(["30d", "90d", "all"]).catch("30d").default("30d"),
+    period: z.enum(["30d", "90d", "all", "custom"]).catch("30d").default("30d"),
+    // A custom period's first and last day, YYYY-MM-DD (19 Nov 2026).
+    from: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional()
+      .catch(undefined),
+    to: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional()
+      .catch(undefined),
   }),
   beforeLoad: async ({ location }) => ({
     staffEmail: await currentStaffEmail(),
     returnTo: location.href,
   }),
-  loaderDeps: ({ search }) => ({ period: search.period }),
+  loaderDeps: ({ search }) => ({ period: search.period, from: search.from, to: search.to }),
   component: ReportGate,
   loader: ({ context, deps }) =>
-    context.staffEmail
-      ? context.queryClient.ensureQueryData(reportQueryOptions(deps.period))
-      : null,
+    context.staffEmail ? context.queryClient.ensureQueryData(reportQueryOptions(deps)) : null,
 });
 
 /**
@@ -305,9 +316,13 @@ function ReportPage() {
   // Suspense, not useQuery: a plain useQuery returns undefined on the server's
   // first pass, so SSR would render the empty state while the client rendered
   // the report — the two disagree and hydration fails.
-  const { period } = Route.useSearch();
+  const { period, from, to } = Route.useSearch();
   const navigate = useNavigate({ from: "/report" });
-  const { data } = useSuspenseQuery(reportQueryOptions(period));
+  const { data } = useSuspenseQuery(reportQueryOptions({ period, from, to }));
+  const today = new Date().toLocaleDateString("en-CA");
+  const [draftFrom, setDraftFrom] = useState(from ?? "");
+  const [draftTo, setDraftTo] = useState(to ?? "");
+  const [customOpen, setCustomOpen] = useState(false);
 
   // A PDF is printed in light mode whatever the screen is set to: dark cards
   // print as solid black blocks and a client receives an unreadable report.
@@ -365,6 +380,58 @@ function ReportPage() {
                 {REPORT_PERIOD_LABEL[option]}
               </Button>
             ))}
+            <Popover open={customOpen} onOpenChange={setCustomOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  size="sm"
+                  variant={period === "custom" ? "secondary" : "ghost"}
+                  aria-pressed={period === "custom"}
+                  className="gap-1.5"
+                >
+                  <CalendarRange className="size-3.5" aria-hidden />
+                  {period === "custom" ? data.periodLabel : "Custom"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-72 space-y-3">
+                <p className="text-sm font-semibold">Custom dates</p>
+                <label className="block space-y-1">
+                  <span className="text-xs text-muted-foreground">From</span>
+                  <Input
+                    type="date"
+                    value={draftFrom}
+                    max={draftTo || today}
+                    onChange={(event) => setDraftFrom(event.target.value)}
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <span className="text-xs text-muted-foreground">To (leave empty for today)</span>
+                  <Input
+                    type="date"
+                    value={draftTo}
+                    min={draftFrom || undefined}
+                    max={today}
+                    onChange={(event) => setDraftTo(event.target.value)}
+                  />
+                </label>
+                <Button
+                  size="sm"
+                  className="w-full"
+                  disabled={!draftFrom || Boolean(draftTo && draftTo < draftFrom)}
+                  onClick={() => {
+                    void navigate({
+                      search: {
+                        period: "custom",
+                        from: draftFrom,
+                        ...(draftTo ? { to: draftTo } : {}),
+                      },
+                    });
+                    setCustomOpen(false);
+                  }}
+                >
+                  Show this period
+                </Button>
+              </PopoverContent>
+            </Popover>
           </div>
           <Button size="sm" variant="outline" className="gap-1.5" onClick={() => window.print()}>
             <Download className="size-3.5" aria-hidden />
@@ -372,7 +439,7 @@ function ReportPage() {
           </Button>
         </div>
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Performance report</h1>
-        <p className="text-sm font-medium">{REPORT_PERIOD_LABEL[data.period]}</p>
+        <p className="text-sm font-medium">{data.periodLabel}</p>
         {data.goal ? (
           <p className="text-sm font-medium">
             Goal: {data.goal.label}

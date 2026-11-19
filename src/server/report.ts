@@ -32,7 +32,7 @@ import {
   type GrowthTrajectory,
 } from "@/lib/growth";
 import { goalScorecard } from "@/lib/goal-scorecard";
-import { REPORT_PERIOD_LABEL, type ReportPeriod } from "@/lib/report-types";
+import { REPORT_PERIOD_LABEL, type ReportRange } from "@/lib/report-types";
 import type { ClientReport, ClientReportPlatform } from "@/lib/report-types";
 
 /** Posts worth showing a client: their own, organic, best first. */
@@ -49,19 +49,47 @@ function bestPosts(posts: PostRecord[], limit: number): PostRecord[] {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Where a reporting period starts, and how to describe it. */
-function periodStart(period: ReportPeriod): { since: string | null; label: string } {
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+const longDay = (day: string) =>
+  new Date(`${day}T00:00:00`).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+/**
+ * Where a reporting period starts and ends, and how to describe it. A custom
+ * period (19 Nov 2026) runs from the start of its first day to the end of its
+ * last; without a last day, up to now.
+ */
+export function periodWindow(range: ReportRange): {
+  since: string | null;
+  until: string | null;
+  label: string;
+} {
   const daysAgo = (days: number) => new Date(Date.now() - days * DAY_MS).toISOString();
-  if (period === "30d") return { since: daysAgo(30), label: REPORT_PERIOD_LABEL["30d"] };
-  if (period === "90d") return { since: daysAgo(90), label: REPORT_PERIOD_LABEL["90d"] };
-  return { since: null, label: REPORT_PERIOD_LABEL.all };
+  if (range.period === "30d")
+    return { since: daysAgo(30), until: null, label: REPORT_PERIOD_LABEL["30d"] };
+  if (range.period === "90d")
+    return { since: daysAgo(90), until: null, label: REPORT_PERIOD_LABEL["90d"] };
+  if (range.period === "custom" && range.from && ISO_DAY.test(range.from)) {
+    const to = range.to && ISO_DAY.test(range.to) && range.to >= range.from ? range.to : null;
+    const since = new Date(`${range.from}T00:00:00`).toISOString();
+    const until = to ? new Date(new Date(`${to}T00:00:00`).getTime() + DAY_MS).toISOString() : null;
+    return {
+      since,
+      until,
+      label: to ? `${longDay(range.from)} – ${longDay(to)}` : `Since ${longDay(range.from)}`,
+    };
+  }
+  return { since: null, until: null, label: REPORT_PERIOD_LABEL.all };
 }
 
 async function platformReport(
   platform: (typeof PLATFORM_IDS)[number],
   primaryMetric: string,
   engagementStart: string | null,
-  period: ReportPeriod,
+  range: ReportRange,
 ): Promise<ClientReportPlatform | null> {
   const owner = OWNER_ACCOUNTS[platform];
 
@@ -78,8 +106,9 @@ async function platformReport(
   // calibration and the goal scorecard — stay cumulative on purpose: they
   // answer "has the advice worked", which a 30-day slice would answer from
   // a handful of posts.
-  const { since, label: periodLabel } = periodStart(period);
-  const inPeriod = (iso: string) => !since || iso >= since;
+  const { since, until, label: periodLabel } = periodWindow(range);
+  // Stored times are ISO strings, so they compare in time order.
+  const inPeriod = (iso: string) => (!since || iso >= since) && (!until || iso < until);
   const growth = allGrowth.filter((point) => inPeriod(point.capturedAt));
   const posts = allPosts.filter((post) => inPeriod(post.publishedAt));
 
@@ -143,7 +172,7 @@ async function platformReport(
  * sync. A client may open this link at any hour, and a page that quietly spends
  * Apify credit each time it is viewed is a bill nobody agreed to.
  */
-export async function loadReport(period: ReportPeriod = "30d"): Promise<ClientReport> {
+export async function loadReport(range: ReportRange = { period: "30d" }): Promise<ClientReport> {
   const client = await readClient().catch(() => null);
   const primaryMetric = client
     ? client.primaryMetric || DEFAULT_PRIMARY_METRIC[client.growthGoal]
@@ -152,7 +181,7 @@ export async function loadReport(period: ReportPeriod = "30d"): Promise<ClientRe
   const platforms = (
     await Promise.all(
       PLATFORM_IDS.map((platform) =>
-        platformReport(platform, primaryMetric, client?.engagementStart ?? null, period).catch(
+        platformReport(platform, primaryMetric, client?.engagementStart ?? null, range).catch(
           (error: unknown) => {
             console.error(`[report:${platform}] failed:`, error);
             return null;
@@ -171,7 +200,8 @@ export async function loadReport(period: ReportPeriod = "30d"): Promise<ClientRe
 
   return {
     generatedAt: new Date().toISOString(),
-    period,
+    period: range.period,
+    periodLabel: periodWindow(range).label,
     goal: client
       ? {
           growthGoal: client.growthGoal,

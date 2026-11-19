@@ -1,5 +1,5 @@
 // Applies the selected date range to a platform's stored payload.
-import { eraWindow, sharedEra, withinRange, type ResolvedRange } from "@/lib/date-range";
+import { eraWindow, withinRange, type ResolvedRange } from "@/lib/date-range";
 import { goalReadFor, laneExpectations } from "@/lib/prediction";
 import { lanePerformance } from "@/lib/analytics-types";
 import type { GrowthGoal } from "@/lib/growth";
@@ -51,11 +51,10 @@ export function filterPlatform(
   data: PlatformData,
   range: ResolvedRange,
   growthGoal: GrowthGoal | null = null,
-  /** The other account's strategy change, when this one has none. */
-  shared: PlatformData["currentEra"] = null,
 ): PlatformData {
-  // "Current era" is resolved per platform; every other range is unchanged.
-  const window = eraWindow(range, data.currentEra, shared);
+  // "Since strategy change" is resolved per platform, each from its own date;
+  // every other range is unchanged.
+  const window = eraWindow(range, data.currentEra);
   const posts = data.posts.filter((post) => withinRange(post.publishedAt, window));
   return {
     ...data,
@@ -75,8 +74,6 @@ export function filterDashboard(data: DashboardData, range: ResolvedRange): Dash
   const growthGoal = (data.goal?.growthGoal ?? null) as GrowthGoal | null;
   return {
     ...data,
-    platforms: data.platforms.map((p) =>
-      filterPlatform(p, range, growthGoal, sharedEra(data.platforms)),
-    ),
+    platforms: data.platforms.map((p) => filterPlatform(p, range, growthGoal)),
   };
 }

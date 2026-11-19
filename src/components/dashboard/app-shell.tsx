@@ -31,7 +31,6 @@ import {
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
@@ -43,7 +42,6 @@ import { BrandMark } from "@/components/brand";
 import { RangePicker } from "@/components/dashboard/range-picker";
 import { SyncButton } from "@/components/dashboard/sync-button";
 import { PLATFORM_META } from "@/lib/platform-meta";
-import { useWaitingIdeas } from "@/lib/use-waiting-ideas";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -57,7 +55,8 @@ interface NavItem {
 const MAIN: NavItem[] = [
   { to: "/", label: "Home", icon: House },
   { to: "/workspace", label: "To do", icon: ListChecks },
-  { to: "/ideas", label: "Ideas", icon: Lightbulb, also: ["/saved", "/trends", "/reactions"] },
+  // Opens on Trends: the one-card review is gone (18 Nov 2026).
+  { to: "/trends", label: "Ideas", icon: Lightbulb, also: ["/ideas", "/saved", "/reactions"] },
   { to: "/filmed", label: "Published", icon: Film },
   { to: "/report", label: "Reports", icon: FileText },
 ];
@@ -108,7 +107,6 @@ export function AppShell({
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { waiting } = useWaitingIdeas();
 
   // A session can end elsewhere: another tab signing out, or a refresh token
   // expiring. Follow it rather than leave a dashboard of failing requests.
@@ -123,7 +121,6 @@ export function AppShell({
   }, [navigate, queryClient]);
 
   const title = TITLES[pathname] ?? "";
-  const todo = waiting.length;
 
   return (
     <SidebarProvider>
@@ -157,11 +154,6 @@ export function AppShell({
                         <span>{item.label}</span>
                       </Link>
                     </SidebarMenuButton>
-                    {item.to === "/workspace" && todo ? (
-                      <SidebarMenuBadge className="top-3 rounded-full bg-primary px-2 text-[13px] text-primary-foreground">
-                        {todo}
-                      </SidebarMenuBadge>
-                    ) : null}
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
@@ -181,11 +173,8 @@ export function AppShell({
                       className="h-11 text-sm"
                     >
                       <Link to={meta.route}>
-                        <span
-                          aria-hidden
-                          className="mx-1 size-2.5 shrink-0 rounded-full"
-                          style={{ backgroundColor: meta.color }}
-                        />
+                        {/* The platform's own icon in its colour, with the name (19 Nov 2026). */}
+                        <meta.icon aria-hidden style={{ color: meta.color }} />
                         <span>{meta.label}</span>
                       </Link>
                     </SidebarMenuButton>
@@ -234,7 +223,7 @@ export function AppShell({
         <main className="flex flex-1 flex-col gap-6 p-4 pb-24 md:p-6 md:pb-6">{children}</main>
       </SidebarInset>
 
-      <BottomBar pathname={pathname} todo={todo} />
+      <BottomBar pathname={pathname} />
     </SidebarProvider>
   );
 }
@@ -243,10 +232,10 @@ export function AppShell({
  * The phone's menu (the mockup's Phone, Home): four tabs at the bottom,
  * within reach of a thumb. Hidden from tablet width up, where the sidebar is.
  */
-function BottomBar({ pathname, todo }: { pathname: string; todo: number }) {
-  const tabs: Array<NavItem & { badge?: number }> = [
+function BottomBar({ pathname }: { pathname: string }) {
+  const tabs: NavItem[] = [
     MAIN[0]!,
-    { ...MAIN[1]!, badge: todo },
+    MAIN[1]!,
     MAIN[2]!,
     { to: "/instagram", label: "Accounts", icon: UsersRound, also: ["/linkedin"] },
   ];
@@ -268,10 +257,7 @@ function BottomBar({ pathname, todo }: { pathname: string; todo: number }) {
             aria-current={active ? "page" : undefined}
           >
             <tab.icon className="size-5" aria-hidden />
-            <span>
-              {tab.label}
-              {tab.badge ? ` · ${tab.badge}` : ""}
-            </span>
+            <span>{tab.label}</span>
           </Link>
         );
       })}

@@ -35,8 +35,12 @@ export function ErasPanel({ platform }: { platform: PlatformId }) {
   const [labels, setLabels] = useState<Record<string, string>>({});
   const [failure, setFailure] = useState<string | null>(null);
 
+  // The dashboard too: every page's "Since strategy change" reads its copy.
   const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: erasQueryOptions(platform).queryKey });
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: erasQueryOptions(platform).queryKey }),
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
+    ]);
 
   const accept = useMutation({
     mutationFn: (boundary: EraBoundary) =>
@@ -58,6 +62,28 @@ export function ErasPanel({ platform }: { platform: PlatformId }) {
     onError: (error) => setFailure(String(error)),
   });
 
+  // A date set by hand (19 Nov 2026): a change the data has not shown yet, or
+  // one on an account where nothing was detected, such as LinkedIn.
+  const [manualDate, setManualDate] = useState("");
+  const [manualLabel, setManualLabel] = useState("");
+  const setByHand = useMutation({
+    mutationFn: () =>
+      confirmEra({
+        data: {
+          platform,
+          startsAt: manualDate,
+          label: manualLabel.trim() || `Era from ${manualDate}`,
+          origin: "manual",
+        },
+      }),
+    onSuccess: () => {
+      setManualDate("");
+      setManualLabel("");
+      void invalidate();
+    },
+    onError: (error) => setFailure(String(error)),
+  });
+
   const drop = useMutation({
     mutationFn: (id: string) => removeEra({ data: { id } }),
     onSuccess: invalidate,
@@ -66,10 +92,6 @@ export function ErasPanel({ platform }: { platform: PlatformId }) {
 
   const eras = data?.eras ?? [];
   const proposed = data?.proposed ?? [];
-
-  // Nothing confirmed and nothing detected is the normal state for a young
-  // account, and an empty card explaining eras on every page would be noise.
-  if (!isLoading && !eras.length && !proposed.length) return null;
 
   return (
     <>
@@ -153,6 +175,43 @@ export function ErasPanel({ platform }: { platform: PlatformId }) {
               ))}
             </div>
           ) : null}
+
+          <div className="space-y-2 border-t pt-3">
+            <p className="text-xs font-medium text-muted-foreground">
+              {eras.length
+                ? "Changed strategy again? Set the date by hand."
+                : `No strategy change set for ${PLATFORM_META[platform].label} yet. Set the date it changed by hand.`}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Input
+                type="date"
+                value={manualDate}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(event) => setManualDate(event.target.value)}
+                className="h-9 w-40 text-sm"
+                aria-label={`${PLATFORM_META[platform].label} strategy change date`}
+              />
+              <Input
+                value={manualLabel}
+                onChange={(event) => setManualLabel(event.target.value)}
+                placeholder="What changed? e.g. Started writing articles"
+                className="h-9 max-w-xs text-sm"
+              />
+              <Button
+                size="sm"
+                className="h-9"
+                onClick={() => setByHand.mutate()}
+                disabled={!manualDate || setByHand.isPending}
+              >
+                {setByHand.isPending ? (
+                  <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                ) : (
+                  <Check className="size-3.5" aria-hidden />
+                )}
+                Set date
+              </Button>
+            </div>
+          </div>
 
           {failure ? <p className="text-xs text-destructive">{failure}</p> : null}
         </CardContent>

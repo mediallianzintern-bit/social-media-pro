@@ -1,4 +1,4 @@
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useNavigate, useSearch, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -48,13 +48,19 @@ export function RangePicker() {
   // "Since strategy change" exists only once one is confirmed. Without one it
   // would be a second "Last 30 days", so it is hidden, and the default shows
   // the 30 days it falls back to.
-  const era = sharedEra(raw.platforms);
-  const active = search.range === "era" && !era ? "30d" : search.range;
-  const ranges = era ? QUICK_RANGES : QUICK_RANGES.filter((key) => key !== "era");
+  const anyEra = sharedEra(raw.platforms);
+  const active = search.range === "era" && !anyEra ? "30d" : search.range;
+  const ranges = anyEra ? QUICK_RANGES : QUICK_RANGES.filter((key) => key !== "era");
   const resolved = resolveRange(active, search.from, search.to);
-  const eraLabel = era
-    ? `Since strategy change · ${dayMonth(new Date(`${era.startsAt}T00:00:00`))}`
-    : OPTION_LABEL.era;
+  // Each account has its own strategy change (19 Nov 2026). On an account's
+  // page the label is that account's date; elsewhere each account uses its own.
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const onAccount = raw.platforms.find((platform) => pathname === `/${platform.platform}`);
+  const eraLabel = onAccount
+    ? onAccount.currentEra
+      ? `Since strategy change · ${dayMonth(new Date(`${onAccount.currentEra.startsAt}T00:00:00`))}`
+      : "Since strategy change · not set, last 30 days"
+    : "Since each account's strategy change";
 
   const [draftFrom, setDraftFrom] = useState(() => toInputValue(resolved.from));
   const [draftTo, setDraftTo] = useState(() => toInputValue(resolved.to));

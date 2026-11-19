@@ -9,6 +9,7 @@ import { createFileRoute, Link, useNavigate, useRouteContext } from "@tanstack/r
 import { ArrowRight, LogOut, Moon, Sun } from "lucide-react";
 
 import { ErasPanel } from "@/components/dashboard/eras-panel";
+import { TeamRoles } from "@/components/dashboard/team-roles";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
@@ -46,6 +47,8 @@ function SettingsPage() {
           </Button>
         </CardContent>
       </Card>
+
+      <TeamRoles />
 
       <Card>
         <CardHeader>

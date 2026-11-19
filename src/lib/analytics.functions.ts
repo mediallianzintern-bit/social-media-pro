@@ -4,7 +4,7 @@ import { requireStaff } from "@/lib/require-staff";
 
 import type { AiAnalysis } from "@/lib/ai-types";
 import type { DashboardData, PlatformId, SyncResult } from "@/lib/analytics-types";
-import type { ReportPeriod } from "@/lib/report-types";
+import type { ReportRange } from "@/lib/report-types";
 import type { ClientReport } from "@/lib/report-types";
 import type { Role } from "@/lib/roles";
 import type { Workspace } from "@/lib/workspace-types";
@@ -181,16 +181,39 @@ export const dismissIdea = createServerFn({ method: "POST" })
  * link cannot spend Apify credit however often it is opened.
  */
 export const getReport = createServerFn({ method: "GET" })
-  .validator((input: unknown) => z.enum(["30d", "90d", "all"]).catch("30d").parse(input))
+  .validator((input: unknown) =>
+    z
+      .object({
+        period: z.enum(["30d", "90d", "all", "custom"]).catch("30d"),
+        from: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional()
+          .catch(undefined),
+        to: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional()
+          .catch(undefined),
+      })
+      .parse(input),
+  )
   .handler(async ({ data }): Promise<ClientReport> => {
     const { loadReport } = await import("@/server/report");
     return loadReport(data);
   });
 
 /** One cache entry per period, so switching back and forth is instant. */
-export const reportQueryOptions = (period: ReportPeriod = "30d") => ({
-  queryKey: ["report", period] as const,
-  queryFn: () => getReport({ data: period }),
+export const reportQueryOptions = (range: ReportRange = { period: "30d" }) => ({
+  queryKey: ["report", range.period, range.from ?? null, range.to ?? null] as const,
+  queryFn: () =>
+    getReport({
+      data: {
+        period: range.period,
+        ...(range.from ? { from: range.from } : {}),
+        ...(range.to ? { to: range.to } : {}),
+      },
+    }),
   staleTime: 5 * 60 * 1000,
 });
 
@@ -203,9 +226,25 @@ const roleSchema = z.enum(["growth_manager", "creator", "editor", "team_manager"
 /** Everything a role's landing view needs: its queue, and its "for you today". */
 export const getWorkspace = createServerFn({ method: "GET" })
   .validator((input: unknown) => roleSchema.parse(input))
-  .handler(async ({ data }): Promise<Workspace> => {
+  .handler(async ({ data, context }): Promise<Workspace> => {
     const { loadWorkspace } = await import("@/server/workspace");
-    return loadWorkspace(data);
+    return loadWorkspace(data, context.staffEmail);
+  });
+
+/**
+ * T46 — changes what one person is allowed to do.
+ *
+ * The caller's own authority is read from their session inside changeRole, not
+ * taken from this request: a screen that hides the control is a convenience,
+ * and this is the enforcement.
+ */
+export const setTeamRole = createServerFn({ method: "POST" })
+  .validator((input: unknown) =>
+    z.object({ userId: z.string().uuid(), role: roleSchema }).parse(input),
+  )
+  .handler(async ({ data, context }): Promise<{ ok: boolean; reason?: string }> => {
+    const { changeRole } = await import("@/server/workspace");
+    return changeRole({ ...data, staffEmail: context.staffEmail });
   });
 
 /**
@@ -253,10 +292,9 @@ export const teamQueryOptions = {
 /**
  * Hands an idea to a person, or clears who has it.
  *
- * Limited to the growth manager and team manager lenses, matching B.8.1:
- * deciding who makes what is a planning decision. As with every workspace
- * move, the lens is a claim until T46 ties people to roles — the session is
- * verified, the role is not yet.
+ * Limited to growth managers and team managers, matching B.8.1: deciding who
+ * makes what is a planning decision. Since T46 the role is read from the
+ * signed-in person's team record, so this is a permission rather than a lens.
  */
 export const assignIdeaTo = createServerFn({ method: "POST" })
   .middleware([requireStaff])
@@ -269,9 +307,17 @@ export const assignIdeaTo = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data }): Promise<{ ok: boolean; reason?: string }> => {
-    if (data.role !== "growth_manager" && data.role !== "team_manager") {
-      return { ok: false, reason: "Only a growth manager or team manager assigns ideas." };
+  .handler(async ({ data, context }): Promise<{ ok: boolean; reason?: string }> => {
+    // The role on the request says which lens the person was using. Whether
+    // they hold it is read from their session (T46) — before that check this
+    // gate could be passed by anyone who picked the right role from a menu.
+    const { accessFor } = await import("@/server/workspace");
+    const access = await accessFor(context.staffEmail);
+    const allowed = access.roles.some(
+      (role) => role === "growth_manager" || role === "team_manager",
+    );
+    if (!allowed) {
+      return { ok: false, reason: "Only a growth manager or an admin assigns ideas." };
     }
     const { assignIdea } = await import("@/server/store");
     const ok = await assignIdea(data.id, data.userId);
@@ -826,7 +872,7 @@ export const confirmReactionFactsFn = createServerFn({ method: "POST" })
   .validator((input: unknown) => z.string().uuid().parse(input))
   .handler(async ({ data, context }) => {
     const { confirmReactionFacts, resolveStaffUser } = await import("@/server/store");
-    const userId = await resolveStaffUser(context.staffEmail, "growth_manager").catch(() => null);
+    const userId = await resolveStaffUser(context.staffEmail).catch(() => null);
     const ok = await confirmReactionFacts(data, userId);
     return ok ? { ok } : { ok: false, reason: "That idea could not be found." };
   });

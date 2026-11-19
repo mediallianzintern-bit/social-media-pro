@@ -49,7 +49,9 @@ import {
   TREND_CATEGORY_LABEL,
   type AddedOn,
   type TrendItem,
+  type WrittenPiece,
 } from "@/lib/universal-trends";
+import { writeLinkedIn } from "@/lib/linkedin-write.functions";
 import {
   addTrend,
   fetchTrendsNow,
@@ -427,7 +429,9 @@ function TrendRow({
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {PLATFORMS.map((platform) => {
               const on = item.added?.[platform];
-              return on ? <AddedBadge key={platform} platform={platform} on={on} /> : null;
+              return on ? (
+                <AddedBadge key={platform} platform={platform} on={on} onWritten={onWritten} />
+              ) : null;
             })}
           </div>
         ) : null}
@@ -600,10 +604,45 @@ function AddToPlatform({
   );
 }
 
-/** Where a story already went, with a link to what was written there, open in its drawer. */
-function AddedBadge({ platform, on }: { platform: PlatformId; on: AddedOn }) {
+/**
+ * Where a story already went, with a link to each piece written there, open in
+ * its drawer. On LinkedIn a post and an article can both be written from one
+ * story (19 Nov 2026): each gets its own link, and the one not written yet a
+ * button to write it (one AI call, only on that press).
+ */
+function AddedBadge({
+  platform,
+  on,
+  onWritten,
+}: {
+  platform: PlatformId;
+  on: AddedOn;
+  onWritten: (idea: ContentIdea, platform: PlatformId) => void;
+}) {
   const meta = PLATFORM_META[platform];
-  const noun = platform === "instagram" ? "script" : "post";
+  const queryClient = useQueryClient();
+  const pieces: WrittenPiece[] =
+    on.written ??
+    (on.ideaId ? [{ ideaId: on.ideaId, kind: platform === "instagram" ? "script" : "post" }] : []);
+  const missing =
+    platform === "linkedin"
+      ? (["post", "article"] as const).filter(
+          (kind) => !pieces.some((piece) => piece.kind === kind),
+        )
+      : [];
+  const write = useMutation({
+    mutationFn: (kind: "post" | "article") =>
+      writeLinkedIn({
+        data: { sourceId: on.sourceId, format: kind === "article" ? "article" : "text_post" },
+      }),
+    onSuccess: (result) => {
+      if (result.analysis) {
+        queryClient.setQueryData(analysisQueryOptions(platform).queryKey, result.analysis);
+      }
+      void queryClient.invalidateQueries({ queryKey: universalTrendsQueryOptions.queryKey });
+      if (result.idea) onWritten(result.idea, platform);
+    },
+  });
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5 text-xs">
       <Badge
@@ -614,19 +653,50 @@ function AddedBadge({ platform, on }: { platform: PlatformId; on: AddedOn }) {
         On {meta.label}
         {on.lane ? ` · ${on.lane}` : ""}
       </Badge>
-      {on.ideaId ? (
-        <Button asChild size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-xs">
+      {pieces.map((piece) => (
+        <Button
+          key={piece.ideaId}
+          asChild
+          size="sm"
+          variant="ghost"
+          className="h-6 gap-1 px-1.5 text-xs"
+        >
           <Link
             to={platform === "instagram" ? "/instagram" : "/linkedin"}
-            search={(prev) => ({ ...prev, idea: on.ideaId! })}
+            search={(prev) => ({ ...prev, idea: piece.ideaId })}
           >
             <FileText className="size-3" aria-hidden />
-            Open the {meta.label} {noun}
+            Open the {meta.label} {piece.kind}
           </Link>
         </Button>
-      ) : (
+      ))}
+      {!pieces.length && !missing.length ? (
         <span className="text-muted-foreground">in topics, not written yet</span>
-      )}
+      ) : null}
+      {missing.map((kind) => (
+        <Button
+          key={kind}
+          size="sm"
+          variant="outline"
+          className="h-6 gap-1 px-1.5 text-xs"
+          disabled={write.isPending}
+          onClick={() => write.mutate(kind)}
+        >
+          {write.isPending && write.variables === kind ? (
+            <Loader2 className="size-3 animate-spin" aria-hidden />
+          ) : (
+            <Sparkles className="size-3" aria-hidden />
+          )}
+          {write.isPending && write.variables === kind
+            ? `Writing the ${kind}… up to 3 minutes`
+            : `Write ${pieces.length ? `the ${kind} too` : `a ${kind}`}`}
+        </Button>
+      ))}
+      {write.error ? (
+        <span className="text-destructive">
+          {write.error instanceof Error ? write.error.message : "Could not write it."}
+        </span>
+      ) : null}
     </span>
   );
 }

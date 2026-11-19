@@ -10,6 +10,9 @@ import { Info } from "lucide-react";
 
 import { FollowFlowLine } from "@/components/dashboard/follow-flow-line";
 import { PostCover, Sparkline } from "@/components/dashboard/post-cover";
+import { KindBadge } from "@/components/dashboard/posts-browser";
+import { linkedInAnalyticsQueryOptions } from "@/lib/linkedin-api.functions";
+import { useQuery } from "@tanstack/react-query";
 import { PostInsightButton } from "@/components/dashboard/post-insight-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +35,6 @@ import { dayMonth, type ResolvedRange } from "@/lib/date-range";
 import { fullNumber, percent } from "@/lib/format";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import { usePlatform, useFilteredDashboard } from "@/lib/use-dashboard";
-import { useWaitingIdeas } from "@/lib/use-waiting-ideas";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/")({ component: Home });
@@ -50,7 +52,6 @@ function Home() {
   const { data } = useFilteredDashboard();
   const instagram = usePlatform("instagram");
   const linkedin = usePlatform("linkedin");
-  const { waiting, byPlatform } = useWaitingIdeas();
 
   const ranges = { instagram: instagram.range, linkedin: linkedin.range };
   const accounts = [instagram, linkedin]
@@ -65,21 +66,6 @@ function Home() {
     }));
 
   const actions: Action[] = [];
-  if (waiting.length) {
-    actions.push({
-      title: `Review ${waiting.length} idea${waiting.length === 1 ? "" : "s"} waiting for you`,
-      detail: [
-        byPlatform.instagram ? `${byPlatform.instagram} for Instagram` : "",
-        byPlatform.linkedin ? `${byPlatform.linkedin} for LinkedIn` : "",
-      ]
-        .filter(Boolean)
-        .join(", ")
-        .concat("."),
-      button: "Review ideas",
-      to: "/ideas",
-      primary: true,
-    });
-  }
   // The account that needs attention first, then the other.
   const ordered = [...accounts].sort(
     (a, b) => Number(b.summary.needsAttention) - Number(a.summary.needsAttention),
@@ -109,8 +95,9 @@ function Home() {
     }
   }
 
-  // The period's best post: the one furthest above its own account's typical post.
-  const best = accounts
+  // The period's best post on EACH account (19 Nov 2026): the one furthest
+  // above that account's typical post, Instagram's and LinkedIn's side by side.
+  const bests = accounts
     .map(({ data: account, summary }) => {
       const post = bestPost(account);
       return post
@@ -122,8 +109,7 @@ function Home() {
           }
         : null;
     })
-    .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
-    .sort((a, b) => b.ratio - a.ratio)[0];
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6">
@@ -149,6 +135,10 @@ function Home() {
           {verdict(accounts.map((entry) => entry.summary))}
         </h2>
       </div>
+
+      {accounts.length > 1 ? (
+        <TotalAudience summaries={accounts.map((entry) => entry.summary)} />
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">
         {accounts.map(({ data: account, summary }) => (
@@ -200,8 +190,63 @@ function Home() {
         </Card>
       ) : null}
 
-      {best ? <BestPost {...best} /> : null}
+      {bests.map((entry) => (
+        <BestPost key={entry.account.platform} {...entry} />
+      ))}
     </div>
+  );
+}
+
+/**
+ * Both accounts' followers added up (the live Overview's "Total audience").
+ * The change is shown only when every account has one over the same period,
+ * so the sum never mixes two different windows.
+ */
+function TotalAudience({ summaries }: { summaries: Array<AccountSummary & { label: string }> }) {
+  const counted = summaries.filter((summary) => summary.followers != null);
+  if (!counted.length) return null;
+  const total = counted.reduce((sum, summary) => sum + (summary.followers ?? 0), 0);
+  const sameWindow =
+    counted.length === summaries.length &&
+    counted.every((summary) => summary.change != null && summary.since === counted[0]!.since);
+  const change = sameWindow
+    ? counted.reduce((sum, summary) => sum + (summary.change ?? 0), 0)
+    : null;
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold">Total audience</p>
+          <p className="mt-1 text-4xl font-bold tabular-nums">{fullNumber(total)}</p>
+          <p className="text-[13px] text-muted-foreground">
+            followers across {counted.map((summary) => summary.label).join(" and ")}
+          </p>
+        </div>
+        <div className="space-y-1 sm:text-right">
+          {change != null ? (
+            <p
+              className={cn(
+                "text-sm font-semibold",
+                change < 0
+                  ? "text-red-700 dark:text-red-400"
+                  : change > 0
+                    ? "text-emerald-700 dark:text-emerald-400"
+                    : "text-muted-foreground",
+              )}
+            >
+              {change === 0
+                ? `No change ${counted[0]!.since}`
+                : `${change < 0 ? "Down" : "Up"} ${fullNumber(Math.abs(change))} ${counted[0]!.since}`}
+            </p>
+          ) : null}
+          <p className="text-[13px] text-muted-foreground tabular-nums">
+            {counted
+              .map((summary) => `${summary.label} ${fullNumber(summary.followers ?? 0)}`)
+              .join(" · ")}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -288,24 +333,67 @@ function BestPost({
   account: PlatformData;
   summary: AccountSummary & { label: string };
 }) {
-  const parts = [
-    summary.usesViews
-      ? `${compact(viewsOf(post))} views`
-      : `${compact(primaryOf(post, false))} interactions`,
-    post.insight?.saved ? `${compact(post.insight.saved)} saves` : "",
-    post.shares || post.insight?.shares
-      ? `${compact(post.insight?.shares ?? post.shares)} shares`
-      : "",
-  ].filter(Boolean);
+  const linkedin = account.platform === "linkedin";
+  const meta = PLATFORM_META[account.platform];
+  // LinkedIn: LinkedIn's own impressions, and whether this is an article.
+  const { data: figures } = useQuery({ ...linkedInAnalyticsQueryOptions, enabled: linkedin });
+  const article = figures?.articles.find((entry) => entry.postId === post.postId);
+  const impressions = figures?.posts.find((entry) => entry.postId === post.postId)?.impressions;
+  const parts = linkedin
+    ? [
+        impressions ? `${compact(impressions)} impressions` : "",
+        `${compact(primaryOf(post, false))} interactions`,
+        post.comments ? `${compact(post.comments)} comments` : "",
+        post.shares ? `${compact(post.shares)} reposts` : "",
+      ].filter(Boolean)
+    : [
+        summary.usesViews
+          ? `${compact(viewsOf(post))} views`
+          : `${compact(primaryOf(post, false))} interactions`,
+        post.insight?.saved ? `${compact(post.insight.saved)} saves` : "",
+        post.shares || post.insight?.shares
+          ? `${compact(post.insight?.shares ?? post.shares)} shares`
+          : "",
+      ].filter(Boolean);
   return (
     <Card>
       <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
-        <PostCover post={post} className="size-16" />
+        {linkedin ? (
+          <span
+            className="flex size-16 shrink-0 items-center justify-center rounded-lg bg-muted"
+            aria-hidden
+          >
+            <meta.icon className="size-7" style={{ color: meta.color }} />
+          </span>
+        ) : (
+          <PostCover post={post} className="size-16" />
+        )}
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] text-muted-foreground">
-            Best post {summary.since} · {summary.label} · {dayMonth(new Date(post.publishedAt))}
+          <p className="flex flex-wrap items-center gap-x-1.5 text-[13px] text-muted-foreground">
+            <span>
+              Best post {summary.since} · {summary.label} · {dayMonth(new Date(post.publishedAt))}
+            </span>
+            {linkedin ? (
+              <KindBadge
+                article={post.format === "article" || Boolean(article)}
+                minutes={article?.readMinutes ?? null}
+              />
+            ) : null}
           </p>
-          <p className="mt-0.5 text-sm font-semibold">{postTitle(post.caption, 110)}</p>
+          <p className="mt-0.5 text-sm font-semibold">
+            {article?.url || post.url ? (
+              <a
+                href={article?.url ?? post.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="hover:underline"
+              >
+                {article?.title ?? postTitle(post.caption, 110)}
+              </a>
+            ) : (
+              (article?.title ?? postTitle(post.caption, 110))
+            )}
+          </p>
           <p className="text-[13px] text-muted-foreground">{parts.join(" · ")}</p>
         </div>
         <PostInsightButton

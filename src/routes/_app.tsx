@@ -23,7 +23,10 @@ const searchSchema = z.object({
   idea: z.string().uuid().optional().catch(undefined),
   // The tab open on an account page (13 Nov 2026, UI review). Absent means
   // Summary.
-  tab: z.enum(["summary", "posts", "audience", "competitors", "ideas"]).optional().catch(undefined),
+  tab: z
+    .enum(["summary", "posts", "audience", "competitors", "ideas", "saved"])
+    .optional()
+    .catch(undefined),
 });
 
 export const Route = createFileRoute("/_app")({

@@ -69,9 +69,7 @@ export async function createReactionSource(
     (source) => source.sourceUrl === link.url,
   );
   const credit = input.creditText?.trim() || defaultCredit(handle, link.platform);
-  const createdBy = staffEmail
-    ? await resolveStaffUser(staffEmail, "creator").catch(() => null)
-    : null;
+  const createdBy = staffEmail ? await resolveStaffUser(staffEmail).catch(() => null) : null;
 
   const source = await saveReactionSource({
     platform: input.platform,

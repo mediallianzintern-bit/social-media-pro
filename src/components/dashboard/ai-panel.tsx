@@ -39,6 +39,9 @@ import { PLATFORM_META } from "@/lib/platform-meta";
 import type { CompetitorAnalysis, FeedRead, GapTone, TeamTakeaway } from "@/lib/ai-types";
 import type { PlatformId } from "@/lib/analytics-types";
 
+/** Rising on LinkedIn on the LinkedIn Ideas tab. Off until the team says to bring it back. */
+const SHOW_RISING_ON_LINKEDIN = false;
+
 const TONE_CLASS: Record<GapTone, string> = {
   good: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
   bad: "bg-destructive/10 text-destructive",
@@ -592,7 +595,12 @@ export function AiPanel({ platform }: { platform: PlatformId }) {
           right now. Was Instagram-only because LinkedIn posts carry no view
           count — the catcher now measures interactions where views are not
           published, so both platforms have a breakout to measure. */}
-      <InstagramTrends platform={platform} />
+      {/* Rising on LinkedIn is hidden for now (19 Nov 2026), until the team
+          asks for it back: set SHOW_RISING_ON_LINKEDIN to true. Instagram's
+          Reaction hooks list is unchanged. */}
+      {platform === "linkedin" && !SHOW_RISING_ON_LINKEDIN ? null : (
+        <InstagramTrends platform={platform} />
+      )}
 
       {/* These carry a real subject and a full shot list, so this is where the
           "next reel to make" label belongs — not on the rule-based plays below,

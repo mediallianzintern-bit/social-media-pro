@@ -76,6 +76,11 @@ export const readChosenHooks: typeof supabase.readChosenHooks = (...args) =>
   store().readChosenHooks(...args);
 export const resolveStaffUser: typeof supabase.resolveStaffUser = (...args) =>
   store().resolveStaffUser(...args);
+export const readUserByEmail: typeof supabase.readUserByEmail = (...args) =>
+  store().readUserByEmail(...args);
+export const setUserRole: typeof supabase.setUserRole = (...args) => store().setUserRole(...args);
+export const countUsersWithRole: typeof supabase.countUsersWithRole = (...args) =>
+  store().countUsersWithRole(...args);
 export const assignIdea: typeof supabase.assignIdea = (...args) => store().assignIdea(...args);
 export const readReactionSources: typeof supabase.readReactionSources = (...args) =>
   store().readReactionSources(...args);

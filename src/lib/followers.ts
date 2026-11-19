@@ -11,6 +11,12 @@
 // History starts at the first snapshot (8 Sep 2026). A period ending before it
 // has no recorded total and says so, rather than showing today's.
 //
+// The change runs from the FIRST snapshot inside the period (19 Nov 2026).
+// It used to run from the last snapshot before the period, so a gap in the
+// syncs quietly stretched it: "Up 207 in the last 30 days" on LinkedIn ran
+// from 23 Sep, and "Down 109" on Instagram from 19 Oct, while the chart beside
+// them, which starts inside the period, read +135 and -96.
+//
 // Client-safe and pure.
 import type { GrowthPoint, PlatformData } from "@/lib/analytics-types";
 
@@ -18,8 +24,8 @@ export interface PeriodFollowers {
   /** The last snapshot before the period ends; null when none is that early. */
   end: GrowthPoint | null;
   /**
-   * The last snapshot on or before the period starts. When history begins
-   * inside the period, its first snapshot instead, and `partial` is true.
+   * The first snapshot inside the period. `partial` is true when history
+   * itself begins inside the period.
    */
   start: GrowthPoint | null;
   partial: boolean;
@@ -47,11 +53,8 @@ export function periodFollowers(
     start = points[0] ?? null;
   } else {
     const from = window.from.getTime();
-    start = points.filter((point) => time(point) <= from).at(-1) ?? null;
-    if (!start) {
-      start = points.find((point) => time(point) > from && time(point) < endBound) ?? null;
-      partial = Boolean(start);
-    }
+    start = points.find((point) => time(point) >= from && time(point) < endBound) ?? null;
+    partial = Boolean(start) && !points.some((point) => time(point) < from);
   }
 
   return {

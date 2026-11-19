@@ -38,12 +38,22 @@ export const ROLE_LABEL: Record<Role, string> = {
 /** The roles in the order Settings lists them, most access first. */
 export const ROLE_ORDER: Role[] = ["team_manager", "growth_manager", "editor", "creator"];
 
+/**
+ * The roles a person can be given (19 Nov 2026): Admin, Growth manager and
+ * Content editor. An admin holds every role, Content creator included, so it
+ * is not offered on its own; a person already stored as one keeps it until an
+ * admin changes them.
+ */
+export const ASSIGNABLE_ROLES: Role[] = ["team_manager", "growth_manager", "editor"];
+
 /** What each role may do, in a line, for the Team and roles settings. */
 export const ROLE_DESCRIPTION: Record<Role, string> = {
-  team_manager: "Everything, and decides who is on the team and what each person may do.",
-  growth_manager: "Approves or dismisses ideas and decides who makes what.",
-  editor: "Edits what is in production and publishes it.",
-  creator: "Films or writes approved ideas and marks them published.",
+  team_manager:
+    "Everything: every role below, and decides who is on the team and what each person may do.",
+  growth_manager:
+    "Writes scripts from the ticked and saved topics, sends each to an editor, and posts it when it comes back.",
+  editor: "Works on the scripts sent to them and marks each one done.",
+  creator: "No longer given on its own. An admin can do everything a creator did.",
 };
 
 export const STATUS_LABEL: Record<IdeaStatus, string> = {
@@ -75,12 +85,16 @@ export interface Transition {
  * cannot be allowed to do something on screen that the server then refuses, or
  * the reverse.
  */
+// The To do flow of 19 Nov 2026 (lib/todo-types.ts): the growth manager sends
+// a written script to an editor (approved), the editor marks it done
+// (in_production), and the growth manager marks it completed. Completing it
+// is "I filmed this" (reel-learning markFilmed), which every page shares.
 export const TRANSITIONS: Transition[] = [
   {
     from: ["suggested"],
     to: "approved",
     owner: "growth_manager",
-    action: "Approve",
+    action: "Send to editor",
   },
   {
     from: ["suggested", "approved"],
@@ -91,26 +105,14 @@ export const TRANSITIONS: Transition[] = [
   {
     from: ["approved"],
     to: "in_production",
-    owner: "creator",
-    action: "Start production",
+    owner: "editor",
+    action: "Mark done",
   },
-  {
-    from: ["in_production", "approved"],
-    to: "used",
-    owner: "creator",
-    action: "Filmed this one",
-    needsPermalink: true,
-  },
-  // The editor's queue is everything in production, and until this entry an
-  // editor could see all of it and act on none of it. The cut is the last
-  // step before a post goes out, so publishing it — with the permalink that
-  // links the idea to its outcome — is theirs as much as the creator's.
   {
     from: ["in_production"],
     to: "used",
-    owner: "editor",
-    action: "Edited and published",
-    needsPermalink: true,
+    owner: "growth_manager",
+    action: "Mark completed",
   },
 ];
 

@@ -16,8 +16,15 @@
 // platform's topics, in a lane, where it is written like any other story.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { PlatformId } from "@/lib/analytics-types";
+import { isSearchCategory, keepSearchStory } from "@/lib/search-trends";
 import { clusterStories, type SourceDraft } from "@/lib/sources";
-import { byUrgency, type AddedOn, type TrendItem, type TrendsView } from "@/lib/universal-trends";
+import {
+  byUrgency,
+  type AddedOn,
+  type TrendItem,
+  type TrendsView,
+  type WrittenPiece,
+} from "@/lib/universal-trends";
 
 import { OWNER_ACCOUNTS } from "../apify/accounts";
 import { searchNews } from "../sources/news";
@@ -122,6 +129,34 @@ const SEARCHES: Record<string, string[]> = {
     '"frontier AI"',
     '"AI safety" OR AGI OR superintelligence lab',
     '"AI agents" security risk',
+  ],
+  // AEO, GEO and SEO (19 Nov 2026), ahead of AI x marketing, and the two
+  // narrow ones ahead of SEO: a story is shown once, in the first category that
+  // finds it, so a piece on AI Overviews lands in AEO, not the SEO trade press
+  // that also carries it. Tested on the live feed that day; what each keeps is
+  // in lib/search-trends.ts. Each covers the news, its tools (Semrush, Ahrefs,
+  // AI visibility trackers) and new strategy.
+  aeo: [
+    '"answer engine optimization" OR "answer engine optimisation" OR "answer engines"',
+    '"AI Overviews" OR "AI Mode" publishers OR traffic OR clicks OR citations',
+    '"zero-click" search OR searches',
+    'AEO "AI search" OR ChatGPT OR "answer engine"',
+  ],
+  geo: [
+    '"generative engine optimization" OR "generative engine optimisation"',
+    '"AI visibility" OR "LLM visibility" OR "AI search visibility" brands',
+    'ChatGPT OR Perplexity OR Gemini citations OR "cited by" brands',
+    '"LLM SEO" OR "AI SEO" OR "llms.txt"',
+  ],
+  seo: [
+    // The SEO trade press, whole: its own news, studies and strategy.
+    "site:searchengineland.com",
+    "site:searchenginejournal.com",
+    "site:seroundtable.com",
+    'Google "core update" OR "spam update" OR "algorithm update"',
+    'intitle:Semrush OR intitle:Ahrefs OR intitle:"Screaming Frog" OR intitle:Yoast OR intitle:Moz SEO',
+    '"Search Console" OR "organic traffic" OR "search rankings"',
+    "intitle:SEO strategy OR tactics OR update OR Google",
   ],
   "ai-marketing": [
     '"AI advertising" OR "AI ads" brands',
@@ -229,6 +264,13 @@ export async function readUniversalTrends(): Promise<TrendsView> {
   const items: TrendItem[] = [];
   for (const item of all) {
     if (item.fetchedAt !== latestOf.get(item.category) || seen.has(item.url)) continue;
+    // The search chips' rules, on what was stored before they were tightened.
+    if (
+      isSearchCategory(item.category) &&
+      !keepSearchStory(item.category, item.title, item.publisher)
+    ) {
+      continue;
+    }
     seen.add(item.url);
     items.push(item);
   }
@@ -289,19 +331,32 @@ async function pinAdded(items: TrendItem[]): Promise<{ pinned: TrendItem[]; rest
       .limit(200)) as { data: AddedRow[] | null; error: { message: string } | null };
     if (error || !data?.length) return { pinned: [], rest: items };
 
-    // The newest post or script written from each added story.
+    // What was written from each added story, newest first: on LinkedIn the
+    // newest post AND the newest article (19 Nov 2026), on Instagram the
+    // newest script. A dismissed piece is not offered.
     const ideas = (await from("suggested_ideas")
-      .select("id,payload->source->>sourceId")
+      .select("id,status,payload->source->>sourceId,payload->>format")
       .in(
         "payload->source->>sourceId",
         data.map((row) => row.id),
       )
       .order("created_at", { ascending: false })) as {
-      data: Array<{ id: string; sourceId: string }> | null;
+      data: Array<{
+        id: string;
+        status: string | null;
+        sourceId: string;
+        format: string | null;
+      }> | null;
     };
-    const ideaOf = new Map<string, string>();
+    const piecesOf = new Map<string, WrittenPiece[]>();
     for (const idea of ideas.data ?? []) {
-      if (!ideaOf.has(idea.sourceId)) ideaOf.set(idea.sourceId, idea.id);
+      if (idea.status === "dismissed") continue;
+      const kind: WrittenPiece["kind"] =
+        idea.format === "article" ? "article" : idea.format === "text_post" ? "post" : "script";
+      const pieces = piecesOf.get(idea.sourceId) ?? [];
+      if (!pieces.some((piece) => piece.kind === kind)) {
+        piecesOf.set(idea.sourceId, [...pieces, { ideaId: idea.id, kind }]);
+      }
     }
 
     // One entry per story, across both platforms, newest added first.
@@ -325,7 +380,8 @@ async function pinAdded(items: TrendItem[]): Promise<{ pinned: TrendItem[]; rest
         added[row.platform] ??= {
           lane: row.lane,
           sourceId: row.id,
-          ideaId: ideaOf.get(row.id) ?? null,
+          ideaId: piecesOf.get(row.id)?.[0]?.ideaId ?? null,
+          written: piecesOf.get(row.id) ?? [],
         };
       }
       if (current) {
@@ -388,7 +444,15 @@ export async function fetchUniversalTrends(): Promise<{
     await Promise.all(
       plan.slice(start, start + PARALLEL).map(async ({ category, query, days }) => {
         try {
-          const found = await searchNews(`${query}${NOISE}`, null, { days });
+          // The feed sometimes answers "too many requests" (HTTP 429) when
+          // searches run back to back; one retry after a pause gets it.
+          const search = () => searchNews(`${query}${NOISE}`, null, { days });
+          const found = await search().catch(async (error: unknown) => {
+            if (!String(error instanceof Error ? error.message : error).includes("429"))
+              throw error;
+            await new Promise((resolve) => setTimeout(resolve, 2500));
+            return search();
+          });
           results.set(category, [...(results.get(category) ?? []), ...found]);
         } catch (error) {
           failures.push(
@@ -410,7 +474,11 @@ export async function fetchUniversalTrends(): Promise<{
     const stories = byUrgency(
       clusterStories(
         found.filter(
-          (story) => isStory(story.title, story.publisher) && (!must || must.test(story.title)),
+          (story) =>
+            isStory(story.title, story.publisher) &&
+            (!must || must.test(story.title)) &&
+            (!isSearchCategory(category) ||
+              keepSearchStory(category, story.title, story.publisher)),
         ),
         0.5,
         // The headline most of the group is about, not the newest report.

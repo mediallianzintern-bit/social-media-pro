@@ -19,6 +19,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -38,6 +45,7 @@ import {
 import { dateTime } from "@/lib/format";
 import { writeLinkedIn } from "@/lib/linkedin-write.functions";
 import { PLATFORM_META } from "@/lib/platform-meta";
+import { matchesSearch } from "@/lib/search";
 import { normalizeSourceUrl } from "@/lib/reaction";
 import { cn } from "@/lib/utils";
 import type { ContentIdea } from "@/lib/ai-types";
@@ -59,10 +67,14 @@ const PLATFORMS: PlatformId[] = ["instagram", "linkedin"];
  * A platform menu at the top right (5 Nov 2026): All shows both platforms'
  * saved topics and every lane, Instagram or LinkedIn only that platform's
  * topics and its own lanes.
+ *
+ * Given `only` (18 Nov 2026), it is one account's saved items at the top of
+ * that account's Ideas tab: Instagram's there, LinkedIn's on LinkedIn, with no
+ * platform menu and no introduction.
  */
-export function SavedTopics() {
+export function SavedTopics({ only }: { only?: PlatformId } = {}) {
   const results = useQueries({
-    queries: PLATFORMS.map((platform) => savedTopicsQueryOptions(platform)),
+    queries: (only ? [only] : PLATFORMS).map((platform) => savedTopicsQueryOptions(platform)),
   });
   const isLoading = results.some((result) => result.isLoading);
 
@@ -71,8 +83,10 @@ export function SavedTopics() {
     return [...all].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }, [results]);
 
-  const [platform, setPlatform] = useState<PlatformId | "all">("all");
+  const [chosen, setPlatform] = useState<PlatformId | "all">("all");
+  const platform = only ?? chosen;
   const [lane, setLane] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const onPlatform = useMemo(
     () => (platform === "all" ? items : items.filter((item) => item.platform === platform)),
     [items, platform],
@@ -87,20 +101,26 @@ export function SavedTopics() {
   );
   // A lane the chosen platform does not have is no filter at all.
   const activeLane = lane && lanes.includes(lane) ? lane : null;
-  const filtered = activeLane ? onPlatform.filter((item) => item.lane === activeLane) : onPlatform;
+  const filtered = onPlatform.filter(
+    (item) =>
+      (!activeLane || item.lane === activeLane) &&
+      matchesSearch(search, item.title, item.sourceLabel, item.lane, item.actor),
+  );
   const where =
     platform === "all" ? "across Instagram and LinkedIn" : `on ${PLATFORM_META[platform].label}`;
 
   return (
     <div className="space-y-6">
-      <p className="max-w-3xl text-sm text-muted-foreground">
-        Topics the team saved from the news inbox and the rising-posts lists. A shared shortlist —
-        anyone can add to it, and it stays here until someone takes it off. Nothing here is
-        generated and saving spends nothing.
-      </p>
+      {only ? null : (
+        <p className="max-w-3xl text-sm text-muted-foreground">
+          Topics the team saved from the news inbox and the rising-posts lists. A shared shortlist —
+          anyone can add to it, and it stays here until someone takes it off. Nothing here is
+          generated and saving spends nothing.
+        </p>
+      )}
 
       <SectionHeading
-        title="Saved topics"
+        title={only ? "Saved" : "Saved topics"}
         note={
           isLoading
             ? "Loading…"
@@ -114,6 +134,16 @@ export function SavedTopics() {
 
       <Card>
         <CardContent className="space-y-4 p-5">
+          {items.length ? (
+            <Input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search saved topics, e.g. Andromeda"
+              aria-label="Search saved topics"
+              className="h-9 sm:max-w-xs"
+            />
+          ) : null}
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-start sm:justify-between">
             {lanes.length > 1 ? (
               <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filter by topic">
@@ -138,25 +168,27 @@ export function SavedTopics() {
             ) : (
               <span />
             )}
-            <Select
-              value={platform}
-              onValueChange={(value) => {
-                setPlatform(value as PlatformId | "all");
-                setLane(null);
-              }}
-            >
-              <SelectTrigger className="h-9 w-full shrink-0 sm:w-44" aria-label="Platform">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All platforms</SelectItem>
-                {PLATFORMS.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {PLATFORM_META[value].label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {only ? null : (
+              <Select
+                value={platform}
+                onValueChange={(value) => {
+                  setPlatform(value as PlatformId | "all");
+                  setLane(null);
+                }}
+              >
+                <SelectTrigger className="h-9 w-full shrink-0 sm:w-44" aria-label="Platform">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All platforms</SelectItem>
+                  {PLATFORMS.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {PLATFORM_META[value].label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           {filtered.length ? (
@@ -168,10 +200,14 @@ export function SavedTopics() {
           ) : !isLoading ? (
             <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
               {onPlatform.length
-                ? "Nothing saved in this topic."
+                ? search.trim()
+                  ? `Nothing saved matches "${search.trim()}"${activeLane ? ` in ${activeLane}` : ""}.`
+                  : "Nothing saved in this topic."
                 : items.length
                   ? `Nothing saved ${where} yet.`
-                  : "Press Save on a story in Topics in the news, or on a post in Rising on Instagram, and it will appear here."}
+                  : only
+                    ? `Nothing saved for ${PLATFORM_META[only].label} yet. Press Save on a story, a rising post or a script and it will appear here.`
+                    : "Press Save on a story in Topics in the news, or on a post in Rising on Instagram, and it will appear here."}
             </p>
           ) : null}
         </CardContent>
@@ -299,13 +335,26 @@ function useLinkedInPieces(sourceId: string, enabled: boolean) {
   return { post: useQuery(query("post")), article: useQuery(query("article")) };
 }
 
+/** Optional extras for the To do board (19 Nov 2026); every other page omits
+ * them and keeps the buttons as they were. `compact` folds Write post and
+ * Write article into one Write button with a choice; `onClosed` runs when the
+ * script drawer closes, so To do can move the topic on. */
+export interface WriteActionOptions {
+  compact?: boolean;
+  onClosed?: () => void;
+}
+
 /**
  * A saved LinkedIn story's post and article (19 Nov 2026): each one written
  * reads View post / View article, with a regenerate beside it; the one not
  * written yet reads Write post / Write article. The same AI call as those
  * buttons in the news inbox, only on a press.
  */
-function LinkedInPieceActions({ item }: { item: SavedTopic }) {
+export function LinkedInPieceActions({
+  item,
+  compact = false,
+  onClosed,
+}: { item: SavedTopic } & WriteActionOptions) {
   const queryClient = useQueryClient();
   const sourceId = item.itemId;
   const pieces = useLinkedInPieces(sourceId, true);
@@ -345,7 +394,10 @@ function LinkedInPieceActions({ item }: { item: SavedTopic }) {
       platform="linkedin"
       initialOpenId={viewing.id}
       panelOnly
-      onClose={() => setViewing(null)}
+      onClose={() => {
+        setViewing(null);
+        onClosed?.();
+      }}
     />
   ) : null;
   const failure = message ? (
@@ -353,6 +405,42 @@ function LinkedInPieceActions({ item }: { item: SavedTopic }) {
       {message}
     </span>
   ) : null;
+
+  // One Write button, then post or article. Only while neither is written:
+  // once one is, the full View / Write pair below shows instead.
+  const nothingYet =
+    !pieces.post.isLoading &&
+    !pieces.article.isLoading &&
+    !pieces.post.data &&
+    !pieces.article.data;
+  if (compact && nothingYet) {
+    return (
+      <>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" variant="outline" className="gap-1.5" disabled={write.isPending}>
+              {write.isPending ? (
+                <Loader2 className="size-3.5 animate-spin" aria-hidden />
+              ) : (
+                <Sparkles className="size-3.5" aria-hidden />
+              )}
+              {write.isPending ? `Writing the ${write.variables?.kind ?? "post"}…` : "Write"}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => write.mutate({ kind: "post", regenerate: false })}>
+              LinkedIn post
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => write.mutate({ kind: "article", regenerate: false })}>
+              LinkedIn article
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {failure}
+        {drawer}
+      </>
+    );
+  }
 
   return (
     <>
@@ -430,7 +518,7 @@ function LinkedInPieceActions({ item }: { item: SavedTopic }) {
  * in source_items, and the script writer builds on stories; rising posts are
  * answered through "React to this" instead.
  */
-function NewsScriptActions({ item }: { item: SavedTopic }) {
+export function NewsScriptActions({ item, onClosed }: { item: SavedTopic } & WriteActionOptions) {
   const queryClient = useQueryClient();
   const { platform, itemId: sourceId } = item;
   const scriptKey = ["script-for-source", platform, sourceId] as const;
@@ -530,7 +618,10 @@ function NewsScriptActions({ item }: { item: SavedTopic }) {
           platform={platform}
           initialOpenId={viewing.id}
           panelOnly
-          onClose={() => setViewing(null)}
+          onClose={() => {
+            setViewing(null);
+            onClosed?.();
+          }}
         />
       ) : null}
     </>
@@ -551,7 +642,10 @@ function NewsScriptActions({ item }: { item: SavedTopic }) {
  * format keeps its own beats, measured expert timing and standard CTA, which
  * is what makes it a reaction rather than an explainer.
  */
-function ReactionScriptActions({ item }: { item: SavedTopic }) {
+export function ReactionScriptActions({
+  item,
+  onClosed,
+}: { item: SavedTopic } & WriteActionOptions) {
   const queryClient = useQueryClient();
   const { platform } = item;
   const [viewing, setViewing] = useState<ContentIdea | null>(null);
@@ -684,7 +778,10 @@ function ReactionScriptActions({ item }: { item: SavedTopic }) {
           platform={platform}
           initialOpenId={viewing.id}
           panelOnly
-          onClose={() => setViewing(null)}
+          onClose={() => {
+            setViewing(null);
+            onClosed?.();
+          }}
         />
       ) : null}
     </>

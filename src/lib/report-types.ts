@@ -11,15 +11,27 @@ import type { GoalScorecard } from "@/lib/goal-scorecard";
  * and means nothing to a client reading a report, so it stays on the internal
  * dashboard and never appears here.
  */
-export type ReportPeriod = "30d" | "90d" | "all";
+export type ReportPeriod = "30d" | "90d" | "all" | "custom";
 
-export const REPORT_PERIODS: ReportPeriod[] = ["30d", "90d", "all"];
+/** The quick choices; "custom" is chosen with its own dates. */
+export const REPORT_PERIODS: Exclude<ReportPeriod, "custom">[] = ["30d", "90d", "all"];
 
 export const REPORT_PERIOD_LABEL: Record<ReportPeriod, string> = {
   "30d": "Last 30 days",
   "90d": "Last 90 days",
   all: "All time",
+  custom: "Custom dates",
 };
+
+/**
+ * What a report covers (19 Nov 2026): a quick period, or "custom" with its
+ * own first and last day, both YYYY-MM-DD and both included.
+ */
+export interface ReportRange {
+  period: ReportPeriod;
+  from?: string | undefined;
+  to?: string | undefined;
+}
 
 export interface ClientReportPlatform {
   platform: PlatformId;
@@ -54,6 +66,8 @@ export interface ClientReport {
   generatedAt: string;
   /** The period this report was asked for. */
   period: ReportPeriod;
+  /** How the period reads: "Last 30 days", or "1 Oct 2026 – 31 Oct 2026". */
+  periodLabel: string;
   /** Addendum A.6 — the goal the whole report is written against. */
   goal: { growthGoal: GrowthGoal; primaryMetric: string; label: string } | null;
   platforms: ClientReportPlatform[];

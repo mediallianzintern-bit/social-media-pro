@@ -48,6 +48,22 @@ export const TREND_CATEGORIES: TrendCategory[] = [
     label: "Companies using AI",
     about: "How companies like Neko Health build their business on AI",
   },
+  // 19 Nov 2026: search, and being found by AI answers.
+  {
+    id: "seo",
+    label: "SEO",
+    about: "Google updates, rankings, Search Console and organic traffic",
+  },
+  {
+    id: "aeo",
+    label: "AEO",
+    about: "Answer engine optimisation: AI Overviews, AI Mode, zero-click search",
+  },
+  {
+    id: "geo",
+    label: "GEO",
+    about: "Generative engine optimisation: being cited by ChatGPT, Perplexity and Gemini",
+  },
 ];
 
 export const TREND_CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
@@ -82,6 +98,16 @@ export interface AddedOn {
   sourceId: string;
   /** The newest post or script written from it there, if any. */
   ideaId: string | null;
+  /**
+   * Everything written from it there, newest of each kind: on LinkedIn a post
+   * and an article can both exist (19 Nov 2026).
+   */
+  written?: WrittenPiece[];
+}
+
+export interface WrittenPiece {
+  ideaId: string;
+  kind: "post" | "article" | "script";
 }
 
 export interface TrendsView {
@@ -118,6 +144,9 @@ const PREFERRED_LANES: Record<string, string[]> = {
   "frontier-ai": ["frontier ai developments", "ai launches explained", "ai risks and security"],
   "ai-marketing": ["ai x marketing bridge", "frontier ai developments", "brand strategy lessons"],
   "ai-companies": ["ai x marketing bridge", "frontier ai developments", "ai launches explained"],
+  seo: ["ai x marketing bridge", "marketing fundamentals", "brand strategy lessons"],
+  aeo: ["ai x marketing bridge", "frontier ai developments", "marketing fundamentals"],
+  geo: ["ai x marketing bridge", "frontier ai developments", "marketing fundamentals"],
 };
 
 /**

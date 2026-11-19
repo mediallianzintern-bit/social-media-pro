@@ -41,9 +41,45 @@ export interface DailyHook {
   headline: string;
 }
 
+/** One member of the team, as the roles screen lists them. */
+export interface TeamMember {
+  id: string;
+  name: string;
+  email: string | null;
+  role: Role;
+  /** True for the person reading the screen. */
+  isYou: boolean;
+}
+
+/**
+ * T46 — who the signed-in person is, and what they are actually allowed to do.
+ *
+ * `roles` is read from the team table, never from anything the browser sent,
+ * and is what every permission decision is made against. The workspace's role
+ * switcher is a lens over these — it can only offer a role already in here.
+ */
+export interface Access {
+  /** The users row, once they have one. Null only in the ephemeral store. */
+  userId: string | null;
+  name: string;
+  email: string;
+  roles: Role[];
+  /** Whether this person may change anyone's role. */
+  canManageTeam: boolean;
+  /** True when they were the first member and so were made team manager. */
+  isFounder: boolean;
+}
+
 export interface Workspace {
   role: Role;
+  /** Who is reading this, and what they may do. */
+  access: Access;
+  /** The whole team, for the roles panel. */
+  team: TeamMember[];
+  /** The newest items, as cards. */
   items: WorkItem[];
+  /** Every item in this queue; `items` can be fewer. */
+  total: number;
   today: DailyHook;
   /** Present for the team manager's roll-up (B.1). */
   rollup?: {

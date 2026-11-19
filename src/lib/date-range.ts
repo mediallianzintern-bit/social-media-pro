@@ -150,17 +150,14 @@ const ERA_FALLBACK_DAYS = 30;
  */
 export function eraWindow(
   range: ResolvedRange,
-  era: { startsAt: string; label: string } | null | undefined,
   /**
-   * The strategy change of the other account, used when this one has none
-   * (13 Nov 2026, UI review): with "Since strategy change" chosen, LinkedIn's
-   * header read "Last 30 days" while the control said otherwise. The change
-   * is Pritesh Sir's, not one platform's, so both accounts read from it.
+   * This account's own strategy change. Each account has its own date
+   * (19 Nov 2026): LinkedIn's change is not Instagram's, so one account no
+   * longer borrows the other's. Without one, the last 30 days.
    */
-  shared?: { startsAt: string; label: string } | null,
+  era: { startsAt: string; label: string } | null | undefined,
 ): ResolvedRange {
   if (range.key !== "era") return range;
-  era = era ?? shared;
   if (!era) {
     const today = startOfDay(new Date());
     const from = addDays(today, -(ERA_FALLBACK_DAYS - 1));

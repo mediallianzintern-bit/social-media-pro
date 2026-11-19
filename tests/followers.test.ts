@@ -40,7 +40,21 @@ describe("followers in a period", () => {
       { from: new Date("2026-10-01T00:00:00Z"), to: null },
       now,
     );
-    expect(period).toMatchObject({ current: true, change: 111 });
+    // From the first count inside October (28 Oct, 8,618), not 23 Sep's.
+    expect(period).toMatchObject({ current: true, change: 8, partial: false });
+    expect(period.start?.followers).toBe(8618);
     expect(period.end?.followers).toBe(8626);
+  });
+
+  it("does not reach back past a gap in the syncs to before the period", () => {
+    // 21 Oct to now: the last count before it is 23 Sep's; the change is the
+    // chart's, from the first count inside the period.
+    const period = periodFollowers(
+      growth,
+      { from: new Date("2026-10-21T00:00:00Z"), to: null },
+      now,
+    );
+    expect(period.start?.capturedAt).toBe("2026-10-28T06:00:00Z");
+    expect(period.change).toBe(8);
   });
 });
