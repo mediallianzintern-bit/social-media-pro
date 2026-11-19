@@ -1,11 +1,11 @@
 // The Filmed reels page: every script the team marked filmed, where each one
 // has got to, and what the system has learned from them so far.
 //
-// Instagram only (16 Nov 2026). LinkedIn posts the team marked posted were
-// listed here too (Phase 3, 5 Nov); the team asked for them off this page.
-// The LinkedIn writer now learns from every post he publishes, drafted here
-// or not (lib/linkedin-lane-posts.ts), and a marked post still opens from its
-// own drawer on the LinkedIn page.
+// LinkedIn is back here (19 Nov 2026), in its own list: posts and articles
+// drafted on this dashboard that went live, found by their own words after
+// each Sync (or marked I posted this), compared and reviewed by themselves
+// (reel-learning/auto.ts). It was taken off on 16 Nov while LinkedIn posts
+// waited for buttons. Viral reels and the reel rules stay Instagram's.
 //
 // Each row opens the same drawer as everywhere else, where Analyse and Review
 // live. This page spends nothing: it reads stored rows and synced posts, and
@@ -34,6 +34,7 @@ import type { PlatformId } from "@/lib/analytics-types";
 import { dateTime, shortDate } from "@/lib/format";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import {
+  FOUND_LIVE,
   isFinalReview,
   laneChange,
   LEARNING_WORDS,
@@ -50,21 +51,18 @@ import {
 } from "@/lib/reel-learning.functions";
 import { CTA_TYPE_LABEL, HOOK_TYPE_LABEL } from "@/lib/reel-parts";
 
-const PLATFORMS: PlatformId[] = ["instagram"];
+const PLATFORMS: PlatformId[] = ["instagram", "linkedin"];
 
 type Stage = "waiting" | "found" | "analysed" | "review_ready" | "reviewed";
 
-/**
- * What happens next at each stage. A LinkedIn post waits for its buttons:
- * the automatic pass after each sync is Instagram's alone (auto.ts).
- */
+/** What happens next at each stage; on both platforms it runs after each Sync (auto.ts). */
 function stageLabel(stage: Stage, platform: PlatformId): string {
   if (platform !== "linkedin") return STAGE_LABEL[stage];
   return {
     waiting: "Waiting for the post",
-    found: "Post found · press Analyse in the drawer",
-    analysed: `Analysed · review after ${POST_REVIEW_DAYS} days`,
-    review_ready: "Ready to review · press Review in the drawer",
+    found: "Post found · compared on the next Sync",
+    analysed: `Compared · reviewed automatically after ${POST_REVIEW_DAYS} days`,
+    review_ready: "Reviewed on the next Sync",
     reviewed: "Reviewed",
   }[stage];
 }
@@ -139,10 +137,13 @@ export function FilmedReels() {
         .sort((a, b) => b.learning.filmedAt.localeCompare(a.learning.filmedAt)),
     [results],
   );
+  const reels = items.filter((item) => item.learning.platform === "instagram");
+  const posts = items.filter((item) => item.learning.platform === "linkedin");
   const { data: patterns } = useQuery(reelPatternsQueryOptions("instagram"));
   const [viewing, setViewing] = useState<{ idea: ContentIdea; platform: PlatformId } | null>(null);
+  const open = (idea: ContentIdea, platform: PlatformId) => setViewing({ idea, platform });
 
-  const viralItems = items
+  const viralItems = reels
     .filter(
       (item) => isFinalReview(item.learning) && item.learning.review!.primaryRatio >= VIRAL_RATIO,
     )
@@ -155,16 +156,17 @@ export function FilmedReels() {
   return (
     <div className="space-y-6">
       <p className="max-w-3xl text-sm text-muted-foreground">
-        Every reel the team marked filmed. The live reel is found by its topic on each Sync; open
-        one to Analyse what was used, Get results now for an early check, and Review how it did
-        after {REEL_REVIEW_DAYS} days. What the reviews teach goes into every new script.
+        Every reel the team filmed and every LinkedIn post or article that went live from this
+        dashboard. The live reel or post is found on each Sync, compared with what was written, and
+        reviewed {REEL_REVIEW_DAYS} days after it went up, all by itself. What the reviews teach
+        goes into every new script and post.
       </p>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {[
-          { label: "Filmed", value: items.length },
+          { label: "Filmed or posted", value: items.length },
           { label: "Waiting to go live", value: count("waiting") },
-          { label: "To analyse", value: count("found") },
+          { label: "To compare", value: count("found") },
           { label: "Due for review", value: count("review_ready") },
           { label: "Reviewed", value: count("reviewed") },
           { label: "Worked / viral", value: `${worked} / ${viral}` },
@@ -214,111 +216,25 @@ export function FilmedReels() {
 
       <SectionHeading
         title="Filmed reels"
-        note={isLoading ? "Loading…" : `${items.length} in all`}
+        note={isLoading ? "Loading…" : `${reels.length} in all`}
       />
-      <Card>
-        <CardContent className="divide-y p-0">
-          {isLoading ? (
-            <p className="flex items-center gap-2 p-5 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" aria-hidden /> Loading…
-            </p>
-          ) : !items.length ? (
-            <p className="p-5 text-sm text-muted-foreground">
-              Nothing yet. Press I filmed this on a reel script once it is shot.
-            </p>
-          ) : (
-            items.map(({ learning, idea, postedLane }) => {
-              const stage = stageOf(learning);
-              const w = LEARNING_WORDS[learning.platform];
-              // Only once the reel is confirmed: a timing guess may be the wrong one.
-              const moved = learning.match?.confirmed
-                ? laneChange(idea?.contentLane, postedLane)
-                : null;
-              return (
-                <div key={learning.ideaId} className="flex flex-wrap items-start gap-3 p-4">
-                  <div className="min-w-0 flex-1 space-y-1.5">
-                    <p className="font-medium leading-snug">
-                      {idea?.title ?? "A script no longer stored"}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      <span style={{ color: PLATFORM_META[learning.platform].color }}>
-                        {PLATFORM_META[learning.platform].label}
-                      </span>
-                      {moved ? (
-                        <span>
-                          · {moved.from} → {moved.to}
-                        </span>
-                      ) : idea?.contentLane ? (
-                        <span>· {idea.contentLane}</span>
-                      ) : null}
-                      <span>
-                        · {w.did} {dateTime(learning.filmedAt)}
-                        {learning.filmedBy ? ` by ${learning.filmedBy}` : ""}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline" className={`font-normal ${STAGE_TONE[stage]}`}>
-                        {stage === "waiting" ? (
-                          <Search className="mr-1 size-3" aria-hidden />
-                        ) : null}
-                        {learning.match?.by === "timing" && !learning.match.confirmed
-                          ? `Probably this ${w.thing} (by timing) · checked when analysed`
-                          : stageLabel(stage, learning.platform)}
-                        {stage === "analysed" && learning.reviewableAt
-                          ? ` (${shortDate(learning.reviewableAt)})`
-                          : ""}
-                      </Badge>
-                      {learning.usage ? (
-                        <Badge variant="secondary" className="font-normal">
-                          {REEL_USAGE_LABEL[learning.usage]}
-                        </Badge>
-                      ) : null}
-                      {moved ? (
-                        <Badge
-                          variant="outline"
-                          className="border-violet-300 font-normal text-violet-800 dark:border-violet-800 dark:text-violet-300"
-                          title={`Written for ${moved.from}, went live as ${moved.to}. Its ✓ and ✗ and its results now teach ${moved.to}, so ${moved.from} does not drift toward this topic.`}
-                        >
-                          <ArrowRightLeft className="mr-1 size-3" aria-hidden />
-                          Topic changed · now teaches {moved.to}
-                        </Badge>
-                      ) : null}
-                      <Result learning={learning} />
-                      {learning.reelUrl ? (
-                        <a
-                          href={learning.reelUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-primary underline-offset-2 hover:underline"
-                        >
-                          {learning.platform === "linkedin" ? "Post" : "Reel"}
-                          {learning.publishedAt
-                            ? `, posted ${shortDate(learning.publishedAt)}`
-                            : ""}
-                          <ExternalLink className="size-3" aria-hidden />
-                        </a>
-                      ) : null}
-                    </div>
-                    {learning.review ? (
-                      <p className="text-xs leading-relaxed text-muted-foreground">
-                        {learning.review.summary}
-                      </p>
-                    ) : null}
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={!idea}
-                    onClick={() => idea && setViewing({ idea, platform: learning.platform })}
-                  >
-                    Open
-                  </Button>
-                </div>
-              );
-            })
-          )}
-        </CardContent>
-      </Card>
+      <FilmedList
+        items={reels}
+        isLoading={isLoading}
+        empty="Nothing yet. Press I filmed this on a reel script once it is shot."
+        onOpen={open}
+      />
+
+      <SectionHeading
+        title="Posted on LinkedIn"
+        note={isLoading ? "Loading…" : `${posts.length} in all · posts and articles`}
+      />
+      <FilmedList
+        items={posts}
+        isLoading={isLoading}
+        empty="Nothing yet. A post or article written here shows up once it goes live: it is found by its own words on the next Sync, or press I posted this in its drawer."
+        onOpen={open}
+      />
 
       {viewing ? (
         <AiIdeaCards
@@ -330,6 +246,135 @@ export function FilmedReels() {
           onClose={() => setViewing(null)}
         />
       ) : null}
+    </div>
+  );
+}
+
+type FilmedEntry = {
+  learning: ReelLearning;
+  idea: ContentIdea | null;
+  postedLane: string | null;
+};
+
+/** One platform's list: each reel or post, where it has got to, and how it did. */
+function FilmedList({
+  items,
+  isLoading,
+  empty,
+  onOpen,
+}: {
+  items: FilmedEntry[];
+  isLoading: boolean;
+  empty: string;
+  onOpen: (idea: ContentIdea, platform: PlatformId) => void;
+}) {
+  return (
+    <Card>
+      <CardContent className="divide-y p-0">
+        {isLoading ? (
+          <p className="flex items-center gap-2 p-5 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" aria-hidden /> Loading…
+          </p>
+        ) : !items.length ? (
+          <p className="p-5 text-sm text-muted-foreground">{empty}</p>
+        ) : (
+          items.map((item) => <FilmedRow key={item.learning.ideaId} {...item} onOpen={onOpen} />)
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function FilmedRow({
+  learning,
+  idea,
+  postedLane,
+  onOpen,
+}: FilmedEntry & { onOpen: (idea: ContentIdea, platform: PlatformId) => void }) {
+  const stage = stageOf(learning);
+  const w = LEARNING_WORDS[learning.platform];
+  const article = idea?.format === "article";
+  const thing = learning.platform === "linkedin" ? (article ? "article" : "post") : "reel";
+  // Only once the reel is confirmed: a timing guess may be the wrong one.
+  const moved = learning.match?.confirmed ? laneChange(idea?.contentLane, postedLane) : null;
+  return (
+    <div className="flex flex-wrap items-start gap-3 p-4">
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <p className="font-medium leading-snug">{idea?.title ?? "A script no longer stored"}</p>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span style={{ color: PLATFORM_META[learning.platform].color }}>
+            {PLATFORM_META[learning.platform].label}
+            {learning.platform === "linkedin" ? (article ? " article" : " post") : ""}
+          </span>
+          {moved ? (
+            <span>
+              · {moved.from} → {moved.to}
+            </span>
+          ) : idea?.contentLane ? (
+            <span>· {idea.contentLane}</span>
+          ) : null}
+          <span>
+            {learning.filmedBy === FOUND_LIVE ? (
+              <>· found live {dateTime(learning.filmedAt)} by its own words</>
+            ) : (
+              <>
+                · {w.did} {dateTime(learning.filmedAt)}
+                {learning.filmedBy ? ` by ${learning.filmedBy}` : ""}
+              </>
+            )}
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className={`font-normal ${STAGE_TONE[stage]}`}>
+            {stage === "waiting" ? <Search className="mr-1 size-3" aria-hidden /> : null}
+            {learning.match?.by === "timing" && !learning.match.confirmed
+              ? `Probably this ${thing} (by timing) · checked when compared`
+              : stageLabel(stage, learning.platform)}
+            {stage === "analysed" && learning.reviewableAt
+              ? ` (${shortDate(learning.reviewableAt)})`
+              : ""}
+          </Badge>
+          {learning.usage ? (
+            <Badge variant="secondary" className="font-normal">
+              {REEL_USAGE_LABEL[learning.usage]}
+            </Badge>
+          ) : null}
+          {moved ? (
+            <Badge
+              variant="outline"
+              className="border-violet-300 font-normal text-violet-800 dark:border-violet-800 dark:text-violet-300"
+              title={`Written for ${moved.from}, went live as ${moved.to}. Its ✓ and ✗ and its results now teach ${moved.to}, so ${moved.from} does not drift toward this topic.`}
+            >
+              <ArrowRightLeft className="mr-1 size-3" aria-hidden />
+              Topic changed · now teaches {moved.to}
+            </Badge>
+          ) : null}
+          <Result learning={learning} />
+          {learning.reelUrl ? (
+            <a
+              href={learning.reelUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-primary underline-offset-2 hover:underline"
+            >
+              {thing[0]!.toUpperCase() + thing.slice(1)}
+              {learning.publishedAt ? `, posted ${shortDate(learning.publishedAt)}` : ""}
+              <ExternalLink className="size-3" aria-hidden />
+            </a>
+          ) : null}
+        </div>
+        {learning.review ? (
+          <p className="text-xs leading-relaxed text-muted-foreground">{learning.review.summary}</p>
+        ) : null}
+      </div>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={!idea}
+        onClick={() => idea && onOpen(idea, learning.platform)}
+      >
+        Open
+      </Button>
     </div>
   );
 }
