@@ -21,10 +21,11 @@ import {
   TrendingUp,
   XCircle,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AiIdeaCards } from "@/components/dashboard/ai-idea-cards";
 import { Patterns } from "@/components/dashboard/filmed-panel";
+import { PostLessons } from "@/components/dashboard/post-lessons";
 import { SectionHeading } from "@/components/dashboard/section-heading";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ import type { ContentIdea } from "@/lib/ai-types";
 import type { PlatformId } from "@/lib/analytics-types";
 import { dateTime, shortDate } from "@/lib/format";
 import { PLATFORM_META } from "@/lib/platform-meta";
+import { postLessonsQueryOptions } from "@/lib/post-learning.functions";
 import {
   FOUND_LIVE,
   isFinalReview,
@@ -50,6 +52,7 @@ import {
   reelPatternsQueryOptions,
 } from "@/lib/reel-learning.functions";
 import { CTA_TYPE_LABEL, HOOK_TYPE_LABEL } from "@/lib/reel-parts";
+import { cn } from "@/lib/utils";
 
 const PLATFORMS: PlatformId[] = ["instagram", "linkedin"];
 
@@ -125,6 +128,16 @@ function Result({ learning }: { learning: ReelLearning }) {
   );
 }
 
+const SAVED_PLATFORM = "published-platform";
+
+function savedPlatform(): PlatformId {
+  try {
+    return window.localStorage.getItem(SAVED_PLATFORM) === "linkedin" ? "linkedin" : "instagram";
+  } catch {
+    return "instagram";
+  }
+}
+
 export function FilmedReels() {
   const results = useQueries({
     queries: PLATFORMS.map((platform) => filmedReelsQueryOptions(platform)),
@@ -139,46 +152,138 @@ export function FilmedReels() {
   );
   const reels = items.filter((item) => item.learning.platform === "instagram");
   const posts = items.filter((item) => item.learning.platform === "linkedin");
-  const { data: patterns } = useQuery(reelPatternsQueryOptions("instagram"));
+  const [platform, setPlatform] = useState<PlatformId>("instagram");
+  // The last tab chosen, read after the first render so server and client agree.
+  useEffect(() => setPlatform(savedPlatform()), []);
+  const choose = (next: PlatformId) => {
+    setPlatform(next);
+    try {
+      window.localStorage.setItem(SAVED_PLATFORM, next);
+    } catch {
+      // Private window or blocked storage: the tab just isn't remembered.
+    }
+  };
   const [viewing, setViewing] = useState<{ idea: ContentIdea; platform: PlatformId } | null>(null);
-  const open = (idea: ContentIdea, platform: PlatformId) => setViewing({ idea, platform });
+  const open = (idea: ContentIdea, on: PlatformId) => setViewing({ idea, platform: on });
 
-  const viralItems = reels
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Platform">
+        {(
+          [
+            { id: "instagram", label: "Instagram reels", n: reels.length },
+            { id: "linkedin", label: "LinkedIn posts and articles", n: posts.length },
+          ] as const
+        ).map(({ id, label, n }) => {
+          const active = id === platform;
+          return (
+            <Button
+              key={id}
+              role="tab"
+              aria-selected={active}
+              size="sm"
+              variant={active ? "default" : "outline"}
+              className="gap-1.5"
+              onClick={() => choose(id)}
+            >
+              <span
+                className="size-2 rounded-full"
+                style={{ backgroundColor: PLATFORM_META[id].color }}
+                aria-hidden
+              />
+              {label}
+              <span
+                className={cn(
+                  "rounded-full px-1.5 text-xs tabular-nums",
+                  active ? "bg-primary-foreground/20" : "bg-muted text-muted-foreground",
+                )}
+              >
+                {isLoading ? "…" : n}
+              </span>
+            </Button>
+          );
+        })}
+      </div>
+
+      {platform === "instagram" ? (
+        <InstagramView items={reels} isLoading={isLoading} onOpen={open} />
+      ) : (
+        <LinkedInView items={posts} isLoading={isLoading} onOpen={open} />
+      )}
+
+      {viewing ? (
+        <AiIdeaCards
+          key={viewing.idea.id}
+          ideas={[viewing.idea]}
+          platform={viewing.platform}
+          initialOpenId={viewing.idea.id}
+          panelOnly
+          onClose={() => setViewing(null)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+type ViewProps = {
+  items: FilmedEntry[];
+  isLoading: boolean;
+  onOpen: (idea: ContentIdea, platform: PlatformId) => void;
+};
+
+/** The row of figures at the top of each tab. */
+function Tiles({
+  tiles,
+  isLoading,
+}: {
+  tiles: Array<{ label: string; value: number | string }>;
+  isLoading: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      {tiles.map((tile) => (
+        <div key={tile.label} className="rounded-lg border bg-card p-3">
+          <p className="text-xs text-muted-foreground">{tile.label}</p>
+          <p className="text-xl font-bold tabular-nums">{isLoading ? "…" : tile.value}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const countStage = (items: FilmedEntry[], stage: Stage) =>
+  items.filter((item) => stageOf(item.learning) === stage).length;
+
+function InstagramView({ items, isLoading, onOpen }: ViewProps) {
+  const { data: patterns } = useQuery(reelPatternsQueryOptions("instagram"));
+  const viralItems = items
     .filter(
       (item) => isFinalReview(item.learning) && item.learning.review!.primaryRatio >= VIRAL_RATIO,
     )
     .sort((a, b) => b.learning.review!.primaryRatio - a.learning.review!.primaryRatio);
-
-  const count = (stage: Stage) => items.filter((item) => stageOf(item.learning) === stage).length;
   const worked = items.filter((item) => item.learning.worked).length;
-  const viral = viralItems.length;
 
   return (
-    <div className="space-y-6">
+    <>
       <p className="max-w-3xl text-sm text-muted-foreground">
-        Every reel the team filmed and every LinkedIn post or article that went live from this
-        dashboard. The live reel or post is found on each Sync, compared with what was written, and
-        reviewed {REEL_REVIEW_DAYS} days after it went up, all by itself. What the reviews teach
-        goes into every new script and post.
+        Every reel the team marked filmed. The live reel is found on each Sync, compared with the
+        script, and reviewed {REEL_REVIEW_DAYS} days after it went up, all by itself. What the
+        reviews teach goes into every new script.
       </p>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {[
-          { label: "Filmed or posted", value: items.length },
-          { label: "Waiting to go live", value: count("waiting") },
-          { label: "To compare", value: count("found") },
-          { label: "Due for review", value: count("review_ready") },
-          { label: "Reviewed", value: count("reviewed") },
-          { label: "Worked / viral", value: `${worked} / ${viral}` },
-        ].map((tile) => (
-          <div key={tile.label} className="rounded-lg border bg-card p-3">
-            <p className="text-xs text-muted-foreground">{tile.label}</p>
-            <p className="text-xl font-bold tabular-nums">{isLoading ? "…" : tile.value}</p>
-          </div>
-        ))}
-      </div>
+      <Tiles
+        isLoading={isLoading}
+        tiles={[
+          { label: "Filmed", value: items.length },
+          { label: "Waiting to go live", value: countStage(items, "waiting") },
+          { label: "To compare", value: countStage(items, "found") },
+          { label: "Due for review", value: countStage(items, "review_ready") },
+          { label: "Reviewed", value: countStage(items, "reviewed") },
+          { label: "Worked / viral", value: `${worked} / ${viralItems.length}` },
+        ]}
+      />
 
-      <SectionHeading title="What the system has learned" />
+      <SectionHeading title="What the system has learned" note="from every reviewed reel" />
       {patterns?.length ? (
         <Card>
           <CardContent className="space-y-4 p-5">
@@ -192,7 +297,7 @@ export function FilmedReels() {
         </p>
       )}
 
-      <RulesLearned />
+      <RulesLearned platform="instagram" />
 
       {viralItems.length ? (
         <>
@@ -216,37 +321,61 @@ export function FilmedReels() {
 
       <SectionHeading
         title="Filmed reels"
-        note={isLoading ? "Loading…" : `${reels.length} in all`}
+        note={isLoading ? "Loading…" : `${items.length} in all`}
       />
       <FilmedList
-        items={reels}
+        items={items}
         isLoading={isLoading}
         empty="Nothing yet. Press I filmed this on a reel script once it is shot."
-        onOpen={open}
+        onOpen={onOpen}
       />
+    </>
+  );
+}
+
+function LinkedInView({ items, isLoading, onOpen }: ViewProps) {
+  const { data: lessons, isLoading: lessonsLoading } = useQuery(postLessonsQueryOptions());
+  const reviewed = lessons?.posts ?? [];
+  const worked = reviewed.filter((post) => post.worked).length;
+  const viral = reviewed.filter((post) => post.ratio >= VIRAL_RATIO).length;
+
+  return (
+    <>
+      <p className="max-w-3xl text-sm text-muted-foreground">
+        Every post he publishes on LinkedIn is reviewed {POST_REVIEW_DAYS} days after it goes up, on
+        LinkedIn&rsquo;s impressions against his typical post, whether it was drafted here or
+        written by the team. A post or article drafted here is also found live by its own words and
+        compared with the draft. What they teach goes into every new post.
+      </p>
+
+      <Tiles
+        isLoading={isLoading || lessonsLoading}
+        tiles={[
+          { label: "Drafted here, live", value: items.filter((i) => i.learning.shortcode).length },
+          { label: "Waiting to go live", value: countStage(items, "waiting") },
+          { label: "To compare", value: countStage(items, "found") },
+          { label: "His posts reviewed", value: reviewed.length },
+          { label: "Waiting for 14 days", value: lessons?.waiting ?? 0 },
+          { label: "Worked / 3× or more", value: `${worked} / ${viral}` },
+        ]}
+      />
+
+      <SectionHeading title="What the system has learned" note="from every post he published" />
+      <PostLessons />
+
+      <RulesLearned platform="linkedin" />
 
       <SectionHeading
-        title="Posted on LinkedIn"
-        note={isLoading ? "Loading…" : `${posts.length} in all · posts and articles`}
+        title="Drafted here and posted"
+        note={isLoading ? "Loading…" : `${items.length} in all · posts and articles`}
       />
       <FilmedList
-        items={posts}
+        items={items}
         isLoading={isLoading}
         empty="Nothing yet. A post or article written here shows up once it goes live: it is found by its own words on the next Sync, or press I posted this in its drawer."
-        onOpen={open}
+        onOpen={onOpen}
       />
-
-      {viewing ? (
-        <AiIdeaCards
-          key={viewing.idea.id}
-          ideas={[viewing.idea]}
-          platform={viewing.platform}
-          initialOpenId={viewing.idea.id}
-          panelOnly
-          onClose={() => setViewing(null)}
-        />
-      ) : null}
-    </div>
+    </>
   );
 }
 
@@ -379,27 +508,38 @@ function FilmedRow({
   );
 }
 
-/** The rules strong patterns have produced, and what each one does. */
-function RulesLearned() {
-  const { data: rules } = useQuery(learnedRulesQueryOptions("instagram"));
+/**
+ * The rules strong patterns have produced. On Instagram the code enforces
+ * them (hooks.ts, review.ts); on LinkedIn they go to the writer with every new
+ * post (reel-learning/lessons.ts), which is what the note says.
+ */
+function RulesLearned({ platform }: { platform: PlatformId }) {
+  const { data: rules } = useQuery(learnedRulesQueryOptions(platform));
+  const things = LEARNING_WORDS[platform].things;
+  const opening = platform === "linkedin" ? "opening" : "hook";
   const items = [
     ...(rules?.blockedHookTypes ?? []).map(
       (rule) =>
-        `Never open with a ${HOOK_TYPE_LABEL[rule.type].toLowerCase()} hook: lost on ${rule.reels} reels (median ${rule.medianRatio.toFixed(2)}×). New hooks of this kind are rewritten and never offered.`,
+        `Never open with a ${HOOK_TYPE_LABEL[rule.type].toLowerCase()} ${opening}: lost on ${rule.reels} ${things} (median ${rule.medianRatio.toFixed(2)}×). ${platform === "linkedin" ? "The writer is told not to use one." : "New hooks of this kind are rewritten and never offered."}`,
     ),
     ...(rules?.allowHypotheticalHooks
       ? [
-          `Hypothetical hooks ("Imagine…") are allowed again: they worked on ${rules.allowHypotheticalHooks.reels} reels (median ${rules.allowHypotheticalHooks.medianRatio.toFixed(2)}×), as long as the same line names the subject.`,
+          `Hypothetical ${opening}s ("Imagine…") are allowed again: they worked on ${rules.allowHypotheticalHooks.reels} ${things} (median ${rules.allowHypotheticalHooks.medianRatio.toFixed(2)}×), as long as the same line names the subject.`,
         ]
       : []),
     ...(rules?.blockedHashtags ?? []).map(
       (rule) =>
-        `${rule.tag} is no longer suggested: it was on ${rule.reels} reels that lost (median ${rule.medianRatio.toFixed(2)}×).`,
+        `${rule.tag} is no longer suggested: it was on ${rule.reels} ${things} that lost (median ${rule.medianRatio.toFixed(2)}×).`,
     ),
   ];
   return (
     <>
-      <SectionHeading title="Rules learned from results" note="enforced in code" />
+      <SectionHeading
+        title="Rules learned from results"
+        note={
+          platform === "linkedin" ? "given to the writer for every new post" : "enforced in code"
+        }
+      />
       {items.length ? (
         <Card>
           <CardContent className="p-5">
@@ -412,8 +552,8 @@ function RulesLearned() {
         </Card>
       ) : (
         <p className="text-sm text-muted-foreground">
-          None yet. A rule needs 3 or more reviewed reels that agree: a kind of hook or a hashtag
-          that keeps losing is blocked, and a rule that keeps being beaten is lifted. One reel,
+          None yet. A rule needs 3 or more reviewed {things} that agree: a kind of {opening} or a
+          hashtag that keeps losing is blocked, and a rule that keeps being beaten is lifted. One,
           however good or bad, never makes a rule.
         </p>
       )}
