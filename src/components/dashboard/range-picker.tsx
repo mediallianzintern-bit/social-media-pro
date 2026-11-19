@@ -1,5 +1,5 @@
 import { useNavigate, useSearch, useRouterState } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,9 +65,16 @@ export function RangePicker() {
   const [draftFrom, setDraftFrom] = useState(() => toInputValue(resolved.from));
   const [draftTo, setDraftTo] = useState(() => toInputValue(resolved.to));
   const [open, setOpen] = useState(false);
+  // Set while "Custom dates…" closes the dropdown, so the dropdown does not
+  // pull focus back to its button and the dates box stays open (19 Nov 2026:
+  // it flashed for a second and closed).
+  const choosingCustom = useRef(false);
 
   const select = (value: string) => {
     if (value === "custom") {
+      choosingCustom.current = true;
+      setDraftFrom(toInputValue(resolved.from));
+      setDraftTo(toInputValue(resolved.to));
       setOpen(true);
       return;
     }
@@ -105,7 +112,15 @@ export function RangePicker() {
                     : OPTION_LABEL[active]}
               </SelectValue>
             </SelectTrigger>
-            <SelectContent align="end">
+            <SelectContent
+              align="end"
+              onCloseAutoFocus={(event) => {
+                if (choosingCustom.current) {
+                  event.preventDefault();
+                  choosingCustom.current = false;
+                }
+              }}
+            >
               {ranges.map((key) => (
                 <SelectItem key={key} value={key} className="py-2.5 text-sm">
                   {key === "era" ? eraLabel : OPTION_LABEL[key]}
@@ -119,7 +134,13 @@ export function RangePicker() {
           </Select>
         </div>
       </PopoverAnchor>
-      <PopoverContent align="end" className="w-72 space-y-3">
+      <PopoverContent
+        align="end"
+        className="w-72 space-y-3"
+        // Focus moving (the dropdown closing, a date picker opening) is not a
+        // click away; a real click outside or Escape still closes it.
+        onFocusOutside={(event) => event.preventDefault()}
+      >
         <div className="space-y-1.5">
           <Label htmlFor="range-from" className="text-sm">
             From
