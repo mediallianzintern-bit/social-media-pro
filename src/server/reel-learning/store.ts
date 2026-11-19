@@ -213,6 +213,30 @@ export async function unlinkIdea(ideaId: string): Promise<void> {
  * Every idea written for a platform in the last `days`, as stored. Used to keep
  * a timing guess off reels that name some other story. Free: one read.
  */
+/**
+ * Every idea of the last `days` with a written post (a LinkedIn post or
+ * article), with when it was created, for finding the ones that went live
+ * without anyone marking them (match.ts enrolWrittenPosts).
+ */
+export async function writtenDrafts(
+  platform: PlatformId,
+  days = 60,
+): Promise<Array<{ idea: ContentIdea; createdAt: string }>> {
+  if (!hasDurableStore()) return [];
+  const since = new Date(Date.now() - days * 86_400_000).toISOString();
+  const { data, error } = await db()
+    .from("suggested_ideas")
+    .select("id,payload,created_at")
+    .eq("platform", platform)
+    .gte("created_at", since)
+    .not("payload->post", "is", null)
+    .limit(1000);
+  if (error) return [];
+  return ((data ?? []) as Array<{ id: string; payload: ContentIdea | null; created_at: string }>)
+    .filter((row) => row.payload?.post?.body)
+    .map((row) => ({ idea: { ...row.payload!, id: row.id }, createdAt: row.created_at }));
+}
+
 export async function recentIdeas(platform: PlatformId, days = 60): Promise<ContentIdea[]> {
   if (!hasDurableStore()) return [];
   const since = new Date(Date.now() - days * 86_400_000).toISOString();

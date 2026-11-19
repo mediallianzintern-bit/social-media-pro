@@ -17,8 +17,12 @@
 //   - a reel that has already cost RETRY_LIMIT_USD without a result is left
 //     for a person, so a reel whose transcript keeps failing is not paid for
 //     on every sync.
-// Instagram only: a published LinkedIn post (Phase 3, 5 Nov 2026) is analysed
-// and reviewed from its buttons, as the team chose.
+// LinkedIn too since 19 Nov 2026: a draft found live is compared with what was
+// published (analyse-post.ts, one call, no transcript) and reviewed after its
+// 14 days, within its own monthly cap. Until then it waited for the Analyse
+// button, and none of the three posted drafts had been compared. Every post he
+// publishes is also reviewed on its own by post-learning; the draft's review
+// adds what the team kept and changed, and the lessons count each post once.
 import { REEL_REVIEW_DAYS } from "@/lib/reel-learning-types";
 import { shortcodeFromUrl } from "@/lib/reel-match";
 import type { PlatformId } from "@/lib/analytics-types";
@@ -131,7 +135,6 @@ export async function learnFromFilmedReels(
   platform: PlatformId,
 ): Promise<{ reviewed: number; analysed: number; skipped: string | null }> {
   const done = { reviewed: 0, analysed: 0 };
-  if (platform !== "instagram") return { ...done, skipped: "Instagram only for now." };
   if (!hasOpenAi()) return { ...done, skipped: "OPENAI_API_KEY is not set." };
   const started = Date.now();
   try {
@@ -175,7 +178,7 @@ export async function learnFromFilmedReels(
       ...done,
       skipped:
         !plan.steps.length && plan.waiting
-          ? `This month's $${plan.cap.toFixed(2)} for filmed reels is spent.`
+          ? `This month's $${plan.cap.toFixed(2)} for ${platform === "linkedin" ? "posted drafts" : "filmed reels"} is spent.`
           : null,
     };
   } catch (error) {

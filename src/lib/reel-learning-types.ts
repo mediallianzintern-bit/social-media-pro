@@ -210,6 +210,12 @@ export const POST_REVIEW_DAYS = 14;
 export const reviewDaysFor = (platform: "instagram" | "linkedin") =>
   platform === "linkedin" ? POST_REVIEW_DAYS : REEL_REVIEW_DAYS;
 
+/**
+ * `filmedBy` on a LinkedIn draft the system found live by its own words, with
+ * nobody pressing "I posted this" (reel-learning/match.ts enrolWrittenPosts).
+ */
+export const FOUND_LIVE = "found-live";
+
 /** How the feature talks about one platform's published content. */
 export const LEARNING_WORDS = {
   instagram: {

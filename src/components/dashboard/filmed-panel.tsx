@@ -29,6 +29,7 @@ import { CTA_TYPE_LABEL, HOOK_TYPE_LABEL } from "@/lib/reel-parts";
 import { dateTime, fullNumber, shortDate } from "@/lib/format";
 import {
   ELEMENT_VERDICT_LABEL,
+  FOUND_LIVE,
   isFinalReview,
   LEARNING_WORDS,
   REEL_USAGE_LABEL,
@@ -170,8 +171,14 @@ export function FilmedPanel({ idea }: { idea: ContentIdea }) {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Marked {w.did} {dateTime(learning.filmedAt)}
-        {learning.filmedBy ? ` by ${learning.filmedBy}` : ""}.
+        {learning.filmedBy === FOUND_LIVE ? (
+          <>Found live {dateTime(learning.filmedAt)} by its own words; nobody had to mark it.</>
+        ) : (
+          <>
+            Marked {w.did} {dateTime(learning.filmedAt)}
+            {learning.filmedBy ? ` by ${learning.filmedBy}` : ""}.
+          </>
+        )}
       </p>
 
       {!learning.shortcode ? (

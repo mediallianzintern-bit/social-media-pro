@@ -253,6 +253,52 @@ export function findPostByText(
   return best;
 }
 
+/**
+ * Share of a dashboard article's distinctive title words a published
+ * article's title must carry, and the fewest shared words that count. The
+ * article page itself cannot be read (LinkedIn answers automated reads with a
+ * bot check, 19 Nov 2026), so the synced title is the strongest evidence there
+ * is. Three drafts on ChatGPT Wallet share "chatgpt" and "wallet"; the bar
+ * needs more than the story's name.
+ */
+export const MIN_ARTICLE_TITLE_SHARE = 0.5;
+export const MIN_ARTICLE_TITLE_WORDS = 3;
+
+/**
+ * The LinkedIn article a dashboard article became, found by its title against
+ * the synced article titles (`titles`, by post id), or by its introduction
+ * against the post that shares it (findPostByText). Only article posts count.
+ */
+export function findArticleByTitle(
+  idea: ContentIdea,
+  posts: PostRecord[],
+  titles: Map<string, string>,
+  options: { earliest: number; filmedAt: string; taken: Set<string> },
+): ReelCandidate | null {
+  const articles = posts.filter((post) => post.format === "article");
+  const ours = distinctive(idea.title ?? "");
+  const latest = Date.parse(options.filmedAt) + 30 * 86_400_000;
+  let best: ReelCandidate | null = null;
+  if (ours.size >= MIN_ARTICLE_TITLE_WORDS) {
+    for (const post of articles) {
+      const title = titles.get(post.postId);
+      if (!title) continue;
+      const shortcode = shortcodeFromUrl(post.url) ?? post.postId;
+      if (options.taken.has(shortcode)) continue;
+      const at = Date.parse(post.publishedAt);
+      if (!Number.isFinite(at) || at < options.earliest || at > latest) continue;
+      const theirs = distinctive(title);
+      const shared = [...ours].filter((word) => theirs.has(word));
+      const share = shared.length / ours.size;
+      if (shared.length < MIN_ARTICLE_TITLE_WORDS || share < MIN_ARTICLE_TITLE_SHARE) continue;
+      const score = Math.round(share * 100);
+      if (!best || score > best.score) best = { post, shortcode, words: shared.slice(0, 8), score };
+    }
+  }
+  const byIntro = findPostByText(idea, articles, options);
+  return byIntro && (!best || byIntro.score > best.score) ? byIntro : best;
+}
+
 /** Lower-case words, with team notes in [brackets] and hashtags left out. */
 export function words(text: string): string[] {
   return text

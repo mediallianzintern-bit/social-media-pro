@@ -227,6 +227,19 @@ export async function saveLinkedInArticles(articles: LinkedInArticle[]): Promise
   return error ? 0 : articles.length;
 }
 
+/** His articles' titles, by the id of the post that shares each. Free; empty before 0028. */
+export async function readLinkedInArticleTitles(): Promise<Map<string, string>> {
+  if (!hasDurableStore()) return new Map();
+  const { data, error } = await db().from("linkedin_articles").select("post_id,title");
+  if (error) return new Map();
+  return new Map(
+    ((data ?? []) as Array<{ post_id: string; title: string }>).map((row) => [
+      row.post_id,
+      row.title,
+    ]),
+  );
+}
+
 export interface LinkedInAnalytics {
   connected: boolean;
   posts: LinkedInPostFigures[];

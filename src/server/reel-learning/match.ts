@@ -16,6 +16,7 @@ import { readStory } from "../sources/article";
 import { markIdeaUsed, readIdeaById, readPosts, readSourceItemsById } from "../store";
 import {
   distinctive,
+  findArticleByTitle,
   findReelByArticle,
   findReelByTiming,
   earliestReelFor,
@@ -29,7 +30,7 @@ import {
   shortcodeFromUrl,
   type ReelCandidate,
 } from "@/lib/reel-match";
-import type { ReelMatch } from "@/lib/reel-learning-types";
+import { FOUND_LIVE, type ReelMatch } from "@/lib/reel-learning-types";
 import type { PlatformId, PostRecord } from "@/lib/analytics-types";
 
 import { fileUnderPostedLane } from "./lane";
@@ -39,8 +40,10 @@ import {
   readAllReelLearning,
   readReelLearning,
   recentIdeas,
+  recordFilmed,
   unlinkIdea,
   updateReelLearning,
+  writtenDrafts,
   type ReelLearningRow,
   type SourceWords,
 } from "./store";
@@ -82,6 +85,7 @@ async function strongMatch(
   posts: PostRecord[],
   taken: Set<string>,
   nameFreq: Map<string, number>,
+  titles: Map<string, string> = new Map(),
 ): Promise<{ found: ReelCandidate; by: ReelMatch["by"] } | null> {
   const idea = await readIdeaById(row.ideaId);
   if (!idea) return null;
@@ -91,11 +95,12 @@ async function strongMatch(
   // A LinkedIn post is found by its own words first: the team edits a post
   // but keeps most of it. Then by its story, at a higher bar than a reel.
   if (linkedin) {
-    const byText = findPostByText(idea, posts, {
-      earliest: earliestReelFor(idea, createdAt),
-      filmedAt: row.filmedAt,
-      taken,
-    });
+    const options = { earliest: earliestReelFor(idea, createdAt), filmedAt: row.filmedAt, taken };
+    // An article by its title (its page cannot be read), or its introduction.
+    const byText =
+      idea.format === "article"
+        ? findArticleByTitle(idea, posts, titles, options)
+        : findPostByText(idea, posts, options);
     if (byText) return { found: byText, by: "topic" };
   }
   const byTopic = findReelForIdea(idea, posts, {
@@ -149,7 +154,9 @@ async function setLink(row: ReelLearningRow, found: ReelCandidate, by: ReelMatch
  *      no idea has claimed in any way.
  */
 export async function linkFilmedReels(platform: PlatformId): Promise<number> {
-  const linked = await linkWaiting(platform);
+  // LinkedIn: drafts that went live without anyone marking them are found first.
+  const enrolled = platform === "linkedin" ? await enrolWrittenPosts() : 0;
+  const linked = enrolled + (await linkWaiting(platform));
   // A reel that went live in another lane than its script: its votes follow it.
   await fileUnderPostedLane(platform);
   return linked;
@@ -163,6 +170,7 @@ async function linkWaiting(platform: PlatformId): Promise<number> {
     const posts = await ownerReels(platform);
     const taken = await linkedShortcodes(platform);
     const nameFreq = nameFrequency(posts);
+    const titles = platform === "linkedin" ? await articleTitles() : new Map<string, string>();
     // Guesses do not block strong matches: who holds which reel by guessing.
     const guessHeld = new Map<string, ReelLearningRow>();
     for (const row of rows) if (isGuess(row) && row.shortcode) guessHeld.set(row.shortcode, row);
@@ -172,7 +180,7 @@ async function linkWaiting(platform: PlatformId): Promise<number> {
     const unmatched: ReelLearningRow[] = [];
     for (const row of waiting) {
       const own = new Set([...taken, ...(row.match?.rejected ?? [])]);
-      const strong = await strongMatch(row, posts, own, nameFreq);
+      const strong = await strongMatch(row, posts, own, nameFreq, titles);
       if (!strong) {
         unmatched.push(row);
         continue;
@@ -213,6 +221,68 @@ async function linkWaiting(platform: PlatformId): Promise<number> {
     return linked;
   } catch (error) {
     console.error(`[reel-learning:${platform}] linking filmed reels skipped:`, error);
+    return 0;
+  }
+}
+
+async function articleTitles(): Promise<Map<string, string>> {
+  const { readLinkedInArticleTitles } = await import("../linkedin-analytics");
+  return readLinkedInArticleTitles().catch(() => new Map<string, string>());
+}
+
+/**
+ * LinkedIn drafts that went live without anyone pressing "I posted this"
+ * (19 Nov 2026). Free: stored drafts and synced posts.
+ *
+ * The button is gone from the LinkedIn page (16 Nov), so a draft the team
+ * posted was learned from as one of his posts, but never linked to its draft:
+ * the Digiday Creator Marketing Index post of 16 Nov carried the draft's
+ * opening and numbered points, and stayed "suggested". Only the strongest
+ * evidence enrols a draft, as if it had been marked: a post carrying
+ * MIN_POST_TEXT_SHARE of the draft's own words, or, for an article, its
+ * title (findArticleByTitle). Topic alone never does: his posts name the
+ * same companies week after week. One post goes to one draft, the closest
+ * first, so of two drafts on one story only the one used is enrolled.
+ */
+async function enrolWrittenPosts(): Promise<number> {
+  try {
+    const [drafts, rows, posts, taken, titles] = await Promise.all([
+      writtenDrafts("linkedin"),
+      readAllReelLearning("linkedin"),
+      ownerReels("linkedin"),
+      linkedShortcodes("linkedin"),
+      articleTitles(),
+    ]);
+    const marked = new Set(rows.map((row) => row.ideaId));
+    const now = new Date().toISOString();
+    const found = drafts
+      .filter(({ idea }) => !marked.has(idea.id))
+      .flatMap(({ idea, createdAt }) => {
+        const options = { earliest: earliestReelFor(idea, createdAt), filmedAt: now, taken };
+        const hit =
+          idea.format === "article"
+            ? findArticleByTitle(idea, posts, titles, options)
+            : findPostByText(idea, posts, options);
+        return hit ? [{ idea, hit }] : [];
+      })
+      .sort((a, b) => b.hit.score - a.hit.score);
+
+    let enrolled = 0;
+    for (const { idea, hit } of found) {
+      if (taken.has(hit.shortcode)) continue;
+      taken.add(hit.shortcode);
+      await recordFilmed(idea.id, "linkedin", FOUND_LIVE);
+      const row = await readReelLearning(idea.id);
+      if (!row) continue;
+      await setLink(row, hit, "topic");
+      enrolled += 1;
+      console.info(
+        `[reel-learning:linkedin] "${idea.title}" found live by its own words (${hit.score}%).`,
+      );
+    }
+    return enrolled;
+  } catch (error) {
+    console.error("[reel-learning:linkedin] finding posted drafts skipped:", error);
     return 0;
   }
 }

@@ -193,6 +193,19 @@ export async function analysePublishedPost(
   const ours = postParts(ourText, openingLines);
   const theirs = postParts(theirText, openingLines);
 
+  // An article: its page cannot be read (LinkedIn answers automated reads with
+  // a bot check), so it is compared on its title and its introduction, the
+  // draft's intro against the post that shares the article.
+  let articleNote = "";
+  if (idea.format === "article") {
+    const { readLinkedInArticleTitles } = await import("../linkedin-analytics");
+    const titles = await readLinkedInArticleTitles().catch(() => new Map<string, string>());
+    articleNote = `\n\nBOTH ARE LINKEDIN ARTICLES. Only the titles and the introductions can be compared: the
+published article's body cannot be read, so never say its body was kept, cut or changed.
+DASHBOARD TITLE: ${idea.title}
+PUBLISHED TITLE: ${titles.get(post.postId) ?? "(not synced)"}`;
+  }
+
   const hooks = [idea.hook, ...(idea.altHooks ?? [])]
     .filter(Boolean)
     .map((hook, index) => `${String.fromCharCode(65 + index)}: ${hook.replace(/\n/g, " / ")}`)
@@ -210,7 +223,7 @@ POST:
 ${ourText}
 
 THE PUBLISHED POST
-${theirText}`,
+${theirText}${articleNote}`,
     schemaName: "post_comparison",
     schema: schema as unknown as Record<string, unknown>,
     model: reviewModel(),
