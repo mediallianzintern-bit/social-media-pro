@@ -835,23 +835,25 @@ export function AiIdeaCards({
                   </p>
                 ) : !open.status || open.status === "suggested" ? (
                   <div className="flex gap-2">
-                    {/* No "I posted this" on LinkedIn (16 Nov 2026): every post he
-                        publishes is learned from without it (post-learning). */}
-                    {platform !== "linkedin" ? (
-                      <Button
-                        variant="outline"
-                        className="flex-1 gap-2"
-                        disabled={filmed.isPending || !open.id}
-                        onClick={() => filmed.mutate(open.id)}
-                      >
-                        {filmed.isPending ? (
-                          <Loader2 className="size-4 animate-spin" aria-hidden />
-                        ) : (
-                          <Clapperboard className="size-4" aria-hidden />
-                        )}
-                        I filmed this
-                      </Button>
-                    ) : null}
+                    {/* LinkedIn: back as a backup (19 Nov 2026). A posted draft is
+                        found by its own words after each Sync without it
+                        (reel-learning/match.ts enrolWrittenPosts); pressing it
+                        makes sure one the team rewrote heavily is looked for too. */}
+                    <Button
+                      variant="outline"
+                      className="flex-1 gap-2"
+                      disabled={filmed.isPending || !open.id}
+                      onClick={() => filmed.mutate(open.id)}
+                    >
+                      {filmed.isPending ? (
+                        <Loader2 className="size-4 animate-spin" aria-hidden />
+                      ) : platform === "linkedin" ? (
+                        <Check className="size-4" aria-hidden />
+                      ) : (
+                        <Clapperboard className="size-4" aria-hidden />
+                      )}
+                      {platform === "linkedin" ? "I posted this" : "I filmed this"}
+                    </Button>
                     <Button
                       variant="ghost"
                       className="gap-2 text-muted-foreground"
