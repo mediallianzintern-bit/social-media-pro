@@ -900,9 +900,15 @@ export const getReactionScriptForClip = createServerFn({ method: "GET" })
 export const getScriptForSource = createServerFn({ method: "GET" })
   .middleware([requireStaff])
   .validator((input: unknown) =>
-    z.object({ platform: platformSchema, sourceId: z.string().uuid() }).parse(input),
+    z
+      .object({
+        platform: platformSchema,
+        sourceId: z.string().uuid(),
+        kind: z.enum(["post", "article"]).optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data }) => {
     const { readIdeaForSource } = await import("@/server/store");
-    return readIdeaForSource(data.platform, data.sourceId);
+    return readIdeaForSource(data.platform, data.sourceId, data.kind);
   });

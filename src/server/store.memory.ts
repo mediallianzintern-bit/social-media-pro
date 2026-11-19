@@ -694,6 +694,7 @@ export async function readIdeaForReactionSource(
 export async function readIdeaForSource(
   _platform: PlatformId,
   _sourceId: string,
+  _kind?: "post" | "article",
 ): Promise<ContentIdea | null> {
   return null;
 }

@@ -2655,13 +2655,19 @@ export async function readIdeaForReactionSource(
 export async function readIdeaForSource(
   platform: PlatformId,
   sourceId: string,
+  /** LinkedIn: the newest post or the newest article (19 Nov 2026); both can exist. */
+  kind?: "post" | "article",
 ): Promise<ContentIdea | null> {
-  const { data, error } = await db()
+  let query = db()
     .from("suggested_ideas")
     .select("id,payload,chosen_hook,status,published_shortcode")
     .eq("platform", platform)
     .eq("source_item_id", sourceId)
-    .not("payload", "is", null)
+    .not("payload", "is", null);
+  if (kind === "article") query = query.eq("payload->>format", "article");
+  // A post is anything not an article: older posts were stored with no format.
+  if (kind === "post") query = query.or("payload->>format.is.null,payload->>format.neq.article");
+  const { data, error } = await query
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();

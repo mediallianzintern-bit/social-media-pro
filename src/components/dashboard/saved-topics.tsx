@@ -36,6 +36,7 @@ import {
   writeReactionScript,
 } from "@/lib/analytics.functions";
 import { dateTime } from "@/lib/format";
+import { writeLinkedIn } from "@/lib/linkedin-write.functions";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import { normalizeSourceUrl } from "@/lib/reaction";
 import { cn } from "@/lib/utils";
@@ -183,6 +184,18 @@ function SavedRow({ item }: { item: SavedTopic }) {
   const meta = PLATFORM_META[item.platform];
   const reaction = item.kind === "trend";
   const Icon = reaction ? Flame : Newspaper;
+  // LinkedIn: what was written from this story, a post, an article or both.
+  const linkedin = item.platform === "linkedin" && !reaction;
+  const pieces = useLinkedInPieces(item.itemId, linkedin);
+  const written = linkedin
+    ? pieces.post.data && pieces.article.data
+      ? "LinkedIn post and article"
+      : pieces.article.data
+        ? "LinkedIn article"
+        : pieces.post.data
+          ? "LinkedIn post"
+          : null
+    : null;
 
   return (
     <li className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:gap-4">
@@ -220,7 +233,7 @@ function SavedRow({ item }: { item: SavedTopic }) {
             {reaction
               ? "Reaction hook reel"
               : item.platform === "linkedin"
-                ? "Post topic"
+                ? (written ?? "Not written yet")
                 : "Reel topic"}
           </Badge>
           <span
@@ -247,7 +260,13 @@ function SavedRow({ item }: { item: SavedTopic }) {
       {/* Capped, so a long message under the buttons wraps instead of widening
           this column and squeezing the topic into a sliver. */}
       <div className="flex shrink-0 flex-wrap items-center gap-2 pl-5 sm:max-w-[28rem] sm:justify-end sm:pl-0">
-        {reaction ? <ReactionScriptActions item={item} /> : <NewsScriptActions item={item} />}
+        {reaction ? (
+          <ReactionScriptActions item={item} />
+        ) : linkedin ? (
+          <LinkedInPieceActions item={item} />
+        ) : (
+          <NewsScriptActions item={item} />
+        )}
         <Badge variant="outline" className="font-normal capitalize">
           {item.lane ?? "no lane"}
         </Badge>
@@ -262,6 +281,138 @@ function SavedRow({ item }: { item: SavedTopic }) {
         />
       </div>
     </li>
+  );
+}
+
+type PieceKind = "post" | "article";
+const pieceKey = (sourceId: string, kind: PieceKind) =>
+  ["script-for-source", "linkedin", sourceId, kind] as const;
+
+/** The newest LinkedIn post and the newest article written from one story. */
+function useLinkedInPieces(sourceId: string, enabled: boolean) {
+  const query = (kind: PieceKind) => ({
+    queryKey: pieceKey(sourceId, kind),
+    queryFn: () => getScriptForSource({ data: { platform: "linkedin", sourceId, kind } }),
+    staleTime: 60 * 1000,
+    enabled,
+  });
+  return { post: useQuery(query("post")), article: useQuery(query("article")) };
+}
+
+/**
+ * A saved LinkedIn story's post and article (19 Nov 2026): each one written
+ * reads View post / View article, with a regenerate beside it; the one not
+ * written yet reads Write post / Write article. The same AI call as those
+ * buttons in the news inbox, only on a press.
+ */
+function LinkedInPieceActions({ item }: { item: SavedTopic }) {
+  const queryClient = useQueryClient();
+  const sourceId = item.itemId;
+  const pieces = useLinkedInPieces(sourceId, true);
+  const [viewing, setViewing] = useState<ContentIdea | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const write = useMutation({
+    mutationFn: (input: { kind: PieceKind; regenerate: boolean }) =>
+      writeLinkedIn({
+        data: {
+          sourceId,
+          format: input.kind === "article" ? "article" : "text_post",
+          ...(input.regenerate ? { regenerate: true } : {}),
+        },
+      }),
+    onMutate: () => setMessage(null),
+    onSuccess: (result, input) => {
+      if (result.analysis) {
+        queryClient.setQueryData(analysisQueryOptions("linkedin").queryKey, result.analysis);
+      }
+      if (result.idea) {
+        queryClient.setQueryData(pieceKey(sourceId, input.kind), result.idea);
+        setViewing(result.idea);
+      } else {
+        setMessage(result.reason ?? `No ${input.kind} was written for this story.`);
+      }
+      void queryClient.invalidateQueries({ queryKey: topicInboxQueryOptions("linkedin").queryKey });
+    },
+    onError: (error) =>
+      setMessage(error instanceof Error ? error.message : "Could not write it for this story."),
+  });
+
+  const drawer = viewing ? (
+    <AiIdeaCards
+      key={viewing.id}
+      ideas={[viewing]}
+      platform="linkedin"
+      initialOpenId={viewing.id}
+      panelOnly
+      onClose={() => setViewing(null)}
+    />
+  ) : null;
+  const failure = message ? (
+    <span className="basis-full whitespace-normal break-words text-xs text-destructive">
+      {message}
+    </span>
+  ) : null;
+
+  return (
+    <>
+      {(["post", "article"] as const).map((kind) => {
+        const { data: existing, isLoading } = pieces[kind];
+        const busy = write.isPending && write.variables?.kind === kind;
+        if (isLoading) {
+          return (
+            <Button key={kind} size="sm" variant="outline" className="gap-1.5" disabled>
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+              Checking…
+            </Button>
+          );
+        }
+        return existing ? (
+          <span key={kind} className="inline-flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              disabled={write.isPending}
+              onClick={() => setViewing(existing)}
+            >
+              <FileText className="size-3.5" aria-hidden />
+              View {kind}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="px-2"
+              disabled={write.isPending}
+              onClick={() => write.mutate({ kind, regenerate: true })}
+              title={`Uses AI to write a new version of the ${kind} with the current rules. The earlier one stays in history.`}
+              aria-label={`Regenerate the ${kind}`}
+            >
+              <RefreshCw className={cn("size-3.5", busy && "animate-spin")} aria-hidden />
+            </Button>
+          </span>
+        ) : (
+          <Button
+            key={kind}
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            disabled={write.isPending}
+            onClick={() => write.mutate({ kind, regenerate: false })}
+            title={`Uses AI: writes a LinkedIn ${kind} on this story in his voice`}
+          >
+            {busy ? (
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            ) : (
+              <Sparkles className="size-3.5" aria-hidden />
+            )}
+            {busy ? `Writing the ${kind}…` : `Write ${kind}`}
+          </Button>
+        );
+      })}
+      {failure}
+      {drawer}
+    </>
   );
 }
 
