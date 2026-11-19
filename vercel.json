@@ -1,0 +1,7 @@
+{
+  "git": {
+    "deploymentEnabled": {
+      "old-ui": false
+    }
+  }
+}
