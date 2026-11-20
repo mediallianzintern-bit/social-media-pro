@@ -175,12 +175,12 @@ export function AppShell({
                       <Link to={meta.route}>
                         {/* The platform's own logo, with the name (20 Nov 2026). */}
                         <img
-                          src={`/logos/${meta.id}.png`}
+                          src={`/logos/${meta.id}.svg`}
                           alt=""
                           aria-hidden
                           width={20}
                           height={20}
-                          className="size-5 shrink-0 rounded-[5px]"
+                          className="size-5 shrink-0"
                         />
                         <span>{meta.label}</span>
                       </Link>

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Instagram-inspired gradient camera icon</title>
+  <desc id="desc">Transparent-background rounded-square camera icon in a refreshed golden orange, coral, pink and violet gradient.</desc>
+  <defs>
+    <linearGradient id="freshGradient" gradientUnits="userSpaceOnUse" x1="0" y1="512" x2="512" y2="0">
+      <stop offset="0%" stop-color="#FFD52B"/>
+      <stop offset="20%" stop-color="#FF951D"/>
+      <stop offset="40%" stop-color="#FF4A28"/>
+      <stop offset="59%" stop-color="#FF144F"/>
+      <stop offset="79%" stop-color="#EC008C"/>
+      <stop offset="100%" stop-color="#BA27CB"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="url(#freshGradient)" stroke-width="47" stroke-linejoin="round">
+    <path d="M150 23.5 H362 C431.9 23.5 488.5 80.1 488.5 150 V362 C488.5 431.9 431.9 488.5 362 488.5 H150 C80.1 488.5 23.5 431.9 23.5 362 V150 C23.5 80.1 80.1 23.5 150 23.5 Z"/>
+    <circle cx="256" cy="256" r="108.5"/>
+  </g>
+  <circle cx="393" cy="119" r="31" fill="url(#freshGradient)"/>
+</svg>

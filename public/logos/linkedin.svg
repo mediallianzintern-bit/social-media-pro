@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="LinkedIn inspired rounded square icon with updated blue gradient and transparent corners">
+<defs><linearGradient id="blue" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0494CF"/><stop offset="47%" stop-color="#087EBE"/><stop offset="100%" stop-color="#165FB1"/></linearGradient></defs>
+<rect x="0" y="0" width="512" height="512" rx="51" fill="url(#blue)" />
+<g fill="#FFFFFF">
+  <circle cx="116" cy="110.5" r="54" />
+  <rect x="75" y="189" width="83" height="266" rx="13" />
+  <path d="M210 189 H267 Q280 189 280 202 V224
+           C297 198 324 184 359 184
+           C425 184 458 233 458 310
+           V443 Q458 455 445 455
+           H385 Q372 455 372 442
+           V314 C372 277 356 256 328 256
+           C297 256 280 281 280 321
+           V442 Q280 455 267 455
+           H210 Q197 455 197 442
+           V202 Q197 189 210 189 Z" /></g>
+</svg>
