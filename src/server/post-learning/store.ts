@@ -2,7 +2,7 @@
 // Supabase only: without it, or before the migration is applied, reads are
 // empty and the pass skips itself.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import type { PostAnalysis, PostLearningRow } from "@/lib/post-learning";
+import { NOT_FROM_THE_TOOL, type PostAnalysis, type PostLearningRow } from "@/lib/post-learning";
 import type { ReelReview } from "@/lib/reel-learning-types";
 
 import { hasDurableStore } from "../store";
@@ -48,7 +48,10 @@ const fromRow = (row: Row): PostLearningRow => ({
   costUsd: Number(row.cost_usd ?? 0),
 });
 
-/** Every stored row, newest post first. Throws PostLearningNotReady before 0036. */
+/**
+ * Every stored row, newest post first, less the posts not from the tool
+ * (NOT_FROM_THE_TOOL), so nothing reads them. Throws PostLearningNotReady before 0036.
+ */
 export async function readPostLearning(): Promise<PostLearningRow[]> {
   if (!hasDurableStore()) return [];
   const { data, error } = await db()
@@ -59,7 +62,7 @@ export async function readPostLearning(): Promise<PostLearningRow[]> {
     if (schemaNotReady(error)) throw new PostLearningNotReady();
     throw new Error(`linkedin_post_learning read failed: ${error.message}`);
   }
-  return ((data ?? []) as Row[]).map(fromRow);
+  return ((data ?? []) as Row[]).map(fromRow).filter((row) => !NOT_FROM_THE_TOOL.has(row.postId));
 }
 
 /**

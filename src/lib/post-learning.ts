@@ -31,6 +31,21 @@ export const STEPS_PER_SYNC = 6;
 const DEFAULT_MONTHLY_USD = 1;
 const DAY_MS = 86_400_000;
 
+/**
+ * His posts left out of the learning: not on topics taken from this tool, so
+ * what they did says nothing about what the tool should write (the team, 20
+ * Nov 2026). Never analysed or reviewed, and not shown, counted in patterns
+ * or rules, or quoted to the writer. By LinkedIn post id.
+ */
+export const NOT_FROM_THE_TOOL = new Set([
+  "7514286304281608192", // 9 Oct · Meta is moving beyond AI that creates ads.
+  "7515762076938674176", // 13 Oct · Your next customer may never visit your website.
+  "7518653752803966977", // 21 Oct · the same post, published again
+  "7516490802647289858", // 15 Oct · Are marketers ready for the next shift in digital advertising?
+  "7517925030215733248", // 19 Oct · If everyone has access to AI, what will actually make a marketer stand out?
+  "7518288072543846401", // 20 Oct · "Professor, with AI changing so quickly, what should I actually learn?"
+]);
+
 export interface PostAnalysis {
   /** The opening as a phone shows it before "see more". */
   opening: string;
@@ -109,7 +124,7 @@ export function planPostSteps(
     .map((row) => ({ kind: "review" as const, postId: row.postId, estimate: REVIEW_ESTIMATE_USD }));
 
   const analyses = posts
-    .filter((post) => !post.pinned && post.caption.trim())
+    .filter((post) => !post.pinned && post.caption.trim() && !NOT_FROM_THE_TOOL.has(post.postId))
     .filter((post) => Date.parse(post.publishedAt) >= now - BACKFILL_DAYS * DAY_MS)
     .filter((post) => {
       const row = byId.get(post.postId);
