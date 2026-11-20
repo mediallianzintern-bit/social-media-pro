@@ -173,8 +173,15 @@ export function AppShell({
                       className="h-11 text-sm"
                     >
                       <Link to={meta.route}>
-                        {/* The platform's own icon in its colour, with the name (19 Nov 2026). */}
-                        <meta.icon aria-hidden style={{ color: meta.color }} />
+                        {/* The platform's own logo, with the name (20 Nov 2026). */}
+                        <img
+                          src={`/logos/${meta.id}.png`}
+                          alt=""
+                          aria-hidden
+                          width={20}
+                          height={20}
+                          className="size-5 shrink-0 rounded-[5px]"
+                        />
                         <span>{meta.label}</span>
                       </Link>
                     </SidebarMenuButton>
