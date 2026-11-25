@@ -29,7 +29,7 @@ import {
   readRecentSuggestions,
   setIdeaSourceSignal,
 } from "../store";
-import { OWNER_ACCOUNTS } from "../apify/accounts";
+import { ownerAccount } from "../apify/accounts";
 import { DEFAULT_PRIMARY_METRIC, DEFAULT_SECONDARY_METRICS, growthTrajectory } from "@/lib/growth";
 import { PLATFORM_IDS, type PlatformId } from "@/lib/analytics-types";
 import type { ContentIdea } from "@/lib/ai-types";
@@ -90,7 +90,7 @@ export async function draftFromTrends(
     };
   }
 
-  const owner = OWNER_ACCOUNTS[platform];
+  const owner = ownerAccount(platform);
   const [snapshot, posts, insights, client, prior] = await Promise.all([
     latestSnapshot(platform, owner.handle),
     readPosts(platform, owner.handle),
@@ -110,7 +110,7 @@ export async function draftFromTrends(
   const subjects = (
     await Promise.all(
       PLATFORM_IDS.map((other) =>
-        readPublishedSubjects(other, OWNER_ACCOUNTS[other].handle)
+        readPublishedSubjects(other, ownerAccount(other).handle)
           .then((list) => list.map((entry) => ({ ...entry, platform: other })))
           .catch(() => []),
       ),

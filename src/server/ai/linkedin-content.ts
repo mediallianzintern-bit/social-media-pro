@@ -15,7 +15,8 @@
 // two cents for a lane proposal. Only posts not yet analysed are sent.
 import { z } from "zod";
 
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+// Scoped: client-owned tables are read and written as the request's client.
+import { supabaseAdmin } from "@/server/tenant/db";
 import { costOf, type GenerationCost } from "@/lib/ai-cost";
 import type { PostRecord } from "@/lib/analytics-types";
 import {

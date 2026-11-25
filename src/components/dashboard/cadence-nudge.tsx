@@ -23,6 +23,8 @@ export function CadenceNudge({
   compact?: boolean;
 }) {
   const raw = useDashboard();
+  // Tracking only (migration 0041): there is no idea workspace to point to.
+  const forClient = raw.client?.service === "tracking";
   const entry = raw.platforms.find((item) => item.platform === platform);
   // Read inside the memo: a fallback `[]` built outside it is a new array on
   // every render, which would recompute the nudge each time.
@@ -62,7 +64,11 @@ export function CadenceNudge({
             ? `A ${meta.label} post is due`
             : `${meta.label} posting has slowed`}
       </AlertTitle>
-      <AlertDescription>{nudge.message} Pick the next idea from the workspace.</AlertDescription>
+      <AlertDescription>
+        {nudge.message}
+        {/* The ideas workspace is Pritesh's alone for now (Studio Phase 5). */}
+        {forClient ? "" : " Pick the next idea from the workspace."}
+      </AlertDescription>
     </Alert>
   );
 }

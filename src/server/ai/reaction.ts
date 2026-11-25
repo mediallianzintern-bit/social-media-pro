@@ -18,7 +18,7 @@ import { significantWords } from "@/lib/lane-fit";
 import { DAILY_CTA, closingLineFor } from "@/lib/script-families";
 import { workflowCta } from "@/lib/tool-workflow";
 
-import { OWNER_ACCOUNTS } from "../apify/accounts";
+import { ownerAccount } from "../apify/accounts";
 import { recordPredictions, currentNiche } from "../predict";
 import {
   latestSnapshot,
@@ -333,7 +333,7 @@ export async function reactionContext(
   }
 
   const platform = source.platform;
-  const owner = OWNER_ACCOUNTS[platform];
+  const owner = ownerAccount(platform);
   const [snapshot, posts, settings, taxonomy, learning] = await Promise.all([
     latestSnapshot(platform, owner.handle).catch(() => null),
     readPosts(platform, owner.handle).catch(() => []),

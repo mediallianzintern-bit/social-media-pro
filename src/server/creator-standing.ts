@@ -3,7 +3,8 @@
 //
 // Free: stored rows only. The standing is shown on Data sources and nothing
 // else; the drop rule retires found creators the team keeps crossing.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+// Scoped: client-owned tables are read and written as the request's client.
+import { supabaseAdmin } from "@/server/tenant/db";
 import {
   buildCreatorStandings,
   creatorKey,

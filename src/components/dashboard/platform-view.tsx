@@ -1,3 +1,5 @@
+import { TRACKING_TABS } from "@/lib/service-level";
+import { useDashboard } from "@/lib/use-dashboard";
 import { Link, useSearch } from "@tanstack/react-router";
 import { AlertTriangle, ArrowDown, ArrowUp, ExternalLink, FileText, Info } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -69,7 +71,7 @@ const LOCKED = {
       description: "Age range and gender split",
       rows: ["13–17", "18–24", "25–34", "35–44", "45–54", "55–64", "65+"],
       unlock:
-        "Instagram renders these only inside the account owner's own Insights. Switching @priteshpatel.co to a Business or Creator account and linking a Facebook Page makes them available through the Meta Graph API, free.",
+        "Instagram renders these only inside the account owner's own Insights. Switching the account to a Business or Creator account and linking a Facebook Page makes them available through the Meta Graph API, free.",
     },
     {
       title: "Reach, impressions and saves",
@@ -109,11 +111,21 @@ export function PlatformView({
 }) {
   // One tab at a time (13 Nov 2026, UI review): the page was 17 sections and
   // about 25 screens long. The tab is in the URL, so Home can link to one.
-  const { tab = "summary" } = useSearch({ from: "/_app" });
+  const { tab: requested = "summary" } = useSearch({ from: "/_app" });
+  // A client from Studio: its competitors come from its brand profile.
+  const client = useDashboard().client;
+  const forClient = client?.isDefault === false;
+  // A tracking-only client (migration 0041) sees the tabs built from its own
+  // stored posts; Ideas and Saved are the full service.
+  const tracking = client?.service === "tracking";
+  const tab: Tab = tracking && !TRACKING_TABS.has(requested) ? "summary" : requested;
   // Which Summary card's figure the chart under them shows (18 Nov 2026).
   const [chart, setChart] = useState<ChartKey>("followers");
   // The count on the Saved tab: this account's saved items only.
-  const { data: saved } = useQuery(savedTopicsQueryOptions(data.platform));
+  const { data: saved } = useQuery({
+    ...savedTopicsQueryOptions(data.platform),
+    enabled: !tracking,
+  });
   // LinkedIn: which posts are articles, with each one's title, reading time
   // and its own page, for the Post / Article label on Top posts (19 Nov 2026).
   const { data: linkedinFigures } = useQuery({
@@ -166,7 +178,9 @@ export function PlatformView({
         <Info className="size-4" aria-hidden />
         <AlertTitle>No snapshot stored yet</AlertTitle>
         <AlertDescription>
-          Press Refresh to collect {meta.label}&apos;s figures for the first time.
+          {forClient
+            ? `Press Refresh to collect ${client?.displayName}'s ${meta.label} figures for the first time.`
+            : `Press Refresh to collect ${meta.label}'s figures for the first time.`}
         </AlertDescription>
       </Alert>
     );
@@ -223,8 +237,10 @@ export function PlatformView({
     ...data.competitors.map((rival): BenchmarkRow => {
       const followerRatio = latest.followers > 0 ? rival.followers / latest.followers : 0;
       const rateRatio = rate > 0 ? rival.engagementRate / rate : 0;
-      const gap: BenchmarkRow["gap"] =
-        rateRatio >= 1.25
+      const gap: BenchmarkRow["gap"] = rival.aspirational
+        ? // The account the client wants to grow into: a target, not a peer.
+          { label: "Aspirational account", tone: "neutral" }
+        : rateRatio >= 1.25
           ? // Ahead of you is not "bad" (13 Nov 2026, UI review: every rival
             // was labelled bad). It is something to learn from.
             { label: `Engages ${rateRatio.toFixed(1)}× more than you`, tone: "warn" }
@@ -254,7 +270,7 @@ export function PlatformView({
     perWeek: summary.postsPerWeek,
   });
 
-  const tabs: Array<{ id: Tab; label: string }> = [
+  const allTabs: Array<{ id: Tab; label: string }> = [
     { id: "summary", label: "Summary" },
     { id: "posts", label: `Posts · ${posts.length}` },
     { id: "audience", label: "Audience" },
@@ -262,6 +278,7 @@ export function PlatformView({
     { id: "ideas", label: "Ideas" },
     { id: "saved", label: saved?.saved.length ? `Saved · ${saved.saved.length}` : "Saved" },
   ];
+  const tabs = allTabs.filter((entry) => !tracking || TRACKING_TABS.has(entry.id));
 
   return (
     <div className="space-y-6">
@@ -461,7 +478,7 @@ export function PlatformView({
                         Topic report
                       </Link>
                     </Button>
-                    <DeriveLanes platform={data.platform} mode="refresh" />
+                    {tracking ? null : <DeriveLanes platform={data.platform} mode="refresh" />}
                   </div>
                 }
               />
@@ -473,7 +490,7 @@ export function PlatformView({
                 title="How each topic performs"
                 note="Topics are read from the account's own captions"
               />
-              <DeriveLanes platform={data.platform} />
+              {tracking ? null : <DeriveLanes platform={data.platform} />}
             </>
           ) : null}
         </>
@@ -524,13 +541,15 @@ export function PlatformView({
               />
               <div className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
                 <MetricBars
-                  title="From views to interactions"
+                  title={hasViews ? "From views to interactions" : "Its interactions"}
                   rows={funnel}
                   color={color}
                   note={
                     hasViews
                       ? `${percent(engagementsOf(best) / Math.max(viewsOf(best), 1), 2)} of viewers interacted.`
-                      : "LinkedIn shows no view count on personal posts, so this starts at interactions."
+                      : isInstagram
+                        ? "Instagram published no view count for these posts, so this starts at interactions."
+                        : "LinkedIn shows no view count on personal posts, so this starts at interactions."
                   }
                 />
                 <MetricBars
@@ -580,7 +599,23 @@ export function PlatformView({
         </>
       ) : null}
 
-      {tab === "competitors" ? (
+      {tab === "competitors" && forClient && !data.competitors.length ? (
+        <Alert>
+          <Info className="size-4" aria-hidden />
+          <AlertTitle>
+            {data.trackedCompetitors.length
+              ? "Competitors not collected yet"
+              : "No competitors yet"}
+          </AlertTitle>
+          <AlertDescription>
+            {data.trackedCompetitors.length
+              ? `Press Refresh to collect ${data.trackedCompetitors.map((h) => `@${h}`).join(", ")}.`
+              : `${client?.displayName}'s competitors come from its brand profile in Studio. Add them there, then use Import clients from Studio and Refresh.`}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {tab === "competitors" && (!forClient || data.competitors.length) ? (
         <CompetitorTable
           rows={benchmark}
           viewsLabel={hasViews ? "Typical views" : "Typical views (n/a)"}

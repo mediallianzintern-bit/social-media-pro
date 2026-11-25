@@ -73,5 +73,7 @@ export interface ClientReport {
   platforms: ClientReportPlatform[];
   /** How many accounts the benchmark set covers. Deliberately a count, not names. */
   benchmarkedAgainst: number;
+  /** False for a client from Studio, which has no suggestions to score yet. */
+  suggestions: boolean;
   ephemeral: boolean;
 }

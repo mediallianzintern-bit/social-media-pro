@@ -9,7 +9,8 @@
 //
 // Free, and never fatal: without a connection, past the daily limit, or with
 // LinkedIn down, the sync carries on exactly as before.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+// Scoped: client-owned tables are read and written as the request's client.
+import { supabaseAdmin } from "@/server/tenant/db";
 import {
   ACCOUNT_CALLS,
   CALLS_PER_RUN,

@@ -8,7 +8,9 @@
 // has not graduated, this returns the cold-start calibration report and the view
 // says plainly that accuracy improves as more posts are tracked.
 import { trackedCompetitorSnapshots } from "./competitors";
-import { OWNER_ACCOUNTS } from "./apify/accounts";
+import { activeClient } from "./clients/context";
+import { readClientCompetitors } from "./clients/store";
+import { ownerAccount } from "./apify/accounts";
 import { calibrationReport, currentNiche } from "./predict";
 import {
   growthSeries,
@@ -91,13 +93,18 @@ async function platformReport(
   engagementStart: string | null,
   range: ReportRange,
 ): Promise<ClientReportPlatform | null> {
-  const owner = OWNER_ACCOUNTS[platform];
+  const owner = ownerAccount(platform);
+  // A client from Studio (Phase 5) has its own account figures, but no
+  // suggestions, predictions or outcomes yet: those are Pritesh's alone, so
+  // they are never read for a client and the sections built on them are left
+  // out of its report.
+  const forClient = activeClient() !== null;
 
   const [snapshot, allGrowth, allPosts, outcomes, eras] = await Promise.all([
     latestSnapshot(platform, owner.handle).catch(() => null),
     growthSeries(platform, owner.handle).catch(() => []),
     readPosts(platform, owner.handle).catch(() => [] as PostRecord[]),
-    readOutcomes(platform).catch(() => []),
+    forClient ? Promise.resolve([]) : readOutcomes(platform).catch(() => []),
     readEras(platform, owner.handle).catch(() => []),
   ]);
 
@@ -116,8 +123,17 @@ async function platformReport(
   // as an empty section, which reads to a client as a broken report.
   if (!snapshot) return null;
 
-  const niche = await currentNiche(platform).catch(() => platform);
-  const calibration = await calibrationReport(platform, niche);
+  const calibration = forClient
+    ? {
+        made: 0,
+        scored: 0,
+        directionalHits: 0,
+        insideRange: 0,
+        calibrated: false,
+        note: "",
+        samples: [],
+      }
+    : await calibrationReport(platform, await currentNiche(platform).catch(() => platform));
 
   const first = growth[0];
   const last = growth[growth.length - 1];
@@ -153,15 +169,17 @@ async function platformReport(
     // A.5 — weeks containing a published suggestion, against the rest.
     eras: eras.map((era) => ({ startsAt: era.startsAt, label: era.label })),
     periodLabel,
-    goalScore: goalScorecard(
-      allGrowth,
-      outcomes
-        .filter((row) => row.excludedReason == null)
-        .map((row) => row.publishedAt ?? row.measuredAt)
-        .filter((iso): iso is string => Boolean(iso)),
-      primaryMetric,
-      engagementStart,
-    ),
+    goalScore: forClient
+      ? null
+      : goalScorecard(
+          allGrowth,
+          outcomes
+            .filter((row) => row.excludedReason == null)
+            .map((row) => row.publishedAt ?? row.measuredAt)
+            .filter((iso): iso is string => Boolean(iso)),
+          primaryMetric,
+          engagementStart,
+        ),
   };
 }
 
@@ -194,8 +212,13 @@ export async function loadReport(range: ReportRange = { period: "30d" }): Promis
   // Tracked-competitor COUNT only. A client report says how broad the benchmark
   // set is without naming anyone in it — those handles are the agency's
   // research, and a shareable link is the wrong place for them.
+  const chosen = activeClient();
   const tracked = await Promise.all(
-    PLATFORM_IDS.map((platform) => trackedCompetitorSnapshots(platform).catch(() => [])),
+    PLATFORM_IDS.map((platform) =>
+      chosen
+        ? readClientCompetitors(chosen.id, platform).catch(() => [])
+        : trackedCompetitorSnapshots(platform).catch(() => []),
+    ),
   );
 
   return {
@@ -211,6 +234,7 @@ export async function loadReport(range: ReportRange = { period: "30d" }): Promis
       : null,
     platforms,
     benchmarkedAgainst: tracked.reduce((sum, list) => sum + list.length, 0),
+    suggestions: !chosen,
     ephemeral: !hasDurableStore(),
   };
 }

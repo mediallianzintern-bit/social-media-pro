@@ -79,7 +79,13 @@ export function accountSummary(data: PlatformData, range: ResolvedRange): Accoun
     usesViews,
     typical: Math.round(median(posts.map((post) => primaryOf(post, usesViews)))),
     needsAttention: change != null && change < 0,
-    since: sinceWords(range),
+    // When the history itself starts inside the period, the change runs from
+    // that first snapshot, so say that date: a client first synced on 20 Nov
+    // read "Up 2,523 since 26 Oct", and Pritesh's "since 5 May" ran from 8 Sep.
+    since:
+      period?.partial && period.start
+        ? `since ${dayMonth(new Date(period.start.capturedAt))}`
+        : sinceWords(range),
   };
 }
 

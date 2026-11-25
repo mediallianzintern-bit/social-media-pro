@@ -17,7 +17,7 @@ import type { PostRecord } from "@/lib/analytics-types";
 import { engagementsOf } from "@/lib/analytics-types";
 import { lanePostsBlock, pickLanePosts, type WrittenKind } from "@/lib/linkedin-lane-posts";
 
-import { OWNER_ACCOUNTS } from "../apify/accounts";
+import { ownerAccount } from "../apify/accounts";
 import { readLinkedInAnalytics } from "../linkedin-analytics";
 import { readPosts } from "../store";
 
@@ -57,7 +57,7 @@ export function bestRecentPosts(
 export async function linkedInPostReferences(now = Date.now()): Promise<string> {
   try {
     const [posts, analytics] = await Promise.all([
-      readPosts("linkedin", OWNER_ACCOUNTS.linkedin.handle, 1000),
+      readPosts("linkedin", ownerAccount("linkedin").handle, 1000),
       readLinkedInAnalytics(),
     ]);
     const impressions = new Map(
@@ -98,7 +98,7 @@ export async function linkedInLanePosts(
   if (!lane?.trim()) return "";
   try {
     const [posts, analytics] = await Promise.all([
-      readPosts("linkedin", OWNER_ACCOUNTS.linkedin.handle, 1000),
+      readPosts("linkedin", ownerAccount("linkedin").handle, 1000),
       readLinkedInAnalytics(),
     ]);
     const impressions = new Map(

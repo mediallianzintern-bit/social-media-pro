@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import type { LaneReport } from "@/lib/lane-report";
+import { clientScope } from "@/lib/client-scope";
 import { requireStaff } from "@/lib/require-staff";
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -21,15 +22,15 @@ export type LaneReportInput = z.infer<typeof laneReportInput>;
  * call and no scrape, so it is safe to open as often as anyone likes.
  */
 export const getLaneReport = createServerFn({ method: "GET" })
-  .middleware([requireStaff])
+  .middleware([requireStaff, clientScope])
   .validator((input: unknown) => laneReportInput.parse(input))
   .handler(async ({ data }): Promise<LaneReport & { handle: string; generatedAt: string }> => {
-    const [{ readPosts }, { OWNER_ACCOUNTS }, { laneReport }] = await Promise.all([
+    const [{ readPosts }, { ownerAccount }, { laneReport }] = await Promise.all([
       import("@/server/store"),
       import("@/server/apify/accounts"),
       import("@/lib/lane-report"),
     ]);
-    const handle = OWNER_ACCOUNTS[data.platform].handle;
+    const handle = ownerAccount(data.platform).handle;
     // The whole back catalogue: the window may reach past the default page.
     const posts = await readPosts(data.platform, handle, 1000);
     return {

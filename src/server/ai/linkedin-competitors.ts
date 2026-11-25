@@ -22,7 +22,8 @@
 // $0.002 each (about $0.55), and a few cents of gpt-4o-mini.
 import { z } from "zod";
 
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+// Scoped: client-owned tables are read and written as the request's client.
+import { supabaseAdmin } from "@/server/tenant/db";
 import { costOf, type GenerationCost } from "@/lib/ai-cost";
 import type { PostRecord } from "@/lib/analytics-types";
 import { median } from "@/lib/analytics-types";
@@ -30,7 +31,7 @@ import { median } from "@/lib/analytics-types";
 import { completeJson } from "./client";
 import { addCosts } from "./review";
 import { analysePosts, assignToLanes, readAnalyses } from "./linkedin-content";
-import { OWNER_ACCOUNTS } from "../apify/accounts";
+import { ownerAccount } from "../apify/accounts";
 import { datasetItems, runActor } from "../apify/client";
 import { authorOf, LINKEDIN_POSTS_ACTOR, normalizeLinkedInPosts } from "../apify/linkedin";
 import { hasDurableStore, readPosts, readTaxonomy } from "../store";
@@ -151,11 +152,11 @@ way someone would type it into LinkedIn's search to find posts, not people. No h
 /** His lanes, the strict version used to file anyone's posts, his subjects per lane and his formats. */
 async function hisProfile() {
   const [lanes, ownPosts] = await Promise.all([
-    readTaxonomy("linkedin", OWNER_ACCOUNTS.linkedin.handle).then((value) => value ?? []),
-    readPosts("linkedin", OWNER_ACCOUNTS.linkedin.handle, 400),
+    readTaxonomy("linkedin", ownerAccount("linkedin").handle).then((value) => value ?? []),
+    readPosts("linkedin", ownerAccount("linkedin").handle, 400),
   ]);
   if (!lanes.length) throw new Error("LinkedIn has no lanes yet.");
-  const analyses = await readAnalyses([OWNER_ACCOUNTS.linkedin.handle]);
+  const analyses = await readAnalyses([ownerAccount("linkedin").handle]);
 
   // His subjects per lane, and the formats he writes most.
   const topicsByLane = new Map<string, string[]>();
@@ -322,7 +323,7 @@ export async function findLinkedInCompetitors(): Promise<{
   rejected: CandidateEvidence[];
   cost: GenerationCost | undefined;
 }> {
-  const owner = OWNER_ACCOUNTS.linkedin.handle.toLowerCase();
+  const owner = ownerAccount("linkedin").handle.toLowerCase();
   const profile = await hisProfile();
   const { lanes, topicsByLane } = profile;
 

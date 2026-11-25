@@ -14,7 +14,8 @@
 // listener (listen.ts) never reads. No migration: the table already allows a
 // row with no platform. "Add to Instagram / LinkedIn" copies a story into that
 // platform's topics, in a lane, where it is written like any other story.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+// Scoped: client-owned tables are read and written as the request's client.
+import { supabaseAdmin } from "@/server/tenant/db";
 import type { PlatformId } from "@/lib/analytics-types";
 import { isSearchCategory, keepSearchStory } from "@/lib/search-trends";
 import { clusterStories, type SourceDraft } from "@/lib/sources";
@@ -26,7 +27,7 @@ import {
   type WrittenPiece,
 } from "@/lib/universal-trends";
 
-import { OWNER_ACCOUNTS } from "../apify/accounts";
+import { ownerAccount } from "../apify/accounts";
 import { searchNews } from "../sources/news";
 import { isNewsOffLane } from "../sources/queries";
 import { readTaxonomy, saveSourceItems } from "../store";
@@ -232,7 +233,7 @@ function itemOf(row: Row): TrendItem | null {
 
 /** A platform's lanes a news story can go in, from its stored taxonomy. Empty before lanes exist. */
 async function lanesOf(platform: PlatformId): Promise<string[]> {
-  const taxonomy = await readTaxonomy(platform, OWNER_ACCOUNTS[platform].handle).catch(() => null);
+  const taxonomy = await readTaxonomy(platform, ownerAccount(platform).handle).catch(() => null);
   // A lane fed by creator reels or his own experience takes no news story.
   return (taxonomy ?? []).map((entry) => entry.name).filter((name) => !isNewsOffLane(name));
 }

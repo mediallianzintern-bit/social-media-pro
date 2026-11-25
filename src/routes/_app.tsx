@@ -1,7 +1,10 @@
-import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { Info } from "lucide-react";
 import { z } from "zod";
 
 import { AppShell } from "@/components/dashboard/app-shell";
+import { TRACKING_PATHS } from "@/lib/service-level";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { dashboardQueryOptions } from "@/lib/analytics.functions";
 import { useDashboard } from "@/lib/use-dashboard";
 import { GoToLogin } from "@/components/auth/go-to";
@@ -43,6 +46,15 @@ export const Route = createFileRoute("/_app")({
   // call anyway, and they are about to be sent to the login page.
   loader: ({ context }) =>
     context.staffEmail ? context.queryClient.ensureQueryData(dashboardQueryOptions) : null,
+  // The tab names the client being looked at, not always Pritesh (Studio
+  // Phase 5). Switching client reloads this loader, so the title follows.
+  head: ({ loaderData }) => ({
+    meta: [
+      {
+        title: `${loaderData?.client?.displayName ?? "Dr. Pritesh Patel"} — Social Command Center`,
+      },
+    ],
+  }),
   component: AppLayout,
 });
 
@@ -54,6 +66,9 @@ function AppLayout() {
 
 function SignedInLayout({ staffEmail }: { staffEmail: string }) {
   const data = useDashboard();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  // A tracking-only client (migration 0041) opens only the tracking pages.
+  const tracking = data.client?.service === "tracking";
 
   return (
     <AppShell
@@ -64,8 +79,25 @@ function SignedInLayout({ staffEmail }: { staffEmail: string }) {
       // sources page explains what is missing.
       syncDisabled={Boolean(data.setupError)}
       userEmail={staffEmail}
+      client={data.client}
     >
-      <Outlet />
+      {tracking && !TRACKING_PATHS.has(pathname) ? (
+        <Alert>
+          <Info className="size-4" aria-hidden />
+          <AlertTitle>Not part of {data.client?.displayName}&apos;s service</AlertTitle>
+          <AlertDescription className="space-y-2">
+            <p>
+              {data.client?.displayName} has tracking only: Home, its account pages, reports and
+              Settings. Ideas, scripts, Published and To do come with the full service.
+            </p>
+            <Link to="/instagram" className="font-medium underline underline-offset-4">
+              Go to {data.client?.displayName}&apos;s Instagram
+            </Link>
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <Outlet />
+      )}
     </AppShell>
   );
 }

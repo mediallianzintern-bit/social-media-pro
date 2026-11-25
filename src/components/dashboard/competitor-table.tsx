@@ -102,7 +102,9 @@ export function CompetitorTable({
                       —
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {row.medianEngagements ? compactNumber(row.medianEngagements) : "—"}
+                      {row.medianEngagements
+                        ? compactNumber(Math.round(row.medianEngagements))
+                        : "—"}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {row.engagementRate ? percent(row.engagementRate, 2) : "—"}

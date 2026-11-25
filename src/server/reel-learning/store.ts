@@ -4,7 +4,8 @@
 // read and written only by this feature. Supabase only; without a durable store
 // there is nothing to learn across restarts, so every read is empty and every
 // write is a no-op, and the drawer says the feature needs Supabase.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+// Scoped: client-owned tables are read and written as the request's client.
+import { supabaseAdmin } from "@/server/tenant/db";
 import type {
   ReelComparison,
   ReelLearning,

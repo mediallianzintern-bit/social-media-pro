@@ -125,7 +125,14 @@ function Accuracy({ report }: { report: ClientReportPlatform }) {
   );
 }
 
-function PlatformSection({ report }: { report: ClientReportPlatform }) {
+function PlatformSection({
+  report,
+  suggestions,
+}: {
+  report: ClientReportPlatform;
+  /** False for a client from Studio: no suggestions of ours to score yet. */
+  suggestions: boolean;
+}) {
   const meta = PLATFORM_META[report.platform];
   const strongLanes = report.lanes
     .filter((lane) => !lane.directional && lane.medianVsMedian > 1)
@@ -301,7 +308,7 @@ function PlatformSection({ report }: { report: ClientReportPlatform }) {
         </Card>
       ) : null}
 
-      <Accuracy report={report} />
+      {suggestions ? <Accuracy report={report} /> : null}
     </section>
   );
 }
@@ -460,7 +467,7 @@ function ReportPage() {
       </header>
 
       {data.platforms.map((entry) => (
-        <PlatformSection key={entry.platform} report={entry} />
+        <PlatformSection key={entry.platform} report={entry} suggestions={data.suggestions} />
       ))}
 
       <footer className="border-t pt-6">

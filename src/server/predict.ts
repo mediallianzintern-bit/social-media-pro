@@ -24,7 +24,7 @@ import {
   type PredictedRange,
   type ScoredPrediction,
 } from "@/lib/prediction";
-import { OWNER_ACCOUNTS } from "./apify/accounts";
+import { ownerAccount } from "./apify/accounts";
 import {
   latestSnapshot,
   readAnalysis,
@@ -302,7 +302,7 @@ export async function refitNiche(
 export async function currentNiche(platform: PlatformId): Promise<string> {
   const [analysis, snapshot] = await Promise.all([
     readAnalysis(platform).catch(() => null),
-    latestSnapshot(platform, OWNER_ACCOUNTS[platform].handle).catch(() => null),
+    latestSnapshot(platform, ownerAccount(platform).handle).catch(() => null),
   ]);
 
   // This fallback chain is the SAME one the orchestrator uses when it labels a
@@ -311,7 +311,7 @@ export async function currentNiche(platform: PlatformId): Promise<string> {
   // predict() reads a model refitNiche() never writes to, and the niche can
   // never graduate — silently, with nothing in the logs to show for it.
   return nicheSlug(
-    analysis?.discovery?.niche ?? snapshot?.headline ?? OWNER_ACCOUNTS[platform].handle,
+    analysis?.discovery?.niche ?? snapshot?.headline ?? ownerAccount(platform).handle,
   );
 }
 

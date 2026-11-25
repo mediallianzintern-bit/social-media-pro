@@ -4,7 +4,7 @@ import type { PostLessonsView } from "@/lib/post-learning";
 import { REVIEW_DAYS } from "@/lib/post-learning";
 import { HOOK_TYPE_LABEL } from "@/lib/reel-parts";
 
-import { OWNER_ACCOUNTS } from "../apify/accounts";
+import { ownerAccount } from "../apify/accounts";
 import { readPosts } from "../store";
 import { PostLearningNotReady, readPostLearning } from "./store";
 
@@ -20,7 +20,7 @@ export async function postLessonsView(): Promise<PostLessonsView> {
     }
     throw error;
   }
-  const synced = await readPosts("linkedin", OWNER_ACCOUNTS.linkedin.handle, 1000).catch(() => []);
+  const synced = await readPosts("linkedin", ownerAccount("linkedin").handle, 1000).catch(() => []);
   const lanes = new Map(synced.map((post) => [post.postId, post.contentLane ?? null]));
   const waiting = rows.filter((row) => row.analysis && !row.review);
   const next = waiting

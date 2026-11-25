@@ -11,7 +11,7 @@
 // Linking by hand is the backup. A confirmed reel is also linked the way the
 // older "paste the link" path linked it (status "used" + its shortcode), which
 // is what the 7-day outcome capture reads.
-import { OWNER_ACCOUNTS } from "../apify/accounts";
+import { ownerAccount } from "../apify/accounts";
 import { readStory } from "../sources/article";
 import { markIdeaUsed, readIdeaById, readPosts, readSourceItemsById } from "../store";
 import {
@@ -49,7 +49,7 @@ import {
 } from "./store";
 
 async function ownerReels(platform: PlatformId): Promise<PostRecord[]> {
-  const posts = await readPosts(platform, OWNER_ACCOUNTS[platform].handle, 1000);
+  const posts = await readPosts(platform, ownerAccount(platform).handle, 1000);
   // "video" too: reels synced from 17 Oct until the fix in apify/instagram.ts
   // (formatOf) were stored as "video", and every Instagram video is a reel.
   return platform === "instagram"

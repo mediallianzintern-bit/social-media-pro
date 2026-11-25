@@ -8,6 +8,7 @@ import type { ResolvedRange } from "@/lib/date-range";
 import { followFlowQueryOptions } from "@/lib/follow-flow.functions";
 import { fullNumber, shortDate } from "@/lib/format";
 import { periodOf } from "@/lib/linkedin-analytics";
+import { useDashboard } from "@/lib/use-dashboard";
 
 export function FollowFlowLine({
   platform,
@@ -18,11 +19,15 @@ export function FollowFlowLine({
   range: ResolvedRange;
   className?: string;
 }) {
+  // Instagram's own count needs the account's Meta connection, and only
+  // Pritesh's exists: a client from Studio shows nothing here.
+  const forClient = useDashboard().client?.isDefault === false;
+  const shown = platform === "instagram" && !forClient;
   const { data: flow } = useQuery({
     ...followFlowQueryOptions(periodOf(range)),
-    enabled: platform === "instagram",
+    enabled: shown,
   });
-  if (platform !== "instagram" || !flow) return null;
+  if (!shown || !flow) return null;
   return (
     <span
       className={className}

@@ -6,7 +6,7 @@ import type { PlatformId } from "@/lib/analytics-types";
 import type { ReelLearning } from "@/lib/reel-learning-types";
 import { shortcodeFromUrl } from "@/lib/reel-match";
 
-import { OWNER_ACCOUNTS } from "../apify/accounts";
+import { ownerAccount } from "../apify/accounts";
 import { readIdeaById, readPosts } from "../store";
 import { linkFilmedReels } from "./match";
 import { reviewableAt } from "./review";
@@ -24,7 +24,7 @@ export async function listFilmed(platform: PlatformId): Promise<FilmedItem[]> {
   await linkFilmedReels(platform);
   const [rows, posts] = await Promise.all([
     readAllReelLearning(platform),
-    readPosts(platform, OWNER_ACCOUNTS[platform].handle, 1000).catch(() => []),
+    readPosts(platform, ownerAccount(platform).handle, 1000).catch(() => []),
   ]);
   const byCode = new Map(posts.map((post) => [shortcodeFromUrl(post.url) ?? post.postId, post]));
   return Promise.all(

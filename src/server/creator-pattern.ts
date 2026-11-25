@@ -6,11 +6,12 @@
 // Instagram's API by server/creators.ts). What it learns AGAINST, the
 // background: the last 30 days of news headlines, the account's own posts in
 // its other lanes, and the tracked competitors' captions. Free: stored rows only.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+// Scoped: client-owned tables are read and written as the request's client.
+import { supabaseAdmin } from "@/server/tenant/db";
 import { buildPattern, isStale, type CreatorPattern } from "@/lib/creator-pattern";
 import type { PlatformId } from "@/lib/analytics-types";
 
-import { OWNER_ACCOUNTS } from "./apify/accounts";
+import { ownerAccount } from "./apify/accounts";
 import { trackedCompetitorSnapshots } from "./competitors";
 import { hasDurableStore, readPosts, readSourceItems } from "./store";
 
@@ -54,7 +55,7 @@ async function backgroundFor(platform: PlatformId, lane: string): Promise<string
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
   const [news, own, rivals] = await Promise.all([
     readSourceItems(platform, since).catch(() => []),
-    readPosts(platform, OWNER_ACCOUNTS[platform].handle, 200).catch(() => []),
+    readPosts(platform, ownerAccount(platform).handle, 200).catch(() => []),
     trackedCompetitorSnapshots(platform).catch(() => []),
   ]);
   const rivalPosts = await Promise.all(

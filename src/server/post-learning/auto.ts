@@ -4,7 +4,7 @@
 import { planPostSteps } from "@/lib/post-learning";
 
 import { hasOpenAi } from "../ai/client";
-import { OWNER_ACCOUNTS } from "../apify/accounts";
+import { ownerAccount } from "../apify/accounts";
 import { readPosts } from "../store";
 import { analysePost } from "./analyse";
 import { reviewPost } from "./review";
@@ -24,7 +24,7 @@ export async function learnFromPublishedPosts(): Promise<{
   try {
     const [rows, posts] = await Promise.all([
       readPostLearning(),
-      readPosts("linkedin", OWNER_ACCOUNTS.linkedin.handle, 1000),
+      readPosts("linkedin", ownerAccount("linkedin").handle, 1000),
     ]);
     const plan = planPostSteps(rows, posts);
     if (!plan.cap) return { ...done, skipped: "Turned off (LINKEDIN_LEARNING_MONTHLY_USD=0)." };

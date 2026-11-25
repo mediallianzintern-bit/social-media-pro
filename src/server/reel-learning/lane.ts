@@ -15,12 +15,13 @@
 // script keeps the lane it was written for, so the Filmed page can show the
 // change, and the review's lessons count under the posted lane (lessons.ts).
 // Free, idempotent, and never fatal.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+// Scoped: client-owned tables are read and written as the request's client.
+import { supabaseAdmin } from "@/server/tenant/db";
 import type { PlatformId } from "@/lib/analytics-types";
 import { laneChange } from "@/lib/reel-learning-types";
 import { shortcodeFromUrl } from "@/lib/reel-match";
 
-import { OWNER_ACCOUNTS } from "../apify/accounts";
+import { ownerAccount } from "../apify/accounts";
 import { hasDurableStore, readIdeaById, readPosts } from "../store";
 import { readAllReelLearning } from "./store";
 
@@ -29,7 +30,7 @@ const db = () => supabaseAdmin as any;
 
 /** Each of the owner's posts' lane, keyed the way a filmed row names its reel. */
 export async function postedLanes(platform: PlatformId): Promise<Map<string, string>> {
-  const posts = await readPosts(platform, OWNER_ACCOUNTS[platform].handle, 1000).catch(() => []);
+  const posts = await readPosts(platform, ownerAccount(platform).handle, 1000).catch(() => []);
   const lanes = new Map<string, string>();
   for (const post of posts) {
     if (post.contentLane) lanes.set(shortcodeFromUrl(post.url) ?? post.postId, post.contentLane);

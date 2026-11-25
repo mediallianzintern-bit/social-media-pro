@@ -16,7 +16,8 @@
 //   3. finishConnect() checks the state and swaps the code for a token.
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+// Scoped: client-owned tables are read and written as the request's client.
+import { supabaseAdmin } from "@/server/tenant/db";
 
 import { hasDurableStore } from "./store";
 

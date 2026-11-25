@@ -3,7 +3,8 @@
 // Its own module, like reel-learning/store.ts: the table is read and written
 // only by this feature. Supabase only; without a durable store every read is
 // empty and every write says what is missing.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+// Scoped: client-owned tables are read and written as the request's client.
+import { supabaseAdmin } from "@/server/tenant/db";
 import type { PlatformId } from "@/lib/analytics-types";
 import {
   REJECT_REASON_KEYS,

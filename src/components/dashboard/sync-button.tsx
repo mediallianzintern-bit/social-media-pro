@@ -68,6 +68,8 @@ export function SyncButton({
   const [lastError, setLastError] = useState<string | null>(null);
   const [failedPlatforms, setFailedPlatforms] = useState<string[]>([]);
   const [skipped, setSkipped] = useState<string[]>([]);
+  // A client from Studio: what the pass sent back to Studio.
+  const [studioNotes, setStudioNotes] = useState<string[]>([]);
 
   const mutation = useMutation({
     // The trigger is the whole point: a scheduled pass skips a platform that is
@@ -97,11 +99,13 @@ export function SyncButton({
           .filter((outcome) => outcome.status === "skipped")
           .map((outcome) => `${PLATFORM_META[outcome.platform].label}: ${outcome.reason ?? ""}`),
       );
+      setStudioNotes(result.outcomes.flatMap((outcome) => outcome.studio ?? []));
       await queryClient.invalidateQueries({ queryKey: dashboardQueryOptions.queryKey });
     },
     onError: (error: unknown) => {
       setFailedPlatforms([]);
       setSkipped([]);
+      setStudioNotes([]);
       setLastError(error instanceof Error ? error.message : String(error));
     },
   });
@@ -141,7 +145,7 @@ export function SyncButton({
           someone who already suspected there was more to see. The badge stays
           compact because the header has no room for a paragraph, but the
           paragraph is now one click away and reachable from the keyboard. */}
-      {lastError || skipped.length ? (
+      {lastError || skipped.length || studioNotes.length ? (
         <Popover>
           <PopoverTrigger asChild>
             <button
@@ -158,7 +162,9 @@ export function SyncButton({
                 ? failedPlatforms.length === 1
                   ? `${failedPlatforms[0]} not updated`
                   : "Update failed"
-                : `${skipped.length} skipped`}
+                : skipped.length
+                  ? `${skipped.length} skipped`
+                  : "Sent to Studio"}
             </button>
           </PopoverTrigger>
           <PopoverContent align="end" className="w-96">
@@ -173,6 +179,18 @@ export function SyncButton({
             {skipped.length ? (
               <div className={cn("space-y-1", lastError && "mt-3 border-t pt-2")}>
                 {skipped.map((line) => (
+                  <p key={line} className="text-xs leading-relaxed text-muted-foreground">
+                    {line}
+                  </p>
+                ))}
+              </div>
+            ) : null}
+            {studioNotes.length ? (
+              <div
+                className={cn("space-y-1", (lastError || skipped.length) && "mt-3 border-t pt-2")}
+              >
+                <p className="text-xs font-medium">Social Pulse Studio</p>
+                {studioNotes.map((line) => (
                   <p key={line} className="text-xs leading-relaxed text-muted-foreground">
                     {line}
                   </p>

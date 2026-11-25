@@ -22,7 +22,7 @@ import type { ReelLesson, ReelReview } from "@/lib/reel-learning-types";
 import { REEL_USAGE_LABEL, reviewDaysFor, VIRAL_RATIO } from "@/lib/reel-learning-types";
 import { scriptOf, shortcodeFromUrl } from "@/lib/reel-match";
 
-import { OWNER_ACCOUNTS } from "../apify/accounts";
+import { ownerAccount } from "../apify/accounts";
 import { completeJson, hasOpenAi } from "../ai/client";
 import { reviewModel } from "../ai/review";
 import { fetchSkipRates } from "../graph/instagram";
@@ -291,7 +291,7 @@ export async function reviewFilmedReel(
   const linkedin = row.platform === "linkedin";
   const thing = linkedin ? "post" : "reel";
   const days = reviewDaysFor(row.platform);
-  const posts = await readPosts(row.platform, OWNER_ACCOUNTS[row.platform].handle, 1000);
+  const posts = await readPosts(row.platform, ownerAccount(row.platform).handle, 1000);
   const reel = posts.find((post) => (shortcodeFromUrl(post.url) ?? post.postId) === row.shortcode);
   if (!reel)
     return { reason: `The ${thing} isn't in the synced posts. Press Sync, then try again.` };

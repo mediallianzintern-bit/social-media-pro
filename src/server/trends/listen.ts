@@ -34,7 +34,7 @@ import {
   saveTrendSignals,
   type TrendObservationRow,
 } from "../store";
-import { OWNER_ACCOUNTS } from "../apify/accounts";
+import { ownerAccount } from "../apify/accounts";
 import { computeSignals } from "@/lib/trends";
 import { lanePerformance, type PlatformId } from "@/lib/analytics-types";
 
@@ -126,8 +126,8 @@ export async function listenForTrends(
   // per-analysis agents use, so the listener and the analysis look for the same
   // kind of thing.
   const [snapshot, posts] = await Promise.all([
-    latestSnapshot(platform, OWNER_ACCOUNTS[platform].handle).catch(() => null),
-    readPosts(platform, OWNER_ACCOUNTS[platform].handle).catch(() => []),
+    latestSnapshot(platform, ownerAccount(platform).handle).catch(() => null),
+    readPosts(platform, ownerAccount(platform).handle).catch(() => []),
   ]);
   const lanes = lanePerformance(posts).map((lane) => lane.lane);
   const queries = feedQueries(snapshot?.headline ?? niche, lanes);

@@ -14,7 +14,8 @@
 // Budget: CREATOR_SEARCH_MONTHLY_USD. Unset or 0 means the finder is off.
 // Every run's cost is recorded in creator_search_runs (0023), and a run that
 // would take the month past the cap does not start.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+// Scoped: client-owned tables are read and written as the request's client.
+import { supabaseAdmin } from "@/server/tenant/db";
 import {
   judgeCreator,
   MAX_ADDED_PER_RUN,
@@ -28,7 +29,7 @@ import type { CreatorPattern } from "@/lib/creator-pattern";
 import type { CreatorPost } from "@/lib/creator-reels";
 import type { PlatformId } from "@/lib/analytics-types";
 
-import { competitorsFor, OWNER_ACCOUNTS, trendSourcesFor } from "./apify/accounts";
+import { competitorsFor, ownerAccount, trendSourcesFor } from "./apify/accounts";
 import { apifyToken } from "./apify/client";
 import { searchInstagram } from "./apify/search";
 import { readPattern } from "./creator-pattern";
@@ -116,7 +117,7 @@ async function knownHandles(platform: PlatformId): Promise<string[]> {
   const watchlist = await readWatchlist(platform).catch(() => [] as string[]);
   return [
     ...((data ?? []) as Array<{ handle: string }>).map((row) => row.handle),
-    OWNER_ACCOUNTS[platform].handle,
+    ownerAccount(platform).handle,
     ...competitorsFor(platform).map((account) => account.handle),
     ...trendSourcesFor(platform).map((account) => account.handle),
     ...watchlist,

@@ -13,6 +13,14 @@ export function useDashboard(): DashboardData {
   return data;
 }
 
+/**
+ * Whether the client being looked at gets tracking only (migration 0041): the
+ * menu, pages and tabs follow it. The server enforces the same rule.
+ */
+export function useTrackingOnly(): boolean {
+  return (useDashboard().client?.service ?? "full") === "tracking";
+}
+
 /** The selected reporting window, resolved from the URL. */
 export function useRange(): ResolvedRange {
   const search = useSearch({ from: "/_app" });

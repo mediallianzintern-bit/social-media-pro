@@ -1,7 +1,8 @@
 // Supabase persistence. Every read and write goes through the service-role
 // client, which bypasses RLS — the tables have RLS on with no policies, so a
 // leaked publishable key still reads nothing.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+// Scoped: client-owned tables are read and written as the request's client.
+import { supabaseAdmin } from "@/server/tenant/db";
 import type {
   AccountSnapshot,
   ContentLane,
@@ -21,6 +22,7 @@ import { classifyHook, scriptFeatures, type ScriptFeatures } from "@/lib/script-
 import type { SourceDraft, SourceItem } from "@/lib/sources";
 import type { CalendarEntry } from "@/lib/calendar-types";
 import { isTrendSource } from "./apify/accounts";
+import { activeClient } from "./clients/context";
 import type { IdeaStatus, Role } from "@/lib/roles";
 import type { TrendKind, TrendObservation, TrendSignal } from "@/lib/trends";
 
@@ -47,6 +49,7 @@ interface PostRow {
   comments: number;
   shares: number;
   pinned: boolean | null;
+  updated_at?: string | null;
   // Owner-only Graph columns. Null means "not measured", not zero.
   reach: number | null;
   saved: number | null;
@@ -62,7 +65,7 @@ interface PostRow {
 
 /** Columns that exist in the very first migration and can always be selected. */
 const POST_COLUMNS_BASE =
-  "post_id,url,caption,format,published_at,views,likes,comments,shares,pinned";
+  "post_id,url,caption,format,published_at,views,likes,comments,shares,pinned,updated_at";
 
 /** Those plus the owner-only Graph columns and the lane (migrations 0002-0005). */
 const POST_COLUMNS_LANE =
@@ -171,7 +174,12 @@ export async function finishRun(runId: string | null): Promise<void> {
 export async function saveSnapshots(
   platform: PlatformId,
   runId: string | null,
-  snapshots: Array<{ snapshot: AccountSnapshot; role: "owner" | "competitor" }>,
+  snapshots: Array<{
+    snapshot: AccountSnapshot;
+    // "client_competitor" (Studio Phase 5) is a Studio client's rival, which
+    // none of Pritesh's readers ask for.
+    role: "owner" | "competitor" | "client_competitor";
+  }>,
 ): Promise<void> {
   if (!snapshots.length) return;
   const rows = snapshots.map(({ snapshot, role }) => ({
@@ -493,20 +501,29 @@ export async function readPosts(
       ...(insight ? { insight } : {}),
       ...(row.thumbnail_url ? { thumbnailUrl: row.thumbnail_url } : {}),
       ...(row.content_lane ? { contentLane: row.content_lane } : {}),
+      ...(row.updated_at ? { measuredAt: row.updated_at } : {}),
     };
   });
 }
 
 /** Newest successful sync for a platform, or null if none has ever run. */
 export async function lastSyncAt(platform: PlatformId): Promise<string | null> {
-  const { data, error } = await db()
-    .from("sync_runs")
-    .select("started_at")
-    .eq("platform", platform)
-    .eq("status", "ok")
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Pritesh's own syncs only: a Studio client's runs carry a client_id
+  // (migration 0038) and must not move his "Updated" time or his schedule.
+  const read = (ownOnly: boolean) => {
+    const query = db()
+      .from("sync_runs")
+      .select("started_at")
+      .eq("platform", platform)
+      .eq("status", "ok");
+    return (ownOnly ? query.is("client_id", null) : query)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+  };
+  let { data, error } = await read(true);
+  // Before 0038 there is no client_id column, and so no client runs either.
+  if (error && /client_id/.test(error.message)) ({ data, error } = await read(false));
   if (error) throw new Error(`sync_runs read failed: ${error.message}`);
   return (data as { started_at: string } | null)?.started_at ?? null;
 }
@@ -1444,10 +1461,13 @@ export interface ClientRecord {
  * then "the client" is unambiguous.
  */
 export async function readClient(): Promise<ClientRecord | null> {
-  const { data, error } = await db()
-    .from("clients")
-    .select("*")
-    .order("created_at", { ascending: true })
+  // The client this request runs as (Studio Phase 5); otherwise the first,
+  // Pritesh, exactly as before.
+  const chosen = activeClient();
+  const query = db().from("clients").select("*");
+  const { data, error } = await (
+    chosen ? query.eq("id", chosen.id) : query.order("created_at", { ascending: true })
+  )
     .limit(1)
     .maybeSingle();
   if (error) return null;

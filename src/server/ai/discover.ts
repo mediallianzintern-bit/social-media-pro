@@ -12,7 +12,7 @@
 import { completeJson } from "./client";
 import { NICHE_SCHEMA, SCREEN_SCHEMA, nicheSchema, screenSchema } from "./schemas";
 import type { AccountBrief } from "./analyst";
-import { OWNER_ACCOUNTS } from "../apify/accounts";
+import { ownerAccount } from "../apify/accounts";
 import { normalizeInstagram, readInstagramDataset } from "../apify/instagram";
 import { normalizeLinkedInProfile } from "../apify/linkedin";
 import { datasetItems, runActor } from "../apify/client";
@@ -461,14 +461,14 @@ export async function discoverCompetitors(
   platform: PlatformId,
   owner: AccountBrief,
 ): Promise<DiscoveryResult> {
-  const ownerAccount = OWNER_ACCOUNTS[platform];
+  const ownedAccount = ownerAccount(platform);
 
   // T25 — seed from the lanes that win, judged on the goal metric. The brief
   // is already scoped to the current era (T56), so these are the lanes that
   // win under the strategy in force now, not across every past one.
   const [taxonomy, ownPosts, calendar] = await Promise.all([
-    readTaxonomy(platform, ownerAccount.handle).catch(() => null),
-    readPosts(platform, ownerAccount.handle, 400).catch(() => [] as PostRecord[]),
+    readTaxonomy(platform, ownedAccount.handle).catch(() => null),
+    readPosts(platform, ownedAccount.handle, 400).catch(() => [] as PostRecord[]),
     readCalendarEntries(platform).catch(() => []),
   ]);
   const definitions = new Map((taxonomy ?? []).map((lane) => [lane.name, lane.definition]));
@@ -493,8 +493,8 @@ export async function discoverCompetitors(
   const laneForQuery = new Map(plan.map((entry) => [entry.query.toLowerCase(), entry.lane]));
   const candidates =
     platform === "instagram"
-      ? await searchInstagram(queries, [ownerAccount.handle])
-      : await searchLinkedIn(queries, [ownerAccount.handle]);
+      ? await searchInstagram(queries, [ownedAccount.handle])
+      : await searchLinkedIn(queries, [ownedAccount.handle]);
 
   const enrichedRaw =
     platform === "instagram" ? await enrichInstagram(candidates) : await enrichLinkedIn(candidates);

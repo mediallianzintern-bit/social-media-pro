@@ -1,3 +1,4 @@
+import { clientScope } from "@/lib/client-scope";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireStaff } from "@/lib/require-staff";
@@ -15,12 +16,13 @@ const platformSchema = z.enum(["instagram", "linkedin"]);
  * Read path. Server-only modules are imported inside the handler so Apify and
  * Supabase credentials never reach the client bundle.
  */
-export const getDashboard = createServerFn({ method: "GET" }).handler(
-  async (): Promise<DashboardData> => {
+export const getDashboard = createServerFn({ method: "GET" })
+  // Runs as the client chosen in the sidebar (Studio Phase 5); Pritesh by default.
+  .middleware([clientScope])
+  .handler(async (): Promise<DashboardData> => {
     const { loadDashboard } = await import("@/server/dashboard");
     return loadDashboard();
-  },
-);
+  });
 
 /** Write path: scrape now, store the snapshot, and report what happened. */
 /**
@@ -36,8 +38,16 @@ const syncInputSchema = z.object({
 });
 
 export const syncNow = createServerFn({ method: "POST" })
+  // A client chosen in the sidebar gets its own, smaller sync (Studio Phase 5).
+  .middleware([clientScope])
   .validator((input: unknown) => syncInputSchema.parse(input ?? {}))
   .handler(async ({ data }): Promise<SyncResult> => {
+    const { activeClient } = await import("@/server/clients/context");
+    const client = activeClient();
+    if (client) {
+      const { syncClient } = await import("@/server/clients/sync");
+      return syncClient(client, data.trigger);
+    }
     const { runSync } = await import("@/server/sync");
     return runSync(data.trigger, data.platforms ? { platforms: data.platforms } : {});
   });
@@ -181,6 +191,8 @@ export const dismissIdea = createServerFn({ method: "POST" })
  * link cannot spend Apify credit however often it is opened.
  */
 export const getReport = createServerFn({ method: "GET" })
+  // Runs as the client chosen in the switcher (Studio Phase 5).
+  .middleware([clientScope])
   .validator((input: unknown) =>
     z
       .object({
@@ -514,12 +526,12 @@ const eraDetectionSchema = z.object({
 export const getEras = createServerFn({ method: "GET" })
   .validator((input: unknown) => platformSchema.parse(input))
   .handler(async ({ data }) => {
-    const [{ readEras, readPosts }, { detectEras }, { OWNER_ACCOUNTS }] = await Promise.all([
+    const [{ readEras, readPosts }, { detectEras }, { ownerAccount }] = await Promise.all([
       import("@/server/store"),
       import("@/lib/eras"),
       import("@/server/apify/accounts"),
     ]);
-    const handle = OWNER_ACCOUNTS[data].handle;
+    const handle = ownerAccount(data).handle;
     const [eras, posts] = await Promise.all([
       readEras(data, handle).catch(() => []),
       readPosts(data, handle, 1000).catch(() => []),
@@ -546,13 +558,13 @@ export const confirmEra = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data }) => {
-    const [{ saveEra }, { OWNER_ACCOUNTS }] = await Promise.all([
+    const [{ saveEra }, { ownerAccount }] = await Promise.all([
       import("@/server/store"),
       import("@/server/apify/accounts"),
     ]);
     await saveEra({
       platform: data.platform,
-      handle: OWNER_ACCOUNTS[data.platform].handle,
+      handle: ownerAccount(data.platform).handle,
       startsAt: data.startsAt,
       label: data.label,
       note: data.note ?? null,

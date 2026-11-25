@@ -6,7 +6,7 @@
 // useful strip and a generic feed nobody reads.
 import { currentNiche } from "../predict";
 import { readClient, readPosts, readTrendSignals } from "../store";
-import { OWNER_ACCOUNTS } from "../apify/accounts";
+import { ownerAccount } from "../apify/accounts";
 import { relevantTrends, type Relevance, type TrendSignal } from "@/lib/trends";
 import { lanePerformance, type PlatformId } from "@/lib/analytics-types";
 
@@ -26,7 +26,7 @@ export async function trendsForClient(platform: PlatformId, limit = 5): Promise<
     const niche = await currentNiche(platform);
     const [signals, posts, client] = await Promise.all([
       readTrendSignals(niche).catch(() => []),
-      readPosts(platform, OWNER_ACCOUNTS[platform].handle).catch(() => []),
+      readPosts(platform, ownerAccount(platform).handle).catch(() => []),
       readClient().catch(() => null),
     ]);
     if (!signals.length) return [];

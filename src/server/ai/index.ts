@@ -26,7 +26,7 @@ import { nicheLanes, suggestionFeedback } from "./feedback";
 import { buildPreferenceModel, learnedSummary } from "@/lib/preferences";
 import { currentEra, scopeToEra } from "@/lib/eras";
 import type { SourceItem } from "@/lib/sources";
-import { OWNER_ACCOUNTS } from "../apify/accounts";
+import { ownerAccount } from "../apify/accounts";
 import {
   competitorSnapshots,
   growthSeries,
@@ -133,7 +133,7 @@ async function prepareOwner(
   goal: AccountBrief["goal"] | null;
   rivals: Awaited<ReturnType<typeof competitorSnapshots>>;
 } | null> {
-  const owner = OWNER_ACCOUNTS[platform];
+  const owner = ownerAccount(platform);
   const [snapshot, ownerPosts, graphInsights] = await Promise.all([
     latestSnapshot(platform, owner.handle),
     readPosts(platform, owner.handle),
@@ -220,7 +220,7 @@ async function prepareOwner(
     // other-platform as a port that has to justify itself.
     Promise.all(
       PLATFORM_IDS.map((other) =>
-        readPublishedSubjects(other, OWNER_ACCOUNTS[other].handle)
+        readPublishedSubjects(other, ownerAccount(other).handle)
           .then((subjects) => subjects.map((entry) => ({ ...entry, platform: other })))
           .catch(
             () =>

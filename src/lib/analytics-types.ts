@@ -5,6 +5,7 @@
 // public source and are deliberately absent rather than estimated.
 
 import type { PeriodFollowers } from "@/lib/followers";
+import type { ServiceLevel } from "@/lib/service-level";
 import type { ScriptFeatures } from "@/lib/script-features";
 
 export type PlatformId = "instagram" | "linkedin";
@@ -64,6 +65,12 @@ export interface PostRecord {
    * Absent until the post has been classified; "other" when it fits no lane.
    */
   contentLane?: string;
+  /**
+   * When these figures were last scraped. Only a post still among the
+   * profile's newest is re-measured on a sync, so an older post's figures
+   * stop moving here. Absent from a fresh scrape and the in-memory store.
+   */
+  measuredAt?: string;
 }
 
 /** One lane in an account's stable vocabulary. */
@@ -173,6 +180,11 @@ export interface CompetitorRecord {
   medianEngagements: number;
   postsPerWeek: number;
   engagementRate: number;
+  /**
+   * An account the client wants to grow into, from its Studio brand profile
+   * (spec §3.11): a benchmark to aim at, not a rival of the same size.
+   */
+  aspirational?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -407,6 +419,20 @@ export interface PlatformData {
 export interface DashboardData {
   platforms: PlatformData[];
   /**
+   * Which client this is (Studio Phase 5). Absent or default means Pritesh,
+   * for whom every page works; another client gets the pages that are
+   * client-aware so far.
+   */
+  client?: {
+    id: string;
+    displayName: string;
+    isDefault: boolean;
+    /** The platforms this client has an account on; a Studio client may have only Instagram. */
+    platforms?: PlatformId[];
+    /** What it gets: every feature, or tracking only (migration 0041). */
+    service: ServiceLevel;
+  } | null;
+  /**
    * Addendum A.6 — the goal every client headline is read against.
    *
    * The agency console proper needs multi-client; this is the single-client
@@ -449,6 +475,8 @@ export interface SyncOutcome {
   postsIngested?: number;
   /** Newly synced posts filed into a content lane on this pass. */
   lanesAssigned?: number;
+  /** For a client linked from Studio: what this pass sent back to Studio. */
+  studio?: string[];
 }
 
 export interface SyncResult {

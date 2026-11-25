@@ -24,7 +24,7 @@ import {
 } from "@/lib/discovered";
 import type { PlatformId } from "@/lib/analytics-types";
 
-import { accountsFor, OWNER_ACCOUNTS } from "./apify/accounts";
+import { accountsFor, ownerAccount } from "./apify/accounts";
 import { apifyToken } from "./apify/client";
 import { searchInstagramPosts } from "./apify/search";
 import {
@@ -83,7 +83,7 @@ function queriesFor(lane: string): string[] {
 export async function nextQuery(
   platform: PlatformId,
 ): Promise<{ lane: string | null; query: string } | null> {
-  const owner = OWNER_ACCOUNTS[platform].handle;
+  const owner = ownerAccount(platform).handle;
   const [taxonomy, stored, votes] = await Promise.all([
     readTaxonomy(platform, owner).catch(() => null),
     readDiscoveredReels(platform).catch(() => []),
@@ -145,7 +145,7 @@ export async function refreshEveryLane(platform: PlatformId): Promise<{
   passes: Array<Awaited<ReturnType<typeof refreshDiscoveredReels>>>;
   reason?: string;
 }> {
-  const owner = OWNER_ACCOUNTS[platform].handle;
+  const owner = ownerAccount(platform).handle;
   const taxonomy = await readTaxonomy(platform, owner).catch(() => null);
   const lanes = (taxonomy ?? []).map((lane) => lane.name);
   if (!lanes.length) {
@@ -191,7 +191,7 @@ export async function refreshDiscoveredReels(platform: PlatformId): Promise<{
     return { ran: false, reason: "Derive this account's content lanes first, then search." };
   }
 
-  const owner = OWNER_ACCOUNTS[platform].handle;
+  const owner = ownerAccount(platform).handle;
   const [calendar, taxonomy] = await Promise.all([
     readCalendarEntries(platform).catch(() => []),
     readTaxonomy(platform, owner).catch(() => null),
@@ -338,7 +338,7 @@ export async function discoveredReels(platform: PlatformId): Promise<DiscoveredR
   // Every lane this creator publishes in, including the ones holding nothing.
   // A list of only the lanes that happen to have reels hides the gaps, which
   // are the whole point of knowing where to search next.
-  const taxonomy = await readTaxonomy(platform, OWNER_ACCOUNTS[platform].handle).catch(() => null);
+  const taxonomy = await readTaxonomy(platform, ownerAccount(platform).handle).catch(() => null);
   const counts = new Map<string, number>();
   for (const lane of taxonomy ?? []) counts.set(lane.name, 0);
   for (const row of rows) {

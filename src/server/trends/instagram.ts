@@ -12,7 +12,7 @@
 // The two gates in the middle are what separate this from a view counter. The
 // loudest breakouts in this niche are meme humour; without them the inbox
 // would recommend exactly the content this account has no business making.
-import { OWNER_ACCOUNTS } from "../apify/accounts";
+import { ownerAccount } from "../apify/accounts";
 import {
   readCalendarEntries,
   readPosts,
@@ -65,7 +65,7 @@ export interface InstagramTrendResult {
 
 /** The owner's lane vocabulary — the gate every candidate is judged against. */
 async function ownerLanes(platform: PlatformId): Promise<string[]> {
-  const handle = OWNER_ACCOUNTS[platform].handle;
+  const handle = ownerAccount(platform).handle;
   const taxonomy = await readTaxonomy(platform, handle).catch(() => null);
   if (taxonomy?.length) return taxonomy.map((lane) => lane.name);
   const posts = await readPosts(platform, handle).catch(() => []);
@@ -110,7 +110,7 @@ export async function instagramTrends(
   platform: PlatformId = "instagram",
   options: { limit?: number } = {},
 ): Promise<InstagramTrendResult> {
-  const owner = OWNER_ACCOUNTS[platform].handle;
+  const owner = ownerAccount(platform).handle;
   // Competitors AND trend sources. The catcher is the one reader that wants
   // both: a competitor's breakout says what works in this niche, and a trend
   // source's says what the niche is talking about today. Everything else in

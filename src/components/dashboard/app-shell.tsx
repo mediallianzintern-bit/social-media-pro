@@ -40,7 +40,10 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { BrandMark } from "@/components/brand";
 import { RangePicker } from "@/components/dashboard/range-picker";
+import { ClientSwitcher } from "@/components/dashboard/client-switcher";
 import { SyncButton } from "@/components/dashboard/sync-button";
+import type { DashboardData } from "@/lib/analytics-types";
+import { useClientSwitching } from "@/lib/client-switching";
 import { PLATFORM_META } from "@/lib/platform-meta";
 import { cn } from "@/lib/utils";
 
@@ -96,8 +99,11 @@ export function AppShell({
   autoSync,
   syncDisabled,
   userEmail: _userEmail,
+  client,
 }: {
   children: ReactNode;
+  /** The client being looked at; another client than Pritesh gets fewer pages so far. */
+  client?: DashboardData["client"];
   lastSyncedAt: string | null;
   stale: boolean;
   autoSync: boolean;
@@ -107,6 +113,7 @@ export function AppShell({
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const switching = useClientSwitching();
 
   // A session can end elsewhere: another tab signing out, or a refresh token
   // expiring. Follow it rather than leave a dashboard of failing requests.
@@ -121,6 +128,12 @@ export function AppShell({
   }, [navigate, queryClient]);
 
   const title = TITLES[pathname] ?? "";
+  // A client from Studio lists only the accounts it has.
+  const forClient = client?.isDefault === false;
+  // A tracking-only client (migration 0041) gets Home and Reports; To do,
+  // Ideas and Published are the full service.
+  const tracking = client?.service === "tracking";
+  const main = tracking ? MAIN.filter((item) => item.to === "/" || item.to === "/report") : MAIN;
 
   return (
     <SidebarProvider>
@@ -130,17 +143,14 @@ export function AppShell({
             {/* The mark, not the lockup: this slot is all that survives when the
                 sidebar collapses to icons, and the wordmark is illegible at 32px. */}
             <BrandMark />
-            <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
-              <span className="truncate text-sm font-semibold">Social Command Center</span>
-              <span className="truncate text-[13px] text-muted-foreground">Dr. Pritesh Patel</span>
-            </div>
+            <ClientSwitcher fallbackName={client?.displayName ?? "Dr. Pritesh Patel"} />
           </div>
         </SidebarHeader>
         <SidebarContent>
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
-                {MAIN.map((item) => (
+                {main.map((item) => (
                   <SidebarMenuItem key={item.to}>
                     <SidebarMenuButton
                       asChild
@@ -163,30 +173,33 @@ export function AppShell({
             <SidebarGroupLabel className="text-[13px]">Accounts</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {Object.values(PLATFORM_META).map((meta) => (
-                  <SidebarMenuItem key={meta.id}>
-                    <SidebarMenuButton
-                      asChild
-                      size="lg"
-                      isActive={pathname === meta.route}
-                      tooltip={meta.label}
-                      className="h-11 text-sm"
-                    >
-                      <Link to={meta.route}>
-                        {/* The platform's own logo, with the name (20 Nov 2026). */}
-                        <img
-                          src={`/logos/${meta.id}.svg`}
-                          alt=""
-                          aria-hidden
-                          width={20}
-                          height={20}
-                          className="size-5 shrink-0"
-                        />
-                        <span>{meta.label}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
+                {Object.values(PLATFORM_META)
+                  // A client from Studio lists only the accounts it has.
+                  .filter((meta) => !forClient || (client?.platforms ?? []).includes(meta.id))
+                  .map((meta) => (
+                    <SidebarMenuItem key={meta.id}>
+                      <SidebarMenuButton
+                        asChild
+                        size="lg"
+                        isActive={pathname === meta.route}
+                        tooltip={meta.label}
+                        className="h-11 text-sm"
+                      >
+                        <Link to={meta.route}>
+                          {/* The platform's own logo, with the name (20 Nov 2026). */}
+                          <img
+                            src={`/logos/${meta.id}.svg`}
+                            alt=""
+                            aria-hidden
+                            width={20}
+                            height={20}
+                            className="size-5 shrink-0"
+                          />
+                          <span>{meta.label}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -227,10 +240,19 @@ export function AppShell({
             />
           </div>
         </header>
-        <main className="flex flex-1 flex-col gap-6 p-4 pb-24 md:p-6 md:pb-6">{children}</main>
+        <main
+          aria-busy={switching}
+          className={cn(
+            "flex flex-1 flex-col gap-6 p-4 pb-24 transition-opacity duration-300 ease-out md:p-6 md:pb-6",
+            // Switching client: the old figures fade until the new ones arrive.
+            switching && "pointer-events-none opacity-40",
+          )}
+        >
+          {children}
+        </main>
       </SidebarInset>
 
-      <BottomBar pathname={pathname} />
+      <BottomBar pathname={pathname} tracking={tracking} />
     </SidebarProvider>
   );
 }
@@ -239,17 +261,23 @@ export function AppShell({
  * The phone's menu (the mockup's Phone, Home): four tabs at the bottom,
  * within reach of a thumb. Hidden from tablet width up, where the sidebar is.
  */
-function BottomBar({ pathname }: { pathname: string }) {
-  const tabs: NavItem[] = [
-    MAIN[0]!,
-    MAIN[1]!,
-    MAIN[2]!,
-    { to: "/instagram", label: "Accounts", icon: UsersRound, also: ["/linkedin"] },
-  ];
+function BottomBar({ pathname, tracking }: { pathname: string; tracking: boolean }) {
+  const accounts: NavItem = {
+    to: "/instagram",
+    label: "Accounts",
+    icon: UsersRound,
+    also: ["/linkedin"],
+  };
+  const tabs: NavItem[] = tracking
+    ? [MAIN[0]!, accounts, SETTINGS]
+    : [MAIN[0]!, MAIN[1]!, MAIN[2]!, accounts];
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+      className={cn(
+        "fixed inset-x-0 bottom-0 z-20 grid border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden",
+        tracking ? "grid-cols-3" : "grid-cols-4",
+      )}
     >
       {tabs.map((tab) => {
         const active = isActive(tab, pathname);

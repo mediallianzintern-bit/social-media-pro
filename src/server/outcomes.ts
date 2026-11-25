@@ -7,7 +7,7 @@
 // Runs on every sync. The first sync after a post matures writes its outcome;
 // every sync after that hits the unique constraint and does nothing, so this is
 // safe to call unconditionally.
-import { OWNER_ACCOUNTS } from "./apify/accounts";
+import { ownerAccount } from "./apify/accounts";
 import { parsePostLink } from "./post-link";
 import {
   findPostByLink,
@@ -57,7 +57,7 @@ export async function captureOutcomes(platform: PlatformId): Promise<number> {
     // The baseline this reading is scored against, computed once and stored on
     // every row written in this pass — so the figure stays auditable even after
     // the account's median has moved on.
-    const ownerPosts = await readPosts(platform, OWNER_ACCOUNTS[platform].handle);
+    const ownerPosts = await readPosts(platform, ownerAccount(platform).handle);
     const organic = organicPosts(ownerPosts);
     if (!organic.length) return 0;
 

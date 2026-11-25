@@ -4,10 +4,12 @@
 // from, and how the numbers and scripts are made: the scraper, the AI models
 // and what a script costs, which the review asked to keep off the main
 // screens.
+import { useDashboard } from "@/lib/use-dashboard";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate, useRouteContext } from "@tanstack/react-router";
 import { ArrowRight, LogOut, Moon, Sun } from "lucide-react";
 
+import { ActiveAccounts } from "@/components/dashboard/active-accounts";
 import { ErasPanel } from "@/components/dashboard/eras-panel";
 import { TeamRoles } from "@/components/dashboard/team-roles";
 import { Button } from "@/components/ui/button";
@@ -19,6 +21,9 @@ export const Route = createFileRoute("/_app/settings")({ component: SettingsPage
 
 function SettingsPage() {
   const { staffEmail } = useRouteContext({ from: "/_app" });
+  // Strategy changes are still Pritesh's alone (Studio Phase 5).
+  // Tracking only (migration 0041): strategy changes are part of the full service.
+  const forClient = useDashboard().client?.service === "tracking";
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { resolved, setPreference } = useTheme();
@@ -49,6 +54,8 @@ function SettingsPage() {
       </Card>
 
       <TeamRoles />
+
+      <ActiveAccounts />
 
       <Card>
         <CardHeader>
@@ -89,8 +96,16 @@ function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <ErasPanel platform="instagram" />
-          <ErasPanel platform="linkedin" />
+          {forClient ? (
+            <p className="text-sm text-muted-foreground">
+              Strategy changes come with the full service.
+            </p>
+          ) : (
+            <>
+              <ErasPanel platform="instagram" />
+              <ErasPanel platform="linkedin" />
+            </>
+          )}
         </CardContent>
       </Card>
 

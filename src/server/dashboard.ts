@@ -2,7 +2,14 @@
 // Apify — the page must render instantly from history, and syncing is a
 // separate, explicit action.
 import { trackedCompetitorSnapshots } from "./competitors";
-import { mergeCompetitors, OWNER_ACCOUNTS } from "./apify/accounts";
+import { mergeCompetitors, NoAccountError, ownerAccount } from "./apify/accounts";
+import { activeClient, currentService } from "./clients/context";
+import {
+  clientCompetitorSnapshots,
+  lastClientSyncAt,
+  readClientBenchmarks,
+  readClientCompetitors,
+} from "./clients/store";
 import { currentEra } from "@/lib/eras";
 import { apifyToken } from "./apify/client";
 import { hasInstagramGraph, missingGraphEnv } from "./graph/client";
@@ -80,7 +87,30 @@ async function resilient<T>(label: string, run: () => Promise<T>, attempts = 3):
 }
 
 async function loadPlatform(platform: PlatformId): Promise<PlatformData> {
-  const owner = OWNER_ACCOUNTS[platform];
+  // A client linked from Studio (Studio Phase 5) is read from its own syncs
+  // and its own competitors. What is Pritesh's alone — his Meta Graph
+  // insights and his script feedback — is left out rather than shown under
+  // another client's name.
+  const client = activeClient();
+  const forClient = client !== null;
+  let owner: ReturnType<typeof ownerAccount>;
+  try {
+    owner = ownerAccount(platform);
+  } catch (error) {
+    if (!(error instanceof NoAccountError)) throw error;
+    return {
+      platform,
+      status: "error",
+      error: error.message,
+      profileUrl: "",
+      latest: null,
+      growth: [],
+      posts: [],
+      competitors: [],
+      trackedCompetitors: [],
+      lastSyncedAt: null,
+    };
+  }
   const base: Omit<PlatformData, "status"> = {
     platform,
     profileUrl: owner.profileUrl,
@@ -103,12 +133,22 @@ async function loadPlatform(platform: PlatformId): Promise<PlatformData> {
         resilient("latestSnapshot", () => latestSnapshot(platform, owner.handle)),
         resilient("growthSeries", () => growthSeries(platform, owner.handle)),
         resilient("readPosts", () => readPosts(platform, owner.handle)),
-        resilient("competitorSnapshots", () => trackedCompetitorSnapshots(platform)),
-        resilient("lastSyncAt", () => lastSyncAt(platform)),
-        readWatchlist(platform).catch(() => [] as string[]),
+        // A Studio client's rivals are its own (client_competitors, stored
+        // under their own role); Pritesh's tracked list never applies to it.
+        client
+          ? readClientCompetitors(client.id, platform)
+              .then((handles) => clientCompetitorSnapshots(platform, handles))
+              .catch(() => [])
+          : resilient("competitorSnapshots", () => trackedCompetitorSnapshots(platform)),
+        client
+          ? lastClientSyncAt(client.id, platform).catch(() => null)
+          : resilient("lastSyncAt", () => lastSyncAt(platform)),
+        client
+          ? readClientCompetitors(client.id, platform).catch(() => [] as string[])
+          : readWatchlist(platform).catch(() => [] as string[]),
         // Instagram-only, and never fatal: the owner-only panels degrade back to
         // their locked state rather than taking the whole platform down.
-        platform === "instagram" && hasInstagramGraph()
+        platform === "instagram" && hasInstagramGraph() && !forClient
           ? readInsights(platform, owner.handle).catch(() => null)
           : Promise.resolve(null),
         // T56. Never fatal: with no table or no confirmed era, the "Current era"
@@ -120,6 +160,11 @@ async function loadPlatform(platform: PlatformId): Promise<PlatformData> {
     if (!latest) {
       return { ...base, status: "empty", lastSyncedAt: syncedAt };
     }
+
+    // A Studio client's aspirational accounts, collected with its competitors.
+    const aspirational = new Set(
+      client ? await readClientBenchmarks(client.id, platform).catch(() => [] as string[]) : [],
+    );
 
     // Competitor metrics are computed from their own stored posts, using the
     // same functions as the owner account so the columns are like-for-like.
@@ -134,6 +179,7 @@ async function loadPlatform(platform: PlatformId): Promise<PlatformData> {
           medianEngagements: median(rivalPosts.map((post) => engagementsOf(post))),
           postsPerWeek: cadence(rivalPosts),
           engagementRate: engagementRate(rivalPosts, snapshot.followers),
+          ...(aspirational.has(snapshot.handle) ? { aspirational: true } : {}),
         };
       }),
     );
@@ -142,10 +188,12 @@ async function loadPlatform(platform: PlatformId): Promise<PlatformData> {
     // and the suggestion join is one indexed query, so nothing here calls a
     // model or an actor. Never fatal — the dashboard predates all of it.
     const lanes = lanePerformance(posts);
-    const suggestions = await suggestionFeedback(platform).catch((error: unknown) => {
-      console.error(`[dashboard:${platform}] suggestion feedback unavailable:`, error);
-      return null;
-    });
+    const suggestions = forClient
+      ? null
+      : await suggestionFeedback(platform).catch((error: unknown) => {
+          console.error(`[dashboard:${platform}] suggestion feedback unavailable:`, error);
+          return null;
+        });
     const learning =
       lanes.length || suggestions
         ? { suggestions, lanes, taxonomyStale: taxonomyLooksStale(posts) }
@@ -159,13 +207,15 @@ async function loadPlatform(platform: PlatformId): Promise<PlatformData> {
       growth,
       posts,
       competitors: competitorRecords,
-      trackedCompetitors: mergeCompetitors(platform, discovered).map((account) => account.handle),
+      trackedCompetitors: forClient
+        ? discovered
+        : mergeCompetitors(platform, discovered).map((account) => account.handle),
       lastSyncedAt: syncedAt,
       currentEra: era ? { startsAt: era.startsAt, label: era.label } : null,
       eras: eras.map((entry) => ({ startsAt: entry.startsAt, label: entry.label })),
       ...(learning ? { learning } : {}),
       ...(insights ? { insights } : {}),
-      ...(platform === "instagram" && !hasInstagramGraph()
+      ...(platform === "instagram" && !hasInstagramGraph() && !forClient
         ? { insightsMissingEnv: missingGraphEnv() }
         : {}),
     };
@@ -178,6 +228,7 @@ async function loadPlatform(platform: PlatformId): Promise<PlatformData> {
 
 export async function loadDashboard(): Promise<DashboardData> {
   const client = await readClient().catch(() => null);
+  const chosen = activeClient();
   const primaryMetric = client
     ? client.primaryMetric || DEFAULT_PRIMARY_METRIC[client.growthGoal]
     : "follower_growth_rate";
@@ -230,6 +281,24 @@ export async function loadDashboard(): Promise<DashboardData> {
 
   return {
     platforms,
+    client: chosen
+      ? {
+          id: chosen.id,
+          displayName: chosen.displayName,
+          isDefault: false,
+          service: chosen.service ?? "tracking",
+          platforms: PLATFORM_IDS.filter((platform) =>
+            platform === "instagram" ? chosen.instagramHandle : chosen.linkedinHandle,
+          ),
+        }
+      : client
+        ? {
+            id: client.id,
+            displayName: client.displayName,
+            isDefault: true,
+            service: currentService(),
+          }
+        : null,
     goal: client
       ? { growthGoal: client.growthGoal, primaryMetric, label: GOAL_LABEL[client.growthGoal] }
       : null,
@@ -238,7 +307,8 @@ export async function loadDashboard(): Promise<DashboardData> {
       lastSyncedAt === null || Date.now() - new Date(lastSyncedAt).getTime() > SYNC_INTERVAL_MS,
     // Every sync spends Apify credit, and opening a stale dashboard used to
     // start one by itself. AUTO_SYNC=off keeps syncing to the button alone.
-    autoSync: !/^(off|false|0|no)$/i.test(process.env["AUTO_SYNC"]?.trim() ?? ""),
+    // Never for a Studio client yet: Sync still collects Pritesh's accounts only.
+    autoSync: !chosen && !/^(off|false|0|no)$/i.test(process.env["AUTO_SYNC"]?.trim() ?? ""),
     ephemeral: !hasDurableStore(),
     ...(missing.length
       ? { setupError: `Missing environment variable(s): ${missing.join(", ")}` }

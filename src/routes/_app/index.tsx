@@ -50,6 +50,10 @@ interface Action {
 
 function Home() {
   const { data } = useFilteredDashboard();
+  // A client from Studio has no Ideas tab yet (Studio Phase 5): its lane
+  // finding points at the posts behind it instead.
+  // Tracking only (migration 0041): the posts, not ideas.
+  const forClient = data.client?.service === "tracking";
   const instagram = usePlatform("instagram");
   const linkedin = usePlatform("linkedin");
 
@@ -76,9 +80,9 @@ function Home() {
       actions.push({
         title: `Make one more “${top.label}” post for ${summary.label}`,
         detail: `${top.label} gets ${top.value}, measured over ${top.posts} posts.`,
-        button: "See ideas",
+        button: forClient ? "See the posts" : "See ideas",
         to: PLATFORM_META[account.platform].route,
-        search: { tab: "ideas" },
+        search: { tab: forClient ? "posts" : "ideas" },
       });
     }
   }

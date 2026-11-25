@@ -28,7 +28,7 @@ import { shortcodeFromUrl } from "@/lib/reel-match";
 import type { PlatformId } from "@/lib/analytics-types";
 
 import { hasOpenAi } from "../ai/client";
-import { OWNER_ACCOUNTS } from "../apify/accounts";
+import { ownerAccount } from "../apify/accounts";
 import { readPosts } from "../store";
 import { readAllReelLearning, type ReelLearningRow } from "./store";
 
@@ -140,7 +140,7 @@ export async function learnFromFilmedReels(
   try {
     const rows = await readAllReelLearning(platform);
     if (!rows.length) return { ...done, skipped: null };
-    const posts = await readPosts(platform, OWNER_ACCOUNTS[platform].handle, 1000);
+    const posts = await readPosts(platform, ownerAccount(platform).handle, 1000);
     const published = new Map(
       posts.map((post) => [shortcodeFromUrl(post.url) ?? post.postId, post.publishedAt]),
     );

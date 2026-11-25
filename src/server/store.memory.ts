@@ -88,10 +88,12 @@ export async function finishRun(): Promise<void> {}
 export async function saveSnapshots(
   platform: PlatformId,
   _runId: string | null,
-  entries: Array<{ snapshot: AccountSnapshot; role: "owner" | "competitor" }>,
+  entries: Array<{ snapshot: AccountSnapshot; role: "owner" | "competitor" | "client_competitor" }>,
 ): Promise<void> {
-  for (const entry of entries) {
-    snapshots.push({ ...entry, platform });
+  for (const { snapshot, role } of entries) {
+    // Studio clients need the durable store; there are none in memory mode.
+    if (role === "client_competitor") continue;
+    snapshots.push({ snapshot, role, platform });
   }
 }
 

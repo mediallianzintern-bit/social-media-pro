@@ -6,7 +6,7 @@
 import { newSourceIds } from "./first-seen";
 import { searchNews } from "./news";
 import { isNewsOffLane, OWN_SHARE, queriesForLane } from "./queries";
-import { OWNER_ACCOUNTS } from "../apify/accounts";
+import { ownerAccount } from "../apify/accounts";
 import { hasOpenAi } from "../ai/client";
 import { readAllReelLearning } from "../reel-learning/store";
 import {
@@ -82,7 +82,7 @@ export interface RefreshResult {
 
 /** The account's lanes, from the stored taxonomy or, failing that, its classified posts. */
 async function lanesFor(platform: PlatformId): Promise<string[]> {
-  const handle = OWNER_ACCOUNTS[platform].handle;
+  const handle = ownerAccount(platform).handle;
   const taxonomy = await readTaxonomy(platform, handle).catch(() => null);
   if (taxonomy?.length) return taxonomy.map((lane) => lane.name);
   const posts = await readPosts(platform, handle).catch(() => []);

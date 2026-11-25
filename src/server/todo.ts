@@ -6,7 +6,8 @@ import { PLATFORM_IDS, type PlatformId } from "@/lib/analytics-types";
 import { normalizeSourceUrl } from "@/lib/reaction";
 import type { IdeaStatus, Role } from "@/lib/roles";
 import type { TodoBoard, TodoLens, TodoPiece, TodoStage, TodoTopic } from "@/lib/todo-types";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+// Scoped: client-owned tables are read and written as the request's client.
+import { supabaseAdmin } from "@/server/tenant/db";
 
 import { readAllReelLearning } from "./reel-learning/store";
 import {

@@ -3,7 +3,7 @@
 // A sync is per-platform and independent: LinkedIn failing must not lose the
 // Instagram snapshot, because a missed snapshot is a permanent hole in the
 // growth curve.
-import { mergeCompetitors, OWNER_ACCOUNTS, trendSourcesFor } from "./apify/accounts";
+import { mergeCompetitors, ownerAccount, trendSourcesFor } from "./apify/accounts";
 import { apifyToken } from "./apify/client";
 import { fetchInstagram, normalizeInstagram } from "./apify/instagram";
 import {
@@ -51,7 +51,7 @@ import {
 async function trackedAccounts(platform: PlatformId) {
   const discovered = await readWatchlist(platform).catch(() => [] as string[]);
   return [
-    OWNER_ACCOUNTS[platform],
+    ownerAccount(platform),
     ...mergeCompetitors(platform, discovered),
     ...trendSourcesFor(platform),
   ];
@@ -167,7 +167,7 @@ export async function syncInstagram(trigger: "manual" | "schedule"): Promise<Syn
   if (hasInstagramGraph()) {
     try {
       const { backfillMediaInsights } = await import("./graph/instagram");
-      const filled = await backfillMediaInsights(OWNER_ACCOUNTS.instagram.handle);
+      const filled = await backfillMediaInsights(ownerAccount("instagram").handle);
       if (filled.updated) {
         console.log(`[sync:instagram] Graph insights applied to ${filled.updated} stored posts.`);
       }
@@ -181,7 +181,7 @@ export async function syncInstagram(trigger: "manual" | "schedule"): Promise<Syn
     // the newest posts come first — so the wall fills in from the top.
     try {
       const { backfillCaptions } = await import("./graph/instagram");
-      const fixed = await backfillCaptions(OWNER_ACCOUNTS.instagram.handle);
+      const fixed = await backfillCaptions(ownerAccount("instagram").handle);
       if (fixed) console.log(`[sync:instagram] full captions restored on ${fixed} posts.`);
     } catch (error) {
       console.error("[sync:instagram] caption backfill skipped:", error);
@@ -189,7 +189,7 @@ export async function syncInstagram(trigger: "manual" | "schedule"): Promise<Syn
 
     try {
       const { backfillThumbnails } = await import("./thumbnails");
-      const covers = await backfillThumbnails(OWNER_ACCOUNTS.instagram.handle);
+      const covers = await backfillThumbnails(ownerAccount("instagram").handle);
       if (covers.stored || covers.failed) {
         console.log(
           `[sync:instagram] covers stored ${covers.stored}, failed ${covers.failed}, ` +
@@ -203,7 +203,7 @@ export async function syncInstagram(trigger: "manual" | "schedule"): Promise<Syn
 
   if (hasInstagramGraph()) {
     try {
-      const owner = OWNER_ACCOUNTS.instagram.handle;
+      const owner = ownerAccount("instagram").handle;
       await saveInsights("instagram", owner, await fetchInstagramInsights(measured));
     } catch (error) {
       console.error("[sync:instagram] Graph account insights unavailable:", error);
@@ -317,7 +317,7 @@ export async function syncLinkedIn(trigger: "manual" | "schedule"): Promise<Sync
   // His owner-only figures from LinkedIn's own API (impressions, members
   // reached, saves, sends), for the posts just scraped. Free, and never fatal:
   // the scraped data above is already stored whatever happens here.
-  const owner = OWNER_ACCOUNTS.linkedin.handle.toLowerCase();
+  const owner = ownerAccount("linkedin").handle.toLowerCase();
   const { refreshLinkedInAnalytics, saveLinkedInArticles } = await import("./linkedin-analytics");
   // His articles, from the posts that share them. Free and never fatal.
   const { articleOf } = await import("@/lib/linkedin-articles");

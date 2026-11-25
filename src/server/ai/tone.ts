@@ -1,7 +1,8 @@
 // The past scripts the writer is given as tone references (0030), read from
 // the database. Empty before 0030 is applied or with none active, in which
 // case scripts are written exactly as before. Free: stored rows only.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+// Scoped: client-owned tables are read and written as the request's client.
+import { supabaseAdmin } from "@/server/tenant/db";
 import type { PlatformId } from "@/lib/analytics-types";
 import type { ToneReference } from "@/lib/tone-references";
 

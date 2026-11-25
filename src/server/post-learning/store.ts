@@ -1,7 +1,8 @@
 // Storage for what every LinkedIn post taught (0036_linkedin_post_learning).
 // Supabase only: without it, or before the migration is applied, reads are
 // empty and the pass skips itself.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+// Scoped: client-owned tables are read and written as the request's client.
+import { supabaseAdmin } from "@/server/tenant/db";
 import { NOT_FROM_THE_TOOL, type PostAnalysis, type PostLearningRow } from "@/lib/post-learning";
 import type { ReelReview } from "@/lib/reel-learning-types";
 

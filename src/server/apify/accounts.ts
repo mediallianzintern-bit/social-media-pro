@@ -5,6 +5,8 @@
 // every sync and billed by Apify, the list is opt-in rather than guessed.
 import type { PlatformId } from "@/lib/analytics-types";
 
+import { activeClient } from "../clients/context";
+
 export interface TrackedAccount {
   platform: PlatformId;
   /** Instagram username, or LinkedIn public identifier. */
@@ -30,7 +32,12 @@ export interface TrackedAccount {
  */
 export type AccountRole = "owner" | "competitor" | "trend_source";
 
-export const OWNER_ACCOUNTS: Record<PlatformId, TrackedAccount> = {
+/**
+ * Pritesh's accounts: the owner whenever a request has not chosen a client.
+ * Read through `ownerAccount(platform)`, never directly, so a request running
+ * as another client (server/clients/context) gets that client's accounts.
+ */
+export const DEFAULT_OWNER_ACCOUNTS: Record<PlatformId, TrackedAccount> = {
   instagram: {
     platform: "instagram",
     handle: "priteshpatel.co",
@@ -44,6 +51,31 @@ export const OWNER_ACCOUNTS: Record<PlatformId, TrackedAccount> = {
     role: "owner",
   },
 };
+
+/** The client has no account on this platform, so there is nothing to measure. */
+export class NoAccountError extends Error {
+  constructor(clientName: string, platform: PlatformId) {
+    super(
+      `${clientName} has no ${platform === "instagram" ? "Instagram" : "LinkedIn"} account in Pro.`,
+    );
+    this.name = "NoAccountError";
+  }
+}
+
+/**
+ * The account being measured on `platform`: the active client's (Studio
+ * Phase 5, tracker T12), or Pritesh's when the request has not chosen one —
+ * which is every request until a client is chosen, so his dashboard is
+ * unchanged.
+ */
+export function ownerAccount(platform: PlatformId): TrackedAccount {
+  const client = activeClient();
+  if (!client) return DEFAULT_OWNER_ACCOUNTS[platform];
+  const handle = platform === "instagram" ? client.instagramHandle : client.linkedinHandle;
+  const account = handle ? parseHandle(platform, handle, "owner") : null;
+  if (!account) throw new NoAccountError(client.displayName, platform);
+  return account;
+}
 
 /** Accepts a bare handle, an @handle, or a full profile URL. */
 function parseHandle(
@@ -82,7 +114,7 @@ function fromEnv(platform: PlatformId, variable: string, role: AccountRole): Tra
       .map((entry) => parseHandle(platform, entry, role))
       .filter((account): account is TrackedAccount => account !== null)
       // Never let an entry shadow the owner account.
-      .filter((account) => account.handle !== OWNER_ACCOUNTS[platform].handle)
+      .filter((account) => account.handle !== ownerAccount(platform).handle)
   );
 }
 
@@ -133,7 +165,7 @@ export function toCompetitor(platform: PlatformId, handle: string): TrackedAccou
 export function mergeCompetitors(platform: PlatformId, discovered: string[]): TrackedAccount[] {
   const accounts = competitorsFromEnv(platform);
   const seen = new Set([
-    OWNER_ACCOUNTS[platform].handle.toLowerCase(),
+    ownerAccount(platform).handle.toLowerCase(),
     ...trendSourceHandles(platform),
     ...accounts.map((account) => account.handle.toLowerCase()),
   ]);
@@ -148,7 +180,7 @@ export function mergeCompetitors(platform: PlatformId, discovered: string[]): Tr
 }
 
 export function accountsFor(platform: PlatformId): TrackedAccount[] {
-  return [OWNER_ACCOUNTS[platform], ...competitorsFor(platform), ...trendSourcesFor(platform)];
+  return [ownerAccount(platform), ...competitorsFor(platform), ...trendSourcesFor(platform)];
 }
 
 /**

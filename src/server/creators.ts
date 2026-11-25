@@ -10,7 +10,8 @@
 // creators' own posts (server/creator-pattern.ts).
 //
 // Never fatal: a creator that cannot be read is skipped and named in the log.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+// Scoped: client-owned tables are read and written as the request's client.
+import { supabaseAdmin } from "@/server/tenant/db";
 import { fitOf } from "@/lib/creator-pattern";
 import { reelAsTopic, standoutReels, type CreatorPost } from "@/lib/creator-reels";
 import type { PlatformId } from "@/lib/analytics-types";

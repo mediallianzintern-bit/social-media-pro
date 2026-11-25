@@ -2,6 +2,7 @@ import { createStart, createCsrfMiddleware, createMiddleware } from "@tanstack/r
 
 import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
+import { clientScope } from "@/lib/client-scope";
 import { requireStaff } from "@/lib/require-staff";
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
@@ -29,6 +30,8 @@ const csrfMiddleware = createCsrfMiddleware({
 export const startInstance = createStart(() => ({
   // attachSupabaseAuth sends the signed-in user's token with every server call;
   // requireStaff verifies it on the server and admits only @mediallianz.com.
-  functionMiddleware: [attachSupabaseAuth, requireStaff],
+  // clientScope then runs the call as the chosen client, else Pritesh, so
+  // every client-owned row is read and written as one client (25 Nov 2026).
+  functionMiddleware: [attachSupabaseAuth, requireStaff, clientScope],
   requestMiddleware: [errorMiddleware, csrfMiddleware],
 }));

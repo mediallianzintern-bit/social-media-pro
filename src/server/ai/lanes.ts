@@ -21,7 +21,7 @@ import {
   savePostLanes,
   saveTaxonomy,
 } from "../store";
-import { OWNER_ACCOUNTS } from "../apify/accounts";
+import { ownerAccount } from "../apify/accounts";
 import type { ContentLane, PlatformId, PostRecord } from "@/lib/analytics-types";
 
 /**
@@ -274,7 +274,7 @@ export async function deriveLanesForOwner(
     return { lanes: [], reason: "Deriving lanes needs OPENAI_API_KEY, which is not set." };
   }
 
-  const handle = OWNER_ACCOUNTS[platform].handle;
+  const handle = ownerAccount(platform).handle;
   // The whole back catalogue, not readPosts' default page of 60. A rebuild
   // that re-files "every post" against a new vocabulary has to SEE every post;
   // with the default it re-filed the most recent 60 and left the rest carrying
@@ -321,7 +321,7 @@ export async function deriveLanesForOwner(
  */
 export async function labelNewPosts(platform: PlatformId): Promise<number> {
   if (!hasOpenAi()) return 0;
-  const handle = OWNER_ACCOUNTS[platform].handle;
+  const handle = ownerAccount(platform).handle;
   try {
     const lanes = await readTaxonomy(platform, handle);
     if (!lanes?.length) return 0;

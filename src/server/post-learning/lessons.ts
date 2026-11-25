@@ -9,7 +9,7 @@ import { shortcodeFromUrl } from "@/lib/reel-match";
 import { CTA_TYPE_LABEL, HOOK_TYPE_LABEL } from "@/lib/reel-parts";
 import type { ReviewedReel } from "@/lib/reel-patterns";
 
-import { OWNER_ACCOUNTS } from "../apify/accounts";
+import { ownerAccount } from "../apify/accounts";
 import { readPosts } from "../store";
 import { readPostLearning } from "./store";
 
@@ -61,7 +61,7 @@ export async function reviewedPublishedPosts(
     Boolean(row.review && row.analysis),
   );
   if (!rows.length) return [];
-  const synced = posts ?? (await readPosts("linkedin", OWNER_ACCOUNTS.linkedin.handle, 1000));
+  const synced = posts ?? (await readPosts("linkedin", ownerAccount("linkedin").handle, 1000));
   const lanes = new Map(synced.map((post) => [post.postId, post.contentLane ?? null]));
   return rows
     .map((row) => {

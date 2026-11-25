@@ -173,11 +173,20 @@ export function growthTrajectory(
 export function trajectoryStatement(trajectory: GrowthTrajectory | null): string {
   if (!trajectory) return "No growth history stored yet.";
 
-  const sign = trajectory.ratePerWeek >= 0 ? "+" : "";
+  // Whole numbers with separators once a rate is in the tens: "+6,234 a week",
+  // not "+6233.8/week". And the window it covers, not "the last 4 weeks" when
+  // the history is three days long (a client just linked from Studio).
+  const amount = (value: number) =>
+    (Math.abs(value) >= 10 ? Math.round(value) : value).toLocaleString("en-US");
+  const signed = (value: number) => `${value >= 0 ? "+" : ""}${amount(value)}`;
+  const over =
+    trajectory.windowDays >= 28
+      ? "over the last 4 weeks"
+      : `over ${Math.max(1, trajectory.windowDays)} day${trajectory.windowDays > 1 ? "s" : ""}`;
   const body =
     `${trajectory.primaryMetric.replace(/_/g, " ")} is ${trajectory.trend}, ` +
-    `at ${sign}${trajectory.ratePerWeek}/week over the last 4 weeks ` +
-    `(${trajectory.sinceEngagementStart >= 0 ? "+" : ""}${trajectory.sinceEngagementStart} since we started)`;
+    `at ${signed(trajectory.ratePerWeek)} a week ${over} ` +
+    `(${signed(trajectory.sinceEngagementStart)} since we started)`;
 
   return trajectory.directional
     ? `${body}. Only ${trajectory.samples} snapshots across ${trajectory.windowDays} days — directional, not a result.`

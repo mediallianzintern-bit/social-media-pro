@@ -26,7 +26,7 @@ import { completeJson, hasOpenAi } from "./client";
 import { reviewModel } from "./review";
 import { INSTAGRAM_MASTER_PROMPT, LINKEDIN_VOICE } from "./voice";
 import { addIdeaHooks, readPosts } from "../store";
-import { OWNER_ACCOUNTS } from "../apify/accounts";
+import { ownerAccount } from "../apify/accounts";
 import { learnedRules } from "../reel-learning/lessons";
 
 /** How many hooks one press asks for. */
@@ -87,7 +87,7 @@ async function linkedInOpenings(): Promise<string> {
   const { readLinkedInAnalytics } = await import("../linkedin-analytics");
   const [stored, posts] = await Promise.all([
     readLinkedInAnalytics(),
-    readPosts("linkedin", OWNER_ACCOUNTS.linkedin.handle, 200),
+    readPosts("linkedin", ownerAccount("linkedin").handle, 200),
   ]);
   const impressions = new Map(stored.posts.map((row) => [row.postId, row.impressions]));
   const settled = Date.now() - SETTLED_DAYS * 86_400_000;
