@@ -187,6 +187,46 @@ export const dismissIdea = createServerFn({ method: "POST" })
   });
 
 /**
+ * Reel lengths for the Posts tab's CSV (27 Nov 2026): for the posts being
+ * downloaded that have no stored length, read from Instagram's own files
+ * (free; see server/graph/instagram.ts measureDurations) and stored for next
+ * time where migration 0043 allows. Pritesh's own account only: a Studio
+ * client's Reels get their lengths from the scraper on each refresh.
+ */
+export const getReelDurations = createServerFn({ method: "POST" })
+  .middleware([clientScope])
+  .validator((input: unknown) =>
+    z
+      .object({
+        posts: z
+          .array(z.object({ postId: z.string().min(1).max(64), url: z.string().max(300) }))
+          .max(200),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }): Promise<Record<string, number>> => {
+    const { activeClient } = await import("@/server/clients/context");
+    const { hasInstagramGraph } = await import("@/server/graph/client");
+    if (activeClient() || !hasInstagramGraph() || !data.posts.length) return {};
+    const { measureDurations, shortcodeOf } = await import("@/server/graph/instagram");
+    const { saveDuration } = await import("@/server/store");
+    const byCode = new Map<string, string>();
+    for (const post of data.posts) {
+      const code = shortcodeOf(post.url);
+      if (code) byCode.set(code, post.postId);
+    }
+    const measured = await measureDurations(new Set(byCode.keys()), 200);
+    const out: Record<string, number> = {};
+    let storable = true;
+    for (const [code, seconds] of measured) {
+      const postId = byCode.get(code)!;
+      out[postId] = seconds;
+      if (storable) storable = await saveDuration("instagram", postId, seconds).catch(() => false);
+    }
+    return out;
+  });
+
+/**
  * The client report. Read-only by construction: it never syncs, so a shared
  * link cannot spend Apify credit however often it is opened.
  */

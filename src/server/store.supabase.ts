@@ -61,6 +61,7 @@ interface PostRow {
   insights_at: string | null;
   content_lane: string | null;
   thumbnail_url: string | null;
+  duration_seconds?: number | null;
 }
 
 /** Columns that exist in the very first migration and can always be selected. */
@@ -73,8 +74,11 @@ const POST_COLUMNS_LANE =
   "reach,saved,graph_views,avg_watch_ms,total_watch_ms,follows,profile_visits,insights_at," +
   "content_lane";
 
-/** Everything, including the mirrored cover frame (migration 0016). */
-const POST_COLUMNS = `${POST_COLUMNS_LANE},thumbnail_url`;
+/** Those plus the mirrored cover frame (migration 0016). */
+const POST_COLUMNS_COVER = `${POST_COLUMNS_LANE},thumbnail_url`;
+
+/** Everything, including each video's length (migration 0043). */
+const POST_COLUMNS = `${POST_COLUMNS_COVER},duration_seconds`;
 
 /** Postgres "undefined_column" — raised when a migration has not been applied. */
 const UNDEFINED_COLUMN = "42703";
@@ -87,7 +91,7 @@ const UNDEFINED_COLUMN = "42703";
  * intact. Retrying down this list costs only the columns the database does not
  * have yet: a pending 0016 loses the cover frames, not the lanes with it.
  */
-const POST_COLUMN_SETS = [POST_COLUMNS, POST_COLUMNS_LANE, POST_COLUMNS_BASE];
+const POST_COLUMN_SETS = [POST_COLUMNS, POST_COLUMNS_COVER, POST_COLUMNS_LANE, POST_COLUMNS_BASE];
 
 /**
  * Runs a post query, stepping down the column sets while the database says a
@@ -226,27 +230,44 @@ export async function savePosts(handle: string, posts: PostRecord[]): Promise<nu
   // in a single call would therefore write null over reach/saved/watch time for
   // every post the Graph window did not cover — silently destroying earlier
   // measurements on each sync. Two homogeneous calls avoid that entirely.
-  const groups = [
-    posts.filter((post) => !post.insight).map(base),
-    posts
-      .filter((post) => post.insight)
-      .map((post) => ({
-        ...base(post),
-        reach: post.insight?.reach ?? null,
-        saved: post.insight?.saved ?? null,
-        graph_views: post.insight?.views ?? null,
-        avg_watch_ms: post.insight?.avgWatchMs ?? null,
-        total_watch_ms: post.insight?.totalWatchMs ?? null,
-        follows: post.insight?.follows ?? null,
-        profile_visits: post.insight?.profileVisits ?? null,
-        insights_at: now,
-      })),
-  ].filter((group) => group.length > 0);
+  //
+  // A video's length (0043) is split the same way: only rows that carry one
+  // send the key, so a save without it never blanks a stored length.
+  const row = (post: PostRecord) => ({
+    ...base(post),
+    ...(post.insight
+      ? {
+          reach: post.insight.reach ?? null,
+          saved: post.insight.saved ?? null,
+          graph_views: post.insight.views ?? null,
+          avg_watch_ms: post.insight.avgWatchMs ?? null,
+          total_watch_ms: post.insight.totalWatchMs ?? null,
+          follows: post.insight.follows ?? null,
+          profile_visits: post.insight.profileVisits ?? null,
+          insights_at: now,
+        }
+      : {}),
+    ...(post.durationSeconds ? { duration_seconds: post.durationSeconds } : {}),
+  });
+  const groups = new Map<string, Array<Record<string, unknown>>>();
+  for (const post of posts) {
+    const key = `${Boolean(post.insight)}:${Boolean(post.durationSeconds)}`;
+    groups.set(key, [...(groups.get(key) ?? []), row(post)]);
+  }
 
-  for (const rows of groups) {
-    const { error } = await db()
+  for (const rows of groups.values()) {
+    let { error } = await db()
       .from("post_metrics")
       .upsert(rows, { onConflict: "platform,post_id" });
+    // Ahead of migration 0043: save everything but the length.
+    if (error && schemaNotReady(error) && "duration_seconds" in (rows[0] ?? {})) {
+      ({ error } = await db()
+        .from("post_metrics")
+        .upsert(
+          rows.map(({ duration_seconds: _length, ...rest }) => rest),
+          { onConflict: "platform,post_id" },
+        ));
+    }
     if (error) throw new Error(`post_metrics upsert failed: ${error.message}`);
   }
   return posts.length;
@@ -334,6 +355,25 @@ export async function saveThumbnailUrl(
     .eq("platform", platform)
     .eq("post_id", postId);
   if (error) throw new Error(`thumbnail update failed: ${error.message}`);
+}
+
+/**
+ * Stores a video's length (migration 0043). False, without throwing, when the
+ * column is not there yet, so a sync ahead of the migration carries on.
+ */
+export async function saveDuration(
+  platform: PlatformId,
+  postId: string,
+  seconds: number,
+): Promise<boolean> {
+  const { error } = await db()
+    .from("post_metrics")
+    .update({ duration_seconds: seconds })
+    .eq("platform", platform)
+    .eq("post_id", postId);
+  if (error && schemaNotReady(error)) return false;
+  if (error) throw new Error(`duration update failed: ${error.message}`);
+  return true;
 }
 
 /** Appends one account-level insights capture. Append-only, like snapshots. */
@@ -502,6 +542,7 @@ export async function readPosts(
       ...(row.thumbnail_url ? { thumbnailUrl: row.thumbnail_url } : {}),
       ...(row.content_lane ? { contentLane: row.content_lane } : {}),
       ...(row.updated_at ? { measuredAt: row.updated_at } : {}),
+      ...(row.duration_seconds ? { durationSeconds: Number(row.duration_seconds) } : {}),
     };
   });
 }

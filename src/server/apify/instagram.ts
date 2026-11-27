@@ -19,6 +19,8 @@ interface IgPost {
   commentsCount?: number;
   likesCount?: number;
   videoViewCount?: number;
+  /** Seconds, for a video (27 Nov 2026). */
+  videoDuration?: number;
   timestamp?: string;
   isPinned?: boolean;
   displayUrl?: string;
@@ -94,6 +96,10 @@ export function toPostRecords(raw: IgPost[], limit: number): PostRecord[] {
       shares: 0,
       pinned: post.isPinned === true,
       ...(coverOf(post) ? { thumbnailUrl: coverOf(post)! } : {}),
+      // A video's length, rounded to a tenth of a second (27 Nov 2026).
+      ...(typeof post.videoDuration === "number" && post.videoDuration > 0
+        ? { durationSeconds: Math.round(post.videoDuration * 10) / 10 }
+        : {}),
     }))
     .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
     .slice(0, limit);

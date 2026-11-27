@@ -670,6 +670,9 @@ export async function postsWithThumbnails(
 }
 
 export async function saveThumbnailUrl(): Promise<void> {}
+export async function saveDuration(): Promise<boolean> {
+  return false;
+}
 
 export async function postsMissingThumbnails(): Promise<Array<{ postId: string; url: string }>> {
   return [];

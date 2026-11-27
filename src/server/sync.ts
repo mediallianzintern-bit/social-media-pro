@@ -201,6 +201,18 @@ export async function syncInstagram(trigger: "manual" | "schedule"): Promise<Syn
     }
   }
 
+  // Each Reel's length, for the Posts tab's CSV (27 Nov 2026). Free, and
+  // never fatal: a sync without it is the same sync.
+  if (hasInstagramGraph()) {
+    try {
+      const { backfillDurations } = await import("./graph/instagram");
+      const filled = await backfillDurations(ownerAccount("instagram").handle);
+      if (filled) console.log(`[sync:instagram] Reel lengths stored for ${filled} posts.`);
+    } catch (error) {
+      console.error("[sync:instagram] Reel lengths skipped:", error);
+    }
+  }
+
   if (hasInstagramGraph()) {
     try {
       const owner = ownerAccount("instagram").handle;

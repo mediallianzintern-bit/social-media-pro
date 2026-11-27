@@ -10,7 +10,7 @@
 // sends beside reactions, comments and reposts. A column shows only when some
 // post has that figure. Newest first by default.
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink } from "lucide-react";
+import { Download, ExternalLink } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { PostCover } from "@/components/dashboard/post-cover";
@@ -43,6 +43,8 @@ import {
 } from "@/lib/analytics-types";
 import { dayMonth } from "@/lib/date-range";
 import { linkedInAnalyticsQueryOptions } from "@/lib/linkedin-api.functions";
+import { getReelDurations } from "@/lib/analytics.functions";
+import { csvFileName, downloadCsv, postUrl, publishedParts, toCsv } from "@/lib/posts-csv";
 import { cn } from "@/lib/utils";
 
 const PAGE = 20;
@@ -75,6 +77,13 @@ const INSTAGRAM_METRICS: Metric[] = [
     key: "watch",
     label: "Avg watch",
     value: (post) => post.insight?.avgWatchMs ?? null,
+    format: seconds,
+  },
+  // How long the Reel runs (27 Nov 2026), from the scraper or Instagram itself.
+  {
+    key: "length",
+    label: "Length",
+    value: (post) => (post.durationSeconds ? post.durationSeconds * 1000 : null),
     format: seconds,
   },
 ];
@@ -157,6 +166,76 @@ export function PostsBrowser({ posts, platform }: { posts: PostRecord[]; platfor
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [posts, search, topic, kind, sort, figures, articles, metrics.length]);
 
+  /**
+   * Every post the tab is showing (the search, topic and sort applied, all
+   * pages, not just the twenty on screen) as a CSV: the exact link, the day
+   * and time it went up in India, a Reel's length and its topic, then each
+   * figure as a plain number (watch time and length in seconds).
+   */
+  const [exporting, setExporting] = useState(false);
+  const exportCsv = async () => {
+    setExporting(true);
+    // Reels without a stored length get it from Instagram first (free), so
+    // the download is complete even before a refresh has stored them.
+    let lengths: Record<string, number> = {};
+    const unmeasured = instagram
+      ? rows.filter(
+          (post) => (post.format === "reel" || post.format === "video") && !post.durationSeconds,
+        )
+      : [];
+    if (unmeasured.length) {
+      lengths = await getReelDurations({
+        data: {
+          posts: unmeasured
+            .slice(0, 200)
+            .map((post) => ({ postId: post.postId, url: post.url ?? "" })),
+        },
+      }).catch(() => ({}));
+    }
+    const lengthOf = (post: PostRecord) => post.durationSeconds ?? lengths[post.postId] ?? null;
+    const header = [
+      "Post URL",
+      "Published date",
+      "Published time (IST)",
+      "Format",
+      ...(instagram ? ["Duration (seconds)"] : []),
+      "Topic",
+      "Title",
+      ...metrics
+        .filter((metric) => metric.key !== "length")
+        .map((metric) => (metric.key === "watch" ? "Avg watch (seconds)" : metric.label)),
+      "Against your typical post (×)",
+      "Pinned",
+      "Caption",
+    ];
+    const lines = rows.map((post) => {
+      const { date, time } = publishedParts(post.publishedAt);
+      const values = metrics
+        .filter((metric) => metric.key !== "length")
+        .map((metric) => {
+          const value = metric.value(post, figures.get(post.postId));
+          if (value == null) return null;
+          return metric.key === "watch" ? Math.round(value / 100) / 10 : value;
+        });
+      const ratio = typical > 0 && !post.pinned ? primaryOf(post, usesViews) / typical : null;
+      return [
+        postUrl(post),
+        date,
+        time,
+        isArticle(post) ? "article" : post.format,
+        ...(instagram ? [lengthOf(post)] : []),
+        post.contentLane ?? "",
+        articles.get(post.postId)?.title ?? postTitle(post.caption, 120),
+        ...values,
+        ratio === null ? null : Math.round(ratio * 100) / 100,
+        post.pinned ? "yes" : "",
+        post.caption,
+      ];
+    });
+    downloadCsv(csvFileName(platform), toCsv(header, lines));
+    setExporting(false);
+  };
+
   return (
     <div className="space-y-4">
       <div
@@ -237,7 +316,9 @@ export function PostsBrowser({ posts, platform }: { posts: PostRecord[]; platfor
                 <SelectItem key={metric.key} value={metric.key}>
                   {metric.key === "watch"
                     ? "Longest avg watch"
-                    : `Most ${metric.label.toLowerCase()}`}
+                    : metric.key === "length"
+                      ? "Longest Reel"
+                      : `Most ${metric.label.toLowerCase()}`}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -350,15 +431,26 @@ export function PostsBrowser({ posts, platform }: { posts: PostRecord[]; platfor
           Showing {Math.min(shown, rows.length)} of {rows.length} · your typical post gets{" "}
           {compact(typical)} {usesViews ? "views" : "interactions"}
         </p>
-        {rows.length > shown ? (
+        <div className="flex flex-wrap items-center gap-2">
+          {rows.length > shown ? (
+            <Button
+              variant="outline"
+              className="h-11"
+              onClick={() => setShown((value) => value + PAGE)}
+            >
+              Show {Math.min(PAGE, rows.length - shown)} more
+            </Button>
+          ) : null}
           <Button
             variant="outline"
-            className="h-11"
-            onClick={() => setShown((value) => value + PAGE)}
+            className="h-11 gap-2"
+            disabled={!rows.length || exporting}
+            onClick={() => void exportCsv().finally(() => setExporting(false))}
           >
-            Show {Math.min(PAGE, rows.length - shown)} more
+            <Download className="size-4" aria-hidden />
+            {exporting ? "Preparing CSV…" : `Download CSV (${rows.length})`}
           </Button>
-        ) : null}
+        </div>
       </div>
 
       <Dialog open={Boolean(open)} onOpenChange={(next) => (next ? null : setOpen(null))}>

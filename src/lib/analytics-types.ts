@@ -66,6 +66,12 @@ export interface PostRecord {
    */
   contentLane?: string;
   /**
+   * How long the video runs, in seconds, as the scraper reports it (Reels;
+   * 27 Nov 2026). Absent for images and carousels, LinkedIn, and any post not
+   * scraped since migration 0043.
+   */
+  durationSeconds?: number;
+  /**
    * When these figures were last scraped. Only a post still among the
    * profile's newest is re-measured on a sync, so an older post's figures
    * stop moving here. Absent from a fresh scrape and the in-memory store.

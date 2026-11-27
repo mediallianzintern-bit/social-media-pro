@@ -602,3 +602,105 @@ export async function backfillCaptions(handle: string): Promise<number> {
   await savePosts(handle, fixed);
   return fixed.length;
 }
+
+// ---------------------------------------------------------------------------
+
+/** Reels measured per sync at most; the rest wait for the next. */
+const DURATIONS_PER_SYNC = 60;
+/** Enough of a Reel's file to hold its movie header. */
+const MP4_HEAD_BYTES = 262_144;
+/** Files read at once. */
+const MP4_PARALLEL = 6;
+
+/**
+ * The length of each of these Reels, by shortcode, read from Instagram's own
+ * files (27 Nov 2026): Graph lists every video with a link to it, and the
+ * first 256 KB of each holds its length (lib/mp4-duration.ts). Free: Graph
+ * and Meta's CDN, no Apify. At most `max` files are read; a file that cannot
+ * be read is simply left out.
+ */
+export async function measureDurations(
+  codes: Set<string>,
+  max = DURATIONS_PER_SYNC,
+): Promise<Map<string, number>> {
+  const igId = igAccountId();
+  const found = new Map<string, number>();
+  if (!igId || !codes.size) return found;
+  const { mp4Duration } = await import("@/lib/mp4-duration");
+
+  // Every wanted video's file link first, paging the catalogue.
+  const links: Array<[string, string]> = [];
+  const wanted = new Set(codes);
+  let after: string | undefined;
+  for (let page = 0; wanted.size && links.length < max && page < 10; page++) {
+    const result = await graph<{
+      data?: Array<GraphMedia & { media_url?: string }>;
+      paging?: { cursors?: { after?: string } };
+    }>(`${igId}/media`, {
+      fields: "id,permalink,media_type,media_url",
+      limit: "100",
+      ...(after ? { after } : {}),
+    });
+    const items = result.data ?? [];
+    for (const item of items) {
+      const code = shortcodeOf(item.permalink);
+      if (!code || !wanted.has(code) || item.media_type !== "VIDEO" || !item.media_url) continue;
+      wanted.delete(code);
+      if (links.length < max) links.push([code, item.media_url]);
+    }
+    after = result.paging?.cursors?.after;
+    if (!after || !items.length) break;
+  }
+
+  // Then the files, a few at a time.
+  for (let at = 0; at < links.length; at += MP4_PARALLEL) {
+    await Promise.all(
+      links.slice(at, at + MP4_PARALLEL).map(async ([code, url]) => {
+        // Two tries: Meta's CDN drops the odd request, and one miss would
+        // leave a blank in the download.
+        for (let attempt = 0; attempt < 2 && !found.has(code); attempt++) {
+          try {
+            const response = await fetch(url, {
+              headers: { Range: `bytes=0-${MP4_HEAD_BYTES - 1}` },
+              signal: AbortSignal.timeout(15_000),
+            });
+            if (!response.ok) continue;
+            const seconds = mp4Duration(new Uint8Array(await response.arrayBuffer()));
+            if (seconds) found.set(code, seconds);
+            else break;
+          } catch {
+            // Tried again once; after that the next attempt picks it up.
+          }
+        }
+      }),
+    );
+  }
+  return found;
+}
+
+/**
+ * Fills in the length of the owner's stored videos that have none (27 Nov
+ * 2026), for the Posts tab's CSV. The scrapers return a length only for the
+ * dozen newest posts, so older Reels get theirs from Instagram's own files.
+ * Each Reel is measured once; stored lengths are never re-read.
+ */
+export async function backfillDurations(handle: string): Promise<number> {
+  const { readPosts, saveDuration } = await import("../store");
+  const missing = new Map(
+    (await readPosts("instagram", handle, 400))
+      .filter(
+        (post) => (post.format === "reel" || post.format === "video") && !post.durationSeconds,
+      )
+      .map((post) => [shortcodeOf(post.url) ?? "", post] as const)
+      .filter(([code]) => code),
+  );
+  if (!missing.size) return 0;
+  const measured = await measureDurations(new Set(missing.keys()));
+  let filled = 0;
+  for (const [code, seconds] of measured) {
+    // False before migration 0043: nothing can be stored yet.
+    if (!(await saveDuration("instagram", missing.get(code)!.postId, seconds))) break;
+    filled += 1;
+  }
+  return filled;
+}
