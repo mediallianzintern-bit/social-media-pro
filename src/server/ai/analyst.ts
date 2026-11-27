@@ -8,6 +8,7 @@
 // This is what makes the output usable. A model asked to "analyse this account"
 // will happily produce plausible engagement rates that are simply wrong, and a
 // wrong number in a client dashboard is worse than no number.
+import { titleOffStory } from "@/lib/story-match";
 import { completeJson } from "./client";
 import { addCosts, reviewDrafts } from "./review";
 import { voiceFor } from "./voice";
@@ -654,7 +655,11 @@ function sourceRules(hasSources: boolean): string {
   in. A bracket is honest; a detail invented and then spoken on camera is a public correction
   waiting to happen.
 - source.subject names what the headline is about; source.origin is the publisher as given.
-  Never write a URL anywhere — the link is attached from the stored source, not from you.`;
+  Never write a URL anywhere — the link is attached from the stored source, not from you.
+- title, angle, whyNow and source.subject are about the SAME story as the hook and the script:
+  the chosen source's own subject. The example reels in the voice brief (Disney and the rest)
+  show tone and structure only; never take a brand, campaign or subject from them. A script on
+  an AI story titled after a brand campaign is discarded.`;
 }
 
 /** What the finished deliverable must contain — a shot list, or a publishable post. */
@@ -1586,6 +1591,26 @@ export function finalizeIdeas(
     );
     if (reason) {
       dropped.push(`"${idea.title}" — ${reason}`);
+      continue;
+    }
+    // The title, angle and subject must be about the story the script was
+    // written on (27 Nov 2026): the model has titled a script on an AI story
+    // after a brand from the brief's examples. Discarded, so "Write script"
+    // writes it once more with this reason.
+    if (
+      fetched &&
+      titleOffStory({ title: idea.title, subject: raw.source.subject }, [
+        fetched.title,
+        fetched.research ? JSON.stringify(fetched.research) : "",
+        idea.hook,
+        idea.caption,
+        raw.post ? JSON.stringify(raw.post) : "",
+        ...(idea.shots ?? []).map((shot) => `${shot.voiceover} ${shot.onScreenText}`),
+      ])
+    ) {
+      dropped.push(
+        `"${idea.title}" — the title, angle and subject describe a different story from the one the script is written on ("${fetched.title}"); write all of them about that story`,
+      );
       continue;
     }
     const workflowIssues = toolWorkflowIssues(options.platform, idea);
