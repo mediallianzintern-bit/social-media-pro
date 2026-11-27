@@ -462,3 +462,34 @@ export async function readLinkedInPeriod(period: LinkedInPeriod): Promise<Linked
   }
   return result;
 }
+
+/** One stored LinkedIn day for the monthly report (26 Nov 2026). */
+export interface LinkedInDayRow {
+  /** YYYY-MM-DD, LinkedIn's (UTC) day. */
+  day: string;
+  impressions: number;
+  /** Reactions, comments, reposts, saves and sends. */
+  engagements: number;
+  /** Null before 0029 or its first read. */
+  newFollowers: number | null;
+}
+
+/** Every stored day, oldest first. Free: stored rows only, nothing asked of LinkedIn. */
+export async function readLinkedInDays(): Promise<LinkedInDayRow[]> {
+  if (!hasDurableStore()) return [];
+  const { data, error } = await db()
+    .from("linkedin_member_daily")
+    .select("*")
+    .order("day", { ascending: true });
+  if (error) return [];
+  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => {
+    const value = (field: string) => Number(row[field] ?? 0);
+    return {
+      day: String(row["day"]),
+      impressions: value("impressions"),
+      engagements:
+        value("reactions") + value("comments") + value("reposts") + value("saves") + value("sends"),
+      newFollowers: row["new_followers"] == null ? null : Number(row["new_followers"]),
+    };
+  });
+}

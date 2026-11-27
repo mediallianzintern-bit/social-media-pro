@@ -19,6 +19,7 @@ export const TRACKING_PATHS: ReadonlySet<string> = new Set([
   "/linkedin",
   "/settings",
   "/report",
+  "/technical-report",
   "/lane-report",
 ]);
 

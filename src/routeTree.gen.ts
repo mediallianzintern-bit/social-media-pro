@@ -17,6 +17,7 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ReportRouteImport } from './routes/report'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as TechnicalReportRouteImport } from './routes/technical-report'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppFilmedRouteImport } from './routes/_app/filmed'
 import { Route as AppIdeasRouteImport } from './routes/_app/ideas'
@@ -67,6 +68,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TechnicalReportRoute = TechnicalReportRouteImport.update({
+  id: '/technical-report',
+  path: '/technical-report',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -139,6 +145,7 @@ export interface FileRoutesByFullPath {
   '/report': typeof ReportRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
+  '/technical-report': typeof TechnicalReportRoute
   '/filmed': typeof AppFilmedRoute
   '/ideas': typeof AppIdeasRoute
   '/instagram': typeof AppInstagramRoute
@@ -159,6 +166,7 @@ export interface FileRoutesByTo {
   '/report': typeof ReportRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
+  '/technical-report': typeof TechnicalReportRoute
   '/filmed': typeof AppFilmedRoute
   '/ideas': typeof AppIdeasRoute
   '/instagram': typeof AppInstagramRoute
@@ -182,6 +190,7 @@ export interface FileRoutesById {
   '/report': typeof ReportRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
+  '/technical-report': typeof TechnicalReportRoute
   '/_app/filmed': typeof AppFilmedRoute
   '/_app/ideas': typeof AppIdeasRoute
   '/_app/instagram': typeof AppInstagramRoute
@@ -206,6 +215,7 @@ export interface FileRouteTypes {
     | '/report'
     | '/reset-password'
     | '/signup'
+    | '/technical-report'
     | '/filmed'
     | '/ideas'
     | '/instagram'
@@ -226,6 +236,7 @@ export interface FileRouteTypes {
     | '/report'
     | '/reset-password'
     | '/signup'
+    | '/technical-report'
     | '/filmed'
     | '/ideas'
     | '/instagram'
@@ -248,6 +259,7 @@ export interface FileRouteTypes {
     | '/report'
     | '/reset-password'
     | '/signup'
+    | '/technical-report'
     | '/_app/filmed'
     | '/_app/ideas'
     | '/_app/instagram'
@@ -271,6 +283,7 @@ export interface RootRouteChildren {
   ReportRoute: typeof ReportRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
+  TechnicalReportRoute: typeof TechnicalReportRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -329,6 +342,13 @@ declare module '@tanstack/react-router' {
       path: '/signup'
       fullPath: '/signup'
       preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/technical-report': {
+      id: '/technical-report'
+      path: '/technical-report'
+      fullPath: '/technical-report'
+      preLoaderRoute: typeof TechnicalReportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/': {
@@ -459,6 +479,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReportRoute: ReportRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
+  TechnicalReportRoute: TechnicalReportRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

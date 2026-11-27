@@ -652,9 +652,17 @@ export function reachEngagementRate(allPosts: PostRecord[]): number | null {
   if (!measured.length) return null;
   const reach = measured.reduce((sum, post) => sum + (post.insight?.reach ?? 0), 0);
   if (reach <= 0) return null;
+  // Likes, comments, saves and shares, each once (27 Nov 2026). This added
+  // Graph's shares on top of engagementsOf, which already holds them (the
+  // sync copies Graph's shares onto the post), so every share counted twice:
+  // October 2026 read 3.34% where its posts' actions over reach are 3.13%.
   const engagements = measured.reduce(
     (sum, post) =>
-      sum + engagementsOf(post) + (post.insight?.saved ?? 0) + (post.insight?.shares ?? 0),
+      sum +
+      post.likes +
+      post.comments +
+      (post.insight?.saved ?? 0) +
+      (post.insight?.shares ?? post.shares),
     0,
   );
   return engagements / reach;

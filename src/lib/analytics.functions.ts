@@ -232,11 +232,16 @@ export const getReelDurations = createServerFn({ method: "POST" })
  */
 export const getReport = createServerFn({ method: "GET" })
   // Runs as the client chosen in the switcher (Studio Phase 5).
-  .middleware([clientScope])
+  .middleware([requireStaff, clientScope])
   .validator((input: unknown) =>
     z
       .object({
-        period: z.enum(["30d", "90d", "all", "custom"]).catch("30d"),
+        period: z.enum(["30d", "90d", "all", "month", "custom"]).catch("30d"),
+        month: z
+          .string()
+          .regex(/^\d{4}-\d{2}$/)
+          .optional()
+          .catch(undefined),
         from: z
           .string()
           .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -250,20 +255,33 @@ export const getReport = createServerFn({ method: "GET" })
       })
       .parse(input),
   )
-  .handler(async ({ data }): Promise<ClientReport> => {
-    const { loadReport } = await import("@/server/report");
-    return loadReport(data);
+  .handler(async ({ data, context }): Promise<ClientReport> => {
+    const [{ loadReport, forViewer }, { accessFor }] = await Promise.all([
+      import("@/server/report"),
+      import("@/server/workspace"),
+    ]);
+    // The Technical performance report is the admins' (27 Nov 2026): anyone
+    // else gets the Performance report's figures only, read from their session.
+    const access = await accessFor(context.staffEmail);
+    return forViewer(await loadReport(data), access.canManageTeam);
   });
 
 /** One cache entry per period, so switching back and forth is instant. */
 export const reportQueryOptions = (range: ReportRange = { period: "30d" }) => ({
-  queryKey: ["report", range.period, range.from ?? null, range.to ?? null] as const,
+  queryKey: [
+    "report",
+    range.period,
+    range.from ?? null,
+    range.to ?? null,
+    range.month ?? null,
+  ] as const,
   queryFn: () =>
     getReport({
       data: {
         period: range.period,
         ...(range.from ? { from: range.from } : {}),
         ...(range.to ? { to: range.to } : {}),
+        ...(range.month ? { month: range.month } : {}),
       },
     }),
   staleTime: 5 * 60 * 1000,
